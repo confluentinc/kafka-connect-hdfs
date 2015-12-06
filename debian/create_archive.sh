@@ -25,5 +25,9 @@ mkdir -p ${DESTDIR}${SYSCONFDIR}
 
 PREPACKAGED="target/kafka-connect-hdfs-${VERSION}-package"
 pushd ${PREPACKAGED}
+find bin/ -type f | grep -v README[.]rpm | xargs -I XXX ${INSTALL_X} -o root -g root XXX ${DESTDIR}${PREFIX}/XXX
 find share/ -type f | grep -v README[.]rpm | xargs -I XXX ${INSTALL} -o root -g root XXX ${DESTDIR}${PREFIX}/XXX
+pushd etc/kafka-connect-hdfs/
+find . -type f | grep -v README[.]rpm | xargs -I XXX ${INSTALL} -o root -g root XXX ${DESTDIR}${SYSCONFDIR}/XXX
+popd
 popd
