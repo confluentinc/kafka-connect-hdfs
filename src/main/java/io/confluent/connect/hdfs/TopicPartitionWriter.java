@@ -70,6 +70,7 @@ public class TopicPartitionWriter {
   private int flushSize;
   private long rotateIntervalMs;
   private long lastRotate;
+  private int startIntervalTmpFilems = 0; //checkpoint ms time for tmp file
   private RecordWriterProvider writerProvider;
   private Configuration conf;
   private AvroData avroData;
@@ -229,6 +230,7 @@ public class TopicPartitionWriter {
         return;
       }
     }
+    log.info("Messages on buffer: " + buffer.size());
     while(!buffer.isEmpty()) {
       try {
         switch (state) {
@@ -257,12 +259,17 @@ public class TopicPartitionWriter {
               if (recordCounter > 0) {
                 nextState();
               } else {
+                startIntervalTmpFilems = 0;
                 break;
               }
             } else {
               SinkRecord projectedRecord = SchemaUtils.project(record, currentSchema, compatibility);
               writeRecord(projectedRecord);
               buffer.poll();
+
+              startIntervalTmpFilems = (int) System.currentTimeMillis();
+              //every time a record was write a new checkpoint is done
+
               if (shouldRotate(now)) {
                 log.info("Starting commit and rotation for topic partition {} with start offsets {}"
                          + " and end offsets {}", tp, startOffsets, offsets);
@@ -273,7 +280,8 @@ public class TopicPartitionWriter {
               }
             }
           case SHOULD_ROTATE:
-            lastRotate = System.currentTimeMillis();
+            startIntervalTmpFilems = 0;
+            //lastRotate = System.currentTimeMillis();
             closeTempFile();
             nextState();
           case TEMP_FILE_CLOSED:
@@ -297,6 +305,22 @@ public class TopicPartitionWriter {
         break;
       }
     }
+
+    if (startIntervalTmpFilems != 0) { //if the (checkpoint + rotateIntervalms) was exceed the tmp file was closed anyway
+      //log.info(recordCounter + "-" + flushSize + " --- " + ((int) now) + "-" + (startIntervalTmpFilems + rotateIntervalMs));
+      if ( (int) now >= startIntervalTmpFilems + rotateIntervalMs ) {
+        try {
+          closeTempFile();
+          appendToWAL();
+          commitFile();
+          startIntervalTmpFilems = 0;
+        } catch (IOException e) {
+          log.error(e.getCause().toString());
+          e.printStackTrace();
+        }
+      }
+    }
+
     if (buffer.isEmpty()) {
       resume();
       state = State.WRITE_STARTED;
@@ -379,7 +403,8 @@ public class TopicPartitionWriter {
     } else if (rotateIntervalMs <= 0) {
       return false;
     } else {
-      return now - lastRotate >= rotateIntervalMs;
+      //return now - lastRotate >= rotateIntervalMs;
+      return false;
     }
   }
 
