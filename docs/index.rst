@@ -8,14 +8,14 @@ and integrates with Hive to make data immediately available for querying with Hi
 
 The connector periodically polls data from Kafka and writes them to HDFS. The data from each Kafka
 topic is partitioned by the provided partitioner and divided into chucks. Each chunk of data is
-represented as an HDFS file with topic, kafka partition, start and end offset of this data chuck
+represented as an HDFS file with topic, kafka partition, start and end offsets of this data chuck
 in the filename. If no partitioner is specified in the configuration, the default partitioner which
 preserves the Kafka partitioning will be used. The size of each data chunk is determined by the
-number of records written to HDFS and the time written to HDFS.
+number of records written to HDFS, the time written to HDFS and schema compatibility.
 
 The HDFS connector integrates with Hive and when it is enabled, the connector automatically creates
-an external Hive partitioned table for each Kafka topic and updates the table according to the data
-available in HDFS.
+an external Hive partitioned table for each Kafka topic and updates the table according to the
+available data in HDFS.
 
 Quickstart
 ----------
@@ -24,9 +24,13 @@ to HDFS.
 
 Start Zookeeper, Kafka and SchemaRegistry is you haven't done so. The instructions on how to start
 these services is available at the Confluent Platform QuickStart. You also need to have Hadoop
-running locally or remotely and makes sure that you know the HDFS url. For Hive integration, you
-need to have Hive installed. This Quickstart assumes that you started the required services with
-the default config and you should make necessary changes according to the actual configurations used.
+running locally or remotely and make sure that you know the HDFS url. For Hive integration, you
+need to have Hive installed and to know the metastore thrift uri.
+
+This Quickstart assumes that you started the required services with the default config and you
+should make necessary changes according to the actual configurations used. Also, this Quickstart
+assumes that security is not configured for HDFS and Hive metastore, please make the corresponding
+configuration changes following `Secure HDFS and Hive Metastore`_ section.
 
 First, start the Avro console producer::
 
@@ -41,7 +45,11 @@ Then in the console producer, type in::
 
 The three records entered will be published to the Kafka topic ``test_hdfs`` in Avro format.
 
-Then run the following command to start Kafka connect with the HDFS connector::
+Before starting the connector, please make sure that the configurations in
+``etc/kafka-connect-hdfs/quickstart-hdfs.properties`` is property set to your configuration of
+Hadoop, e.g. ``hdfs.url`` points to the proper HDFS. Then run the following command to start Kafka
+connect with the HDFS connector::
+
 
   $ ./bin/connect-standalone etc/schema-registry/connect-avro-standalone.properties \
   etc/kafka-connect-hdfs/quickstart-hdfs.properties
@@ -74,15 +82,16 @@ You should see the following output::
    ``etc/kafka-connect-hdfs/quickstart-hdfs.properties``::
 
       hive.integration=true
-      hive.metastore.uris=uri to your hive metastore
+      hive.metastore.uris=thrift uri to your Hive metastore
       schema.compatibility=BACKWARD
+
    After the connector finishes ingesting data to HDFS, you can use Hive to check the data::
 
       $hive>SELECT * FROM test_hdfs;
 
-   Note that if you leave ``hive.metastore.uris`` empty, an embedded Hive metastore will be created
-   in the directory the connector is started. You need to start Hive in that specific directory
-   in order to query the data.
+.. note:: If you leave the ``hive.metastore.uris`` empty, an embedded Hive metastore will be
+   created in the directory the connector is started. You need to start Hive in that specific
+   directory in order to query the data.
 
 Features
 --------
@@ -100,12 +109,11 @@ The HDFS connector offers a bunch of features as follows:
   enabled, the connector automatically creates a Hive external partitioned table for each topic
   exported to HDFS.
 
-* **Schema Evolution**: The connector supports schema evolution and different schema compatibility.
-  When the connector observes a schema change, it will project to the proper schema according to the
-  schema compatibility configuration specified in the connector config. In case of schema
-  compatibility is specified ``BACKWARD``, ``FORWARD`` and ``FULL``, Hive integration is also
-  supported. The Hive table contains the proper table schema that can be used to query the
-  data of the topic ingested with different schema.
+* **Schema Evolution**: The connector supports schema evolution and different schema compatibility
+  rules. When the connector observes a schema change, it will project to the proper schema according
+  to the ``schema.compatibility`` configuration. Hive integration is supported if ``BACKWARD``,
+  ``FORWARD`` and ``FULL`` is specified for ``schema.compatibility`` and the Hive table have the
+  proper table schema to query the whole data under a topic written with different schemas.
 
 * **Secure HDFS and Hive Metastore**: The connector supports Kerberos authentication and thus
   works with secure HDFS and Hive metastore.
@@ -133,20 +141,21 @@ Here is the content of ``etc/kafka-connect-hdfs/quickstart-hdfs.properties``::
 
 The first few settings are common settings you'll specify for all connectors. The ``topics``
 specifies the topics we want to export data from, in this case ``test_hdfs``. The ``hdfs.url``
-specifies the HDFS we are writing to and you should set this according to your configuration. The
-``flush.size`` specifies the number of records we write before we commit the file to HDFS.
+specifies the HDFS we are writing data to and you should set this according to your configuration.
+The ``flush.size`` specifies the number of records the connector need to write before invoking file
+commits.
 
 Format and Partitioner
 ~~~~~~~~~~~~~~~~~~~~~~
-You need to specify the following configurations to write other format to HDFS or use other
-partitioners: ``format.class`` and ``partitioner.class``. The following configuration file
-shows that if you want to write Parquet and use hourly partitioner::
+You need to specify the ``format.class`` and ``partitioner.class`` if you want to write other
+formats to HDFS or use other partitioners. The following example configurations demonstrates how to
+write Parquet format and use hourly partitioner::
 
   format.class=io.confluent.connect.hdfs.parquet.ParquetFormat
   partitioner.class=io.confluent.connect.hdfs.partitioner.HourlyPartitioner
 
-If you want ot use the field partitioner, you need to specify the ``partition.field.name`` configuration as
-well to specify the field name of the record.
+.. note:: If you want ot use the field partitioner, you need to specify the ``partition.field.name``
+   configuration as well to specify the field name of the record.
 
 Hive Integration
 ~~~~~~~~~~~~~~~~
@@ -154,70 +163,84 @@ At minimum, you need to specify ``hive.integration``, ``hive.metastore.uris`` an
 ``schema.compatibility`` when integrating Hive. Here is an example configuration::
 
   hive.integration=true
-  hive.metastore.uris=thrift://localhost:9083
+  hive.metastore.uris=thrift://localhost:9083 # FQDN or IP address for the host part
   schema.compatibility=BACKWARD
 
-You should adjust the ``hive.metastore.uris`` according to your Hive configurations. If you don't
-specify the ``hive.metastore.uris``, the connector will use a local metastore with Derby in the
-directory running the connector. You need to run hive in this directory in order to see the
-Hive metadata change. Also, to support schema evolution, we need to specify the
-``schema.compatibility`` to be ``BACKWARD``, ``FORWARD`` and ``FULL``. This ensures that Hive can
-query the data ingested with different schemas using the latest Hive table schema. Please find
-more information on schema compatibility in the `Schema Evolution`_ section.
+You should adjust the ``hive.metastore.uris`` according to your Hive configurations.
+
+.. note:: You need to use FQDN or IP address in the host part of ``hive.metastore.uris``.
+.. note:: If you don't specify the ``hive.metastore.uris``, the connector will use a local metastore
+   with Derby in the directory running the connector. You need to run Hive in this directory
+   in order to see the Hive metadata change.
+
+Also, to support schema evolution, the ``schema.compatibility`` to be ``BACKWARD``, ``FORWARD`` and
+``FULL``. This ensures that Hive can query the data written to HDFS with different schemas using the
+latest Hive table schema. Please find more information on schema compatibility in the
+`Schema Evolution`_ section.
 
 Secure HDFS and Hive Metastore
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To work with secure HDFS and Hive metastore, you need to specify the following configurations:
-``hdfs.authentication.kerberos``, ``connect.hdfs.principal``, ``connect.keytab``,
-``hdfs.namenode.principal`` in the connector config::
+To work with secure HDFS and Hive metastore, you need to specify ``hdfs.authentication.kerberos``,
+``connect.hdfs.principal``, ``connect.keytab``, ``hdfs.namenode.principal``::
 
   hdfs.authentication.kerberos=true
   connect.hdfs.principal=connect-hdfs/_HOST@YOUR-REALM.COM
-  connect.hdfs.keytab=path to the key tab
+  connect.hdfs.keytab=path to the connector keytab
   hdfs.namenode.principal=namenode principal
 
-You need to create the Kafka connect principals and keytab files via Kerboros. Also you need
-to distribute the keytab file to all nodes that running the connector and ensures that only the
-connector user has read access to the keytab file. Also, you need to make sure the connector user
-have write access to the directories specified in ``topics.dir`` and ``logs.dir``.
+You need to create the Kafka connect principals and keytab files via Kerboros and distribute the
+keytab file to all hosts that running the connector and ensures that only the connector user
+has read access to the keytab file.
 
 .. note:: Currently, the connector requires that the principal and the keytab path to be the same
-   on all the hosts running the connector.
+   on all the hosts running the connector. The host part of the ``hdfs.namenode.prinicipal`` needs
+   to be the actual FQDN of the Namenode host instead of the ``_HOST`` placeholder.
 
-.. _schema_evolution:
+.. note:: You need to make sure the connector user have write access to the directories
+   specified in ``topics.dir`` and ``logs.dir``. The default value of ``topics.dir`` is
+   ``/topics`` and the default value of ``logs.dir`` is ``/logs``, if you don't specify the two
+   configurations, make sure that the connector user has write access to ``/topics`` and ``/logs``.
+   You may need to create ``/topics`` and ``/logs`` before running the connector as the connector
+   usually don't have write access to ``/``.
+
 Schema Evolution
 ----------------
-The HDFS connector supports schema evolution and will take actions when observing schema changes
-according to the ``schema.compatibility`` configuration. In this section, we will explain how the
+The HDFS connector supports schema evolution and reacts to schema changes of data according to the
+``schema.compatibility`` configuration. In this section, we will explain how the
 connector reacts to schema evolution under different values of ``schema.compatibility``. The
 ``schema.compatibility`` can be set to ``NONE``, ``BACKWARD``, ``FORWARD`` and ``FULL``, which means
-NO compatibility, BACKWARD compatibility, FORWARD compatibility and FULL compatibility.
+NO compatibility, BACKWARD compatibility, FORWARD compatibility and FULL compatibility respectively.
 
-* **NO Compatibility**: By default, this configuration is set to ``NONE``. in this case, the
-  connector only ensures that each file written to HDFS has the proper schema. When the connector
-  observes a schema change, it will commit the current files for the affected topic partitions and
-  writing the new record with its schema.
+* **NO Compatibility**: By default, the ``schema.compatibility`` is set to ``NONE``. In this case,
+  the connector ensures that each file written to HDFS has the proper schema. When the connector
+  observes a schema change in data, it commits the current set of files for the affected topic
+  partitions and writes the data with new schema in new files.
 
 * **BACKWARD Compatibility**: If a schema is evolved in a backward compatible way, we can always
   use the latest schema to query all the data uniformly. For example, removing fields is backward
   compatible change to a schema, since when we encounter records written with the old schema that
   contain these fields we can just ignore them. Adding a field with a default value is also backward
-  compatible, When a record arrives, we check the version of the schema of the record. if
-  ``BACKWARD`` is specified in the configuration, the connector keeps track of the latest schema
-  used in writing data to HDFS, and if the connector observes a record with a schema version larger
-  than current latest schema, the connector will commit the files with the newer schema. For records
-  arriving at a later time with an earlier schema version, the connector project the record to the
-  latest schema before writing to HDFS.
+  compatible.
+
+  If ``BACKWARD`` is specified in the ``schema.compatibility``, the connector keeps track
+  of the latest schema used in writing data to HDFS, and if a data record with a schema version
+  larger than current latest schema arrives, the connector commits the current set of files
+  and writes the data record with new schema to new files. For data records arriving at a later time
+  with schema of an earlier version, the connector projects the data record to the latest schema
+  before writing to the same set of files in HDFS.
 
 * **FORWARD Compatibility**: If a schema is evolved in a forward compatible way, we can always
   use the oldest schema to query all the data uniformly. Removing a field that had a default value
   is forward compatible, since the old schema will use the default value when the field is missing.
-  If ``FORWARD`` is specified in the configuration, the connector will project the data to
-  the oldest schema before writing to HDFS.
+
+  If ``FORWARD`` is specified in the ``schema.compatibility``, the connector projects the data to
+  the oldest schema before writing to the same set of files in HDFS.
 
 * **Full Compatibility**: Full compatibility means that old data can be read with the new schema
-  and new data can also be read with the old schema. If ``FULL`` is specified in the configuration,
-  the connector performs the same action as ``BACKWARD``.
+  and new data can also be read with the old schema.
+
+  If ``FULL`` is specified in the
+  ``schema.compatibility``, the connector performs the same action as ``BACKWARD``.
 
 If Hive integration is enabled, we need to specify the ``schema.compatibility`` to be ``BACKWARD``,
 ``FORWARD`` or ``FULL``. This ensures that the Hive table schema is able to query all the data under
