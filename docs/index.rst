@@ -28,9 +28,18 @@ running locally or remotely and make sure that you know the HDFS url. For Hive i
 need to have Hive installed and to know the metastore thrift uri.
 
 This Quickstart assumes that you started the required services with the default config and you
-should make necessary changes according to the actual configurations used. Also, this Quickstart
-assumes that security is not configured for HDFS and Hive metastore, please make the corresponding
-configuration changes following `Secure HDFS and Hive Metastore`_ section.
+should make necessary changes according to the actual configurations used.
+
+.. note:: You need to make sure the connector user have write access to the directories
+   specified in ``topics.dir`` and ``logs.dir``. The default value of ``topics.dir`` is
+   ``/topics`` and the default value of ``logs.dir`` is ``/logs``, if you don't specify the two
+   configurations, make sure that the connector user has write access to ``/topics`` and ``/logs``.
+   You may need to create ``/topics`` and ``/logs`` before running the connector as the connector
+   usually don't have write access to ``/``.
+
+Also, this Quickstart assumes that security is not configured for HDFS and Hive metastore,
+please make the corresponding configuration changes following `Secure HDFS and Hive Metastore`_
+section.
 
 First, start the Avro console producer::
 
@@ -47,8 +56,8 @@ The three records entered will be published to the Kafka topic ``test_hdfs`` in 
 
 Before starting the connector, please make sure that the configurations in
 ``etc/kafka-connect-hdfs/quickstart-hdfs.properties`` is property set to your configuration of
-Hadoop, e.g. ``hdfs.url`` points to the proper HDFS. Then run the following command to start Kafka
-connect with the HDFS connector::
+Hadoop, e.g. ``hdfs.url`` points to the proper HDFS and using FQDN in the host. Then run the
+following command to start Kafka connect with the HDFS connector::
 
 
   $ ./bin/connect-standalone etc/schema-registry/connect-avro-standalone.properties \
@@ -163,12 +172,11 @@ At minimum, you need to specify ``hive.integration``, ``hive.metastore.uris`` an
 ``schema.compatibility`` when integrating Hive. Here is an example configuration::
 
   hive.integration=true
-  hive.metastore.uris=thrift://localhost:9083 # FQDN or IP address for the host part
+  hive.metastore.uris=thrift://localhost:9083 # FQDN for the host part
   schema.compatibility=BACKWARD
 
 You should adjust the ``hive.metastore.uris`` according to your Hive configurations.
 
-.. note:: You need to use FQDN or IP address in the host part of ``hive.metastore.uris``.
 .. note:: If you don't specify the ``hive.metastore.uris``, the connector will use a local metastore
    with Derby in the directory running the connector. You need to run Hive in this directory
    in order to see the Hive metadata change.
@@ -192,16 +200,11 @@ You need to create the Kafka connect principals and keytab files via Kerboros an
 keytab file to all hosts that running the connector and ensures that only the connector user
 has read access to the keytab file.
 
+.. note:: When security is enabled, you need to use FQDN for the host part of
+   ``hdfs.url`` and``hive.metastore.uris``.
 .. note:: Currently, the connector requires that the principal and the keytab path to be the same
    on all the hosts running the connector. The host part of the ``hdfs.namenode.prinicipal`` needs
    to be the actual FQDN of the Namenode host instead of the ``_HOST`` placeholder.
-
-.. note:: You need to make sure the connector user have write access to the directories
-   specified in ``topics.dir`` and ``logs.dir``. The default value of ``topics.dir`` is
-   ``/topics`` and the default value of ``logs.dir`` is ``/logs``, if you don't specify the two
-   configurations, make sure that the connector user has write access to ``/topics`` and ``/logs``.
-   You may need to create ``/topics`` and ``/logs`` before running the connector as the connector
-   usually don't have write access to ``/``.
 
 Schema Evolution
 ----------------
@@ -239,12 +242,16 @@ NO compatibility, BACKWARD compatibility, FORWARD compatibility and FULL compati
 * **Full Compatibility**: Full compatibility means that old data can be read with the new schema
   and new data can also be read with the old schema.
 
-  If ``FULL`` is specified in the
-  ``schema.compatibility``, the connector performs the same action as ``BACKWARD``.
+  If ``FULL`` is specified in the ``schema.compatibility``, the connector performs the same action
+  as ``BACKWARD``.
 
 If Hive integration is enabled, we need to specify the ``schema.compatibility`` to be ``BACKWARD``,
 ``FORWARD`` or ``FULL``. This ensures that the Hive table schema is able to query all the data under
-a topic written with different schemas.
+a topic written with different schemas. If the ``schema.compatibility`` is set to ``BACKWARD`` or
+``FULL``, the Hive table schema for a topic will be equivalent to the latest schema in the HDFS files
+under that topic that can query the whole data of that topic. If the ``schema.compatibility`` is
+set to ``FORWARD``, the Hive table schema of a topic is equivalent to the oldest schema of the HFDS
+files under that topic that can query the whole data of that topic.
 
 Configuration Options
 ~~~~~~~~~~~~~~~~~~~~~
