@@ -70,7 +70,6 @@ public class TopicPartitionWriter {
   private int flushSize;
   private long rotateIntervalMs;
   private long lastRotate;
-  private int startIntervalTmpFilems = 0; //checkpoint ms time for tmp file
   private RecordWriterProvider writerProvider;
   private Configuration conf;
   private AvroData avroData;
@@ -86,6 +85,7 @@ public class TopicPartitionWriter {
   private HdfsSinkConnectorConfig connectorConfig;
   private String extension;
   private final String zeroPadOffsetFormat;
+  private boolean tmpOpened = false;
 
   private final boolean hiveIntegration;
   private String hiveDatabase;
@@ -231,57 +231,75 @@ public class TopicPartitionWriter {
       }
     }
     log.info("Messages on buffer: " + buffer.size());
-    while(!buffer.isEmpty()) {
+    buffer : while(!buffer.isEmpty() || tmpOpened) { //if a tmp file is opened enter anyway to check shouldRotate()
       try {
         switch (state) {
           case WRITE_STARTED:
             pause();
             nextState();
           case WRITE_PARTITION_PAUSED:
-            if (currentSchema == null) {
-              if (compatibility != Compatibility.NONE && offset != -1) {
-                String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
-                CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
-                FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
-                if (fileStatusWithMaxOffset != null) {
-                  currentSchema = schemaFileReader.getSchema(conf, fileStatusWithMaxOffset.getPath());
+            if (!buffer.isEmpty()) { //don't do stuff on buffer if it is empty but tmpOpen = true
+
+              if (currentSchema == null) {
+                if (compatibility != Compatibility.NONE && offset != -1) {
+                  String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
+                  CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
+                  FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
+                  if (fileStatusWithMaxOffset != null) {
+                    currentSchema = schemaFileReader.getSchema(conf, fileStatusWithMaxOffset.getPath());
+                  }
                 }
               }
-            }
-            SinkRecord record = buffer.peek();
-            Schema valueSchema = record.valueSchema();
-            if (SchemaUtils.shouldChangeSchema(valueSchema, currentSchema, compatibility)) {
-              currentSchema = valueSchema;
-              if (hiveIntegration) {
-                createHiveTable();
-                alterHiveSchema();
-              }
-              if (recordCounter > 0) {
-                nextState();
+              SinkRecord record = buffer.peek();
+              Schema valueSchema = record.valueSchema();
+              if (SchemaUtils.shouldChangeSchema(valueSchema, currentSchema, compatibility)) {
+                currentSchema = valueSchema;
+                if (hiveIntegration) {
+                  createHiveTable();
+                  alterHiveSchema();
+                }
+                if (recordCounter > 0) {
+                  nextState();
+                } else {
+                  break;
+                }
               } else {
-                startIntervalTmpFilems = 0;
-                break;
+                SinkRecord projectedRecord = SchemaUtils.project(record, currentSchema, compatibility);
+                writeRecord(projectedRecord);
+                buffer.poll();
+
+                if (shouldRotate(System.currentTimeMillis())) {
+                  log.info("Starting commit and rotation for topic partition {} with start offsets {}"
+                          + " and end offsets {}", tp, startOffsets, offsets);
+                  nextState();
+                  // Fall through and try to rotate immediately
+                } else {
+                  tmpOpened = true; //indicate that now exist a tmp file opened
+                  log.info("state buffer true tmpOpened: " + tmpOpened);
+                  break;
+                }
+
               }
-            } else {
-              SinkRecord projectedRecord = SchemaUtils.project(record, currentSchema, compatibility);
-              writeRecord(projectedRecord);
-              buffer.poll();
 
-              startIntervalTmpFilems = (int) System.currentTimeMillis();
-              //every time a record was write a new checkpoint is done
+            }
+            else { //call shouldRotate to check if is necessary to close tmp file still opened after some inactive time
 
-              if (shouldRotate(now)) {
+              if (shouldRotate(System.currentTimeMillis())) {
                 log.info("Starting commit and rotation for topic partition {} with start offsets {}"
-                         + " and end offsets {}", tp, startOffsets, offsets);
+                        + " and end offsets {}", tp, startOffsets, offsets);
                 nextState();
                 // Fall through and try to rotate immediately
               } else {
-                break;
+                tmpOpened = true; //indicate that now exist a tmp file opened
+                log.info("state buffer else tmpOpened: " + tmpOpened);
+                resume(); //break while() and check also if in the meantime new messages arrived
+                state = State.WRITE_STARTED;
+                break buffer;
               }
+
             }
           case SHOULD_ROTATE:
-            startIntervalTmpFilems = 0;
-            //lastRotate = System.currentTimeMillis();
+            lastRotate = System.currentTimeMillis();
             closeTempFile();
             nextState();
           case TEMP_FILE_CLOSED:
@@ -292,10 +310,12 @@ public class TopicPartitionWriter {
             nextState();
           case FILE_COMMITTED:
             setState(State.WRITE_PARTITION_PAUSED);
+            tmpOpened = false; //now the tmp file is closed
             break;
           default:
             log.error("{} is not a valid state to write record for topic partition {}.", state, tp);
         }
+
       } catch (SchemaProjectorException | IllegalWorkerStateException | HiveMetaStoreException e ) {
         throw new RuntimeException(e);
       } catch (IOException | ConnectException e) {
@@ -306,22 +326,7 @@ public class TopicPartitionWriter {
       }
     }
 
-    if (startIntervalTmpFilems != 0) { //if the (checkpoint + rotateIntervalms) was exceed the tmp file was closed anyway
-      //log.info(recordCounter + "-" + flushSize + " --- " + ((int) now) + "-" + (startIntervalTmpFilems + rotateIntervalMs));
-      if ( (int) now >= startIntervalTmpFilems + rotateIntervalMs ) {
-        try {
-          closeTempFile();
-          appendToWAL();
-          commitFile();
-          startIntervalTmpFilems = 0;
-        } catch (IOException e) {
-          log.error(e.getCause().toString());
-          e.printStackTrace();
-        }
-      }
-    }
-
-    if (buffer.isEmpty()) {
+    if (buffer.isEmpty() && !tmpOpened) { //enter only if buffer is empty and there is not tmp file still opened
       resume();
       state = State.WRITE_STARTED;
     }
@@ -398,14 +403,21 @@ public class TopicPartitionWriter {
   }
 
   private boolean shouldRotate(long now) {
+
+    if (lastRotate == 0 || !tmpOpened) {
+      lastRotate = now; //fix for first writing (with lastRotate = 0 file rotate at first message)
+    }
+
+    log.info(recordCounter + "-" + flushSize + " --- " + (now - lastRotate) + "-" + rotateIntervalMs + " - " + tmpOpened);
+
     if (recordCounter >= flushSize) {
       return true;
     } else if (rotateIntervalMs <= 0) {
       return false;
     } else {
-      //return now - lastRotate >= rotateIntervalMs;
-      return false;
+      return now - lastRotate >= rotateIntervalMs;
     }
+
   }
 
   private void readOffset() throws ConnectException {
