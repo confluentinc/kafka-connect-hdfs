@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -574,7 +575,9 @@ public class TopicPartitionWriter {
     startOffsets.remove(encodedPartiton);
     offset = offset + recordCounter;
     recordCounter = 0;
-    log.info("Committed {} for {}", committedFile, tp);
+    throw new NotImplementedException("Bingo");
+    //System.out.printf("Committed {} for {}", committedFile, tp);
+    //log.info("Committed {} for {}", committedFile, tp);
   }
 
   private void deleteTempFile(String encodedPartiton) throws IOException {
