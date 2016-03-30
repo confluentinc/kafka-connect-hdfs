@@ -14,6 +14,9 @@
 
 package io.confluent.connect.hdfs;
 
+import kafka.javaapi.producer.Producer;
+import kafka.producer.KeyedMessage;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -95,16 +98,7 @@ public class TopicPartitionWriter {
   private Queue<Future> hiveUpdateFutures;
   private Set<String> hivePartitions;
 
-  public TopicPartitionWriter(
-      TopicPartition tp,
-      Storage storage,
-      RecordWriterProvider writerProvider,
-      Partitioner partitioner,
-      HdfsSinkConnectorConfig connectorConfig,
-      SinkTaskContext context,
-      AvroData avroData) {
-    this(tp, storage, writerProvider, partitioner, connectorConfig, context, avroData, null, null, null, null, null);
-  }
+  private Producer<String, String> writerLogProducer;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -113,12 +107,24 @@ public class TopicPartitionWriter {
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
-      AvroData avroData,
-      HiveMetaStore hiveMetaStore,
-      HiveUtil hive,
-      SchemaFileReader schemaFileReader,
-      ExecutorService executorService,
-      Queue<Future> hiveUpdateFutures) {
+      AvroData avroData) {
+    this(tp, storage, writerProvider, partitioner, connectorConfig, context, avroData, null, null, null, null, null, null);
+  }
+
+  public TopicPartitionWriter(
+          TopicPartition tp,
+          Storage storage,
+          RecordWriterProvider writerProvider,
+          Partitioner partitioner,
+          HdfsSinkConnectorConfig connectorConfig,
+          SinkTaskContext context,
+          AvroData avroData,
+          HiveMetaStore hiveMetaStore,
+          HiveUtil hive,
+          SchemaFileReader schemaFileReader,
+          ExecutorService executorService,
+          Queue<Future> hiveUpdateFutures,
+          Producer<String, String> writerLogProducer) {
     this.tp = tp;
     this.connectorConfig = connectorConfig;
     this.context = context;
@@ -129,6 +135,7 @@ public class TopicPartitionWriter {
     this.url = storage.url();
     this.conf = storage.conf();
     this.schemaFileReader = schemaFileReader;
+    this.writerLogProducer = writerLogProducer;
 
     topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
@@ -569,6 +576,17 @@ public class TopicPartitionWriter {
     String directoryName = FileUtils.directoryName(url, topicsDir, directory);
     if (!storage.exists(directoryName)) {
       storage.mkdirs(directoryName);
+    }
+    if (writerLogProducer != null) {
+      try {
+        String topic = tp.topic() + "-log";
+        String key = committedFile;
+        String value = String.valueOf(recordCounter);
+        KeyedMessage<String, String> data = new KeyedMessage<String, String>(topic, key, value);
+        writerLogProducer.send(data);
+      } catch (Exception e) {
+        throw new IOException("Writer Logging failed: " + e.toString());
+      }
     }
     storage.commit(tempFile, committedFile);
     startOffsets.remove(encodedPartiton);
