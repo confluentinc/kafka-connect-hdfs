@@ -198,11 +198,11 @@ public class DataWriter {
       writerLogging = connectorConfig.getBoolean(HdfsSinkConnectorConfig.WRITER_LOGGING_CONFIG);
       if (writerLogging) {
         Properties props = new Properties();
-        props.put("metadata.broker.list", "xray01.local0:9092,xray02.local0:9092");
+        props.put("metadata.broker.list", HdfsSinkConnectorConfig.WRITER_LOGGING_BROKERS_DEFAULT);
         props.put("serializer.class", "kafka.serializer.StringEncoder");
 
         ProducerConfig config = new ProducerConfig(props);
-        writerLogProducer = new Producer<String, String>(config);
+        writerLogProducer = new Producer(config);
       }
 
       topicPartitionWriters = new HashMap<>();
