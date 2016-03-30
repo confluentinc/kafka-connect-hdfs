@@ -190,6 +190,17 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
       "The period in milliseconds to renew the Kerberos ticket.";
   public static final long KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT = 60000 * 60;
 
+  public static final String WRITER_LOGGING_CONFIG = "hdfs.writer.logging";
+  private static final String WRITER_LOGGING_DOC =
+          "Configuration indicating whether to put file names written to HDFS to a Kafka topic";
+  public static final boolean WRITER_LOGGING_DEFAULT = true;
+
+  public static final String WRITER_LOGGING_BROKERS_CONFIG = "hdfs.writer.logging.brokers";
+  private static final String WRITER_LOGGING_BROKERS_DOC =
+          "List of kafka brokers: broker1:9092,broker2:9092";
+  public static final String WRITER_LOGGING_BROKERS_DEFAULT = "xray01.local0:9092,xray02.local0:9092";
+
+
   static ConfigDef config = new ConfigDef()
       .define(HDFS_URL_CONFIG, Type.STRING, Importance.HIGH, HDFS_URL_DOC)
       .define(HADOOP_CONF_DIR_CONFIG, Type.STRING, HADOOP_CONF_DIR_DEFAULT, Importance.HIGH,
@@ -239,7 +250,10 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
               Importance.HIGH, HDFS_NAMENODE_PRINCIPAL_DOC)
       .define(KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG, Type.LONG,
               KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT, Importance.LOW,
-              KERBEROS_TICKET_RENEW_PERIOD_MS_DOC);
+              KERBEROS_TICKET_RENEW_PERIOD_MS_DOC)
+      .define(WRITER_LOGGING_CONFIG, Type.BOOLEAN, WRITER_LOGGING_DEFAULT, Importance.LOW, WRITER_LOGGING_DOC)
+      .define(WRITER_LOGGING_BROKERS_CONFIG, Type.STRING, WRITER_LOGGING_BROKERS_DEFAULT, Importance.LOW,
+              WRITER_LOGGING_BROKERS_DOC);
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
     super(config, props);
