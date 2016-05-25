@@ -23,6 +23,7 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Schema;
 
+import java.util.Iterator;
 import java.util.List;
 
 import io.confluent.connect.avro.AvroData;
@@ -69,6 +70,21 @@ public class ParquetHiveUtil extends HiveUtil {
     }
     // convert copycat schema schema to Hive columns
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> partitionFields = partitioner.partitionFields();
+
+    //In Hive the schema and partition columns must be disjoint sets
+    Iterator<FieldSchema> columnsIter = columns.iterator();
+    for (FieldSchema partitionField : partitionFields) {
+      String partitionFieldName = partitionField.getName();
+
+      while (columnsIter.hasNext()) {
+        FieldSchema column = columnsIter.next();
+        if (column.getName().equals(partitionFieldName)) {
+          columnsIter.remove();
+        }
+      }
+    }
+    
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
     return table;
