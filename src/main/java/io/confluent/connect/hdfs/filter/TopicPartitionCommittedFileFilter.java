@@ -31,8 +31,10 @@ public class TopicPartitionCommittedFileFilter extends CommittedFileFilter {
     if (!super.accept(path)) {
       return false;
     }
+
     String filename = path.getName();
-    String[] parts = filename.split(HdfsSinkConnecorConstants.COMMMITTED_FILENAME_SEPARATOR_REGEX);
+    String extensionlessFilename = filename.substring(0, filename.lastIndexOf("."));
+    String[] parts = extensionlessFilename.split(HdfsSinkConnecorConstants.COMMMITTED_FILENAME_SEPARATOR_REGEX);
     String topic = parts[0];
     int partition = Integer.parseInt(parts[1]);
     return topic.equals(tp.topic()) && partition == tp.partition();
