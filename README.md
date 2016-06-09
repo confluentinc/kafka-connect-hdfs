@@ -5,7 +5,7 @@ for copying data between Kafka and Hadoop HDFS.
 
 # NOTE: 
  
-**topics cannot have `+` in their names. If there is, this will not work.** 
+**topics cannot have `+` in their names. If there is, this will not work. Any other character will work.** 
 
 # Development
 
