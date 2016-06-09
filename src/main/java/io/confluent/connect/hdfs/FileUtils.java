@@ -151,7 +151,7 @@ public class FileUtils {
   }
 
   public static long extractOffset(String filename) {
-	  String extensionlessFilename = filename.substring(0, filename.lastIndexOf("."));
+    String extensionlessFilename = filename.substring(0, filename.lastIndexOf("."));
     return Long.parseLong(extensionlessFilename.split(HdfsSinkConnecorConstants.COMMMITTED_FILENAME_SEPARATOR_REGEX)[3]);
   }
 
