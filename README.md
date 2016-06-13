@@ -10,7 +10,7 @@ kafka-connect-hdfs with Maven using the standard lifecycle phases.
 
 # FAQ
 
-For frequently asked questions on Kafka Connect HDFS, refer below.
+Refer frequently asked questions on Kafka Connect HDFS here -
 https://github.com/confluentinc/kafka-connect-hdfs/wiki/FAQ
 
 # Contribute
