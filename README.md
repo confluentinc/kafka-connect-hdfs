@@ -8,12 +8,15 @@ for copying data between Kafka and Hadoop HDFS.
 To build a development version you'll need a recent version of Kafka. You can build
 kafka-connect-hdfs with Maven using the standard lifecycle phases.
 
+# FAQ
+
+For frequently asked questions on Kafka Connect HDFS, refer below.
+https://github.com/confluentinc/kafka-connect-hdfs/wiki/FAQ
 
 # Contribute
 
 - Source Code: https://github.com/confluentinc/kafka-connect-hdfs
 - Issue Tracker: https://github.com/confluentinc/kafka-connect-hdfs/issues
-
 
 # License
 
