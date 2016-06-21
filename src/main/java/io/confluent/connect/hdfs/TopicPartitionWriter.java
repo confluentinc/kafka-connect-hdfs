@@ -85,6 +85,7 @@ public class TopicPartitionWriter {
   private HdfsSinkConnectorConfig connectorConfig;
   private String extension;
   private final String zeroPadOffsetFormat;
+  private String currentPartition;
 
   private final boolean hiveIntegration;
   private String hiveDatabase;
@@ -261,15 +262,25 @@ public class TopicPartitionWriter {
               }
             } else {
               SinkRecord projectedRecord = SchemaUtils.project(record, currentSchema, compatibility);
-              writeRecord(projectedRecord);
-              buffer.poll();
-              if (shouldRotate(now)) {
+              String partition = partitioner.encodePartition(projectedRecord);
+              if (currentPartition != null && !currentPartition.equals(partition)) {
+                currentPartition = partition;
                 log.info("Starting commit and rotation for topic partition {} with start offsets {}"
-                         + " and end offsets {}", tp, startOffsets, offsets);
+                        + " and end offsets {}", tp, startOffsets, offsets);
                 nextState();
-                // Fall through and try to rotate immediately
               } else {
-                break;
+                currentPartition = partition;
+
+                writeRecord(projectedRecord, partition);
+                buffer.poll();
+                if (shouldRotate(now)) {
+                  log.info("Starting commit and rotation for topic partition {} with start offsets {}"
+                          + " and end offsets {}", tp, startOffsets, offsets);
+                  nextState();
+                  // Fall through and try to rotate immediately
+                } else {
+                  break;
+                }
               }
             }
           case SHOULD_ROTATE:
@@ -459,7 +470,7 @@ public class TopicPartitionWriter {
     }
   }
 
-  private void writeRecord(SinkRecord record) throws IOException {
+  private void writeRecord(SinkRecord record, String encodedPartition) throws IOException {
     long expectedOffset = offset + recordCounter;
     if (offset == -1) {
       offset = record.kafkaOffset();
@@ -482,7 +493,6 @@ public class TopicPartitionWriter {
       sawInvalidOffset = false;
     }
 
-    String encodedPartition = partitioner.encodePartition(record);
     RecordWriter<SinkRecord> writer = getWriter(record, encodedPartition);
     writer.write(record);
 
