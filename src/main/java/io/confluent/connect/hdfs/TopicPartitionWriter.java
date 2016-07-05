@@ -155,6 +155,7 @@ public class TopicPartitionWriter {
         = "%0" +
           connectorConfig.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG) +
           "d";
+    lastRotate = System.currentTimeMillis();
 
     hiveIntegration = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
     if (hiveIntegration) {
