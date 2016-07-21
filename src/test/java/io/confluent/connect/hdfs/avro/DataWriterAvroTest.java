@@ -74,7 +74,8 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     hdfsWriter.stop();
 
     String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition);
+    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition,
+            connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG));
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {-1, 2, 5};
@@ -94,10 +95,58 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     }
   }
 
+
+  @Test
+  public void testWriteRecordWithTheTopicNameNotInThePath() throws Exception {
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG, "false");
+    connectorConfig = new HdfsSinkConnectorConfig(props);
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    Partitioner partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    String key = "key";
+    Schema schema = createSchema();
+    Struct record = createRecord(schema);
+
+    Collection<SinkRecord> sinkRecords = new ArrayList<>();
+    for (long offset = 0; offset < 7; offset++) {
+      SinkRecord sinkRecord =
+              new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset);
+
+      sinkRecords.add(sinkRecord);
+    }
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close(assignment);
+    hdfsWriter.stop();
+
+    String encodedPartition = "partition=" + String.valueOf(PARTITION);
+    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition,
+            connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG));
+
+    // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
+    long[] validOffsets = {-1, 2, 5};
+    for (int i = 1; i < validOffsets.length; i++) {
+      long startOffset = validOffsets[i - 1] + 1;
+      long endOffset = validOffsets[i];
+      Path path =
+              new Path(FileUtils
+                      .committedFileName(url, topicsDir, directory, TOPIC_PARTITION, startOffset,
+                              endOffset, extension, ZERO_PAD_FMT));
+      Collection<Object> records = schemaFileReader.readData(conf, path);
+      long size = endOffset - startOffset + 1;
+      assertEquals(size, records.size());
+      for (Object avroRecord : records) {
+        assertEquals(avroData.fromConnectData(schema, record), avroRecord);
+      }
+    }
+  }
+
   @Test
   @SuppressWarnings("unchecked")
   public void testRecovery() throws Exception {
-    fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
+    fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION, true)), true);
 
     Class<? extends Storage> storageClass = (Class<? extends Storage>)
         Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
@@ -248,7 +297,8 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     hdfsWriter.close(assignment);
     hdfsWriter.stop();
 
-    String directory = partitioner.generatePartitionedPath(TOPIC, "partition=" + String.valueOf(PARTITION));
+    String directory = partitioner.generatePartitionedPath(TOPIC, "partition=" + String.valueOf(PARTITION),
+            connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG));
 
     // Last file (offset 9) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {2, 5, 8};

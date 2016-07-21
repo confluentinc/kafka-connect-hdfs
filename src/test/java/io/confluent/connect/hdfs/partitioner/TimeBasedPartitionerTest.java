@@ -38,8 +38,20 @@ public class TimeBasedPartitionerTest {
     long partitionDurationMs = TimeUnit.HOURS.toMillis(2);
     long timestamp = new DateTime(2015, 1, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
-    String path = partitioner.generatePartitionedPath("topic", encodedPartition);
+    String path = partitioner.generatePartitionedPath("topic", encodedPartition, true);
     assertEquals("topic/year=2015/month=January/day=01/hour=2/", path);
+  }
+
+
+  @Test
+  public void testGeneratePartitionedPathWithoutTheTopicNameInThePath() throws Exception {
+    partitioner.configure(null);
+    String pathFormat = partitioner.getPathFormat();
+    long partitionDurationMs = TimeUnit.HOURS.toMillis(2);
+    long timestamp = new DateTime(2015, 1, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
+    String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
+    String path = partitioner.generatePartitionedPath("topic", encodedPartition, false);
+    assertEquals("year=2015/month=January/day=01/hour=2/", path);
   }
 
   @Test

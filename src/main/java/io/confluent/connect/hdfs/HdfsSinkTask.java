@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.parquet.ParquetLogMute;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
@@ -39,7 +40,7 @@ public class HdfsSinkTask extends SinkTask {
   private AvroData avroData;
 
   public HdfsSinkTask() {
-
+    ParquetLogMute.mute();
   }
 
   @Override

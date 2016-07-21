@@ -27,6 +27,6 @@ import java.util.Map;
 public interface Partitioner {
   void configure(Map<String, Object> config);
   String encodePartition(SinkRecord sinkRecord);
-  String generatePartitionedPath(String topic, String encodedPartition);
+  String generatePartitionedPath(String topic, String encodedPartition, boolean includeTopicNameInPath);
   List<FieldSchema> partitionFields();
 }

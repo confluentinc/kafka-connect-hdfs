@@ -36,23 +36,33 @@ public class FileUtils {
   private static final Logger log = LoggerFactory.getLogger(FileUtils.class);
 
   public static String logFileName(String url, String logsDir, TopicPartition topicPart) {
-    return fileName(url, logsDir, topicPart, "log");
+    return fileName(url, logsDir, topicPart, "log", false);
   }
 
-  public static String directoryName(String url, String topicsDir, TopicPartition topicPart) {
+  public static String directoryName(String url, String topicsDir, TopicPartition topicPart,
+                                     boolean includeTopicNameInDir) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
+    if(!includeTopicNameInDir){
+      return url + "/" + topicsDir + "/" + partition;
+    }
     return url + "/" + topicsDir + "/" + topic + "/" + partition;
   }
 
   public static String fileName(String url, String topicsDir, TopicPartition topicPart,
-                                String name) {
+                                String name, boolean includeTopicNameInDir) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
+    if(!includeTopicNameInDir) {
+      return url + "/" + topicsDir + "/" + partition + "/" + name;
+    }
     return url + "/" + topicsDir + "/" + topic + "/" + partition + "/" + name;
   }
 
-  public static String hiveDirectoryName(String url, String topicsDir, String topic) {
+  public static String hiveDirectoryName(String url, String topicsDir, String topic, boolean includeTopicNameInDir) {
+    if(!includeTopicNameInDir){
+      return url + "/" + topicsDir + "/";
+    }
     return url + "/" + topicsDir + "/" + topic + "/";
   }
 
@@ -64,8 +74,7 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + directory;
   }
 
-  public static String tempFileName(String url, String topicsDir, String directory,
-                                    String extension) {
+  public static String tempFileName(String url, String topicsDir, String directory, String extension) {
     UUID id = UUID.randomUUID();
     String name = id.toString() + "_" + "tmp" + extension;
     return fileName(url, topicsDir, directory, name);
@@ -89,9 +98,13 @@ public class FileUtils {
     return fileName(url, topicsDir, directory, name);
   }
 
-  public static String topicDirectory(String url, String topicsDir, String topic) {
+  public static String topicDirectory(String url, String topicsDir, String topic, boolean includeTopic) {
+    if(!includeTopic) {
+      return url + "/" + topicsDir;
+    }
     return url + "/" + topicsDir + "/" + topic;
   }
+
 
   private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter)
       throws IOException {

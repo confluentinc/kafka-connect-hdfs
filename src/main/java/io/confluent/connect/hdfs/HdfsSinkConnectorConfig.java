@@ -54,6 +54,14 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   public static final String HADOOP_HOME_DEFAULT = "";
   private static final String HADOOP_HOME_DISPLAY = "Hadoop home directory";
 
+  public static final String TOPICS_NAME_DIR_INCLUDE_CONFIG = "topic.name.include";
+  public static final String TOPICS_NAME_DIR_INCLUDE_DOC =
+          "If set to true(default value), a folder with the topic name is created in HDFS at the topics.dir location"
+          + " and the files and/or partitions are stored there; if false the files and/or partitions will land in the "
+          + "location specified by topics.dir";
+  public static final String TOPICS_NAME_DIR_INCLUDE_DISPLAY ="Topic name as directory";
+  public static final boolean TOPICS_NAME_DIR_INCLUDE_DEFAULT = true;
+
   public static final String TOPICS_DIR_CONFIG = "topics.dir";
   private static final String TOPICS_DIR_DOC =
       "Top level HDFS directory to store the data ingested from Kafka.";
@@ -269,7 +277,8 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
         .define(HADOOP_HOME_CONFIG, Type.STRING, HADOOP_HOME_DEFAULT, Importance.HIGH, HADOOP_HOME_DOC, HDFS_GROUP, 3, Width.SHORT, HADOOP_HOME_DISPLAY)
         .define(TOPICS_DIR_CONFIG, Type.STRING, TOPICS_DIR_DEFAULT, Importance.HIGH, TOPICS_DIR_DOC, HDFS_GROUP, 4, Width.SHORT, TOPICS_DIR_DISPLAY)
         .define(LOGS_DIR_CONFIG, Type.STRING, LOGS_DIR_DEFAULT, Importance.HIGH, LOGS_DIR_DOC, HDFS_GROUP, 5, Width.SHORT, LOGS_DIR_DISPLAY)
-        .define(FORMAT_CLASS_CONFIG, Type.STRING, FORMAT_CLASS_DEFAULT, Importance.HIGH, FORMAT_CLASS_DOC, HDFS_GROUP, 6, Width.SHORT, FORMAT_CLASS_DISPLAY);
+        .define(FORMAT_CLASS_CONFIG, Type.STRING, FORMAT_CLASS_DEFAULT, Importance.HIGH, FORMAT_CLASS_DOC, HDFS_GROUP, 6, Width.SHORT, FORMAT_CLASS_DISPLAY)
+        .define(TOPICS_NAME_DIR_INCLUDE_CONFIG, Type.BOOLEAN, TOPICS_NAME_DIR_INCLUDE_DEFAULT, Importance.HIGH, TOPICS_NAME_DIR_INCLUDE_DOC, HDFS_GROUP, 7,Width.SHORT, TOPICS_NAME_DIR_INCLUDE_DISPLAY);
 
     // Define Hive configuration group
     config.define(HIVE_INTEGRATION_CONFIG, Type.BOOLEAN, HIVE_INTEGRATION_DEFAULT, Importance.HIGH, HIVE_INTEGRATION_DOC, HIVE_GROUP, 1, Width.SHORT, HIVE_INTEGRATION_DISPLAY,
@@ -322,11 +331,11 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   }
 
   private static class SchemaCompatibilityRecommender extends BooleanParentRecommender {
-    
+
     public SchemaCompatibilityRecommender() {
       super(HIVE_INTEGRATION_CONFIG);
     }
-      
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       boolean hiveIntegration = (Boolean) connectorConfigs.get(parentConfigName);
@@ -342,15 +351,15 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
       return true;
     }
   }
-  
+
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
-    
+
     protected String parentConfigName;
-    
+
     public BooleanParentRecommender(String parentConfigName) {
       this.parentConfigName = parentConfigName;
     }
-    
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       return new LinkedList<>();

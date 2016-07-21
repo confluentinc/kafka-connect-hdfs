@@ -41,8 +41,23 @@ public class DailyPartitionerTest {
     String timeZoneString = (String) config.get(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
     long timestamp = new DateTime(2014, 2, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
-    String path = partitioner.generatePartitionedPath("topic", encodedPartition);
+    String path = partitioner.generatePartitionedPath("topic", encodedPartition, true);
     assertEquals("topic/year=2014/month=02/day=01/", path);
+  }
+
+  @Test
+  public void testDailyPartitionerWithTheTopicNameNotPresentInThePath() throws Exception {
+    Map<String, Object> config = createConfig();
+
+    DailyPartitioner partitioner = new DailyPartitioner();
+    partitioner.configure(config);
+
+    String pathFormat = partitioner.getPathFormat();
+    String timeZoneString = (String) config.get(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
+    long timestamp = new DateTime(2014, 2, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
+    String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
+    String path = partitioner.generatePartitionedPath("topic", encodedPartition, false);
+    assertEquals("year=2014/month=02/day=01/", path);
   }
 
   private Map<String, Object> createConfig() {
