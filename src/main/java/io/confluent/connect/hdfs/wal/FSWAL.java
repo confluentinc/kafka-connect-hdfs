@@ -15,6 +15,7 @@
 package io.confluent.connect.hdfs.wal;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
@@ -102,6 +103,20 @@ public class FSWAL implements WAL {
       if (!storage.exists(logFile)) {
         return;
       }
+
+      // An empty WAL might be created (connect process crashed before the WAL header is written).
+      // This can cause the recovery to persistently fail.
+      FileStatus[] statuses = storage.listStatus(logFile);
+
+      if (statuses.length != 1) {
+        throw new ConnectException("Expected only one WAL file: " + logFile);
+      }
+
+      if (statuses[0].getLen() == 0) {
+        log.warn("Skip empty WAL file: " + logFile);
+        return;
+      }
+
       acquireLease();
       if (reader == null) {
         reader = new WALFile.Reader(conf, Reader.file(new Path(logFile)));
