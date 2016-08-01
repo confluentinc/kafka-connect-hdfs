@@ -68,8 +68,7 @@ public class DataWriterParquetTest extends TestWithMiniDFSCluster {
     hdfsWriter.stop();
 
     String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition,
-            connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG));
+    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition);
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {-1, 2, 5};
@@ -91,7 +90,7 @@ public class DataWriterParquetTest extends TestWithMiniDFSCluster {
   @Test
   public void testWriteRecordWithTheTopicNameNotPresentInThePath() throws Exception {
     Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG, "false");
+    props.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, "false");
     connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -114,8 +113,7 @@ public class DataWriterParquetTest extends TestWithMiniDFSCluster {
     hdfsWriter.stop();
 
     String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition,
-            connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG));
+    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition);
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {-1, 2, 5};

@@ -39,7 +39,6 @@ public class HdfsSinkConnectorTestBase {
   protected Map<String, String> connectorProps;
   protected HdfsSinkConnectorConfig connectorConfig;
   protected String topicsDir;
-  protected boolean includeTopicNameInDir;
   protected String logsDir;
   protected AvroData avroData;
 
@@ -125,7 +124,6 @@ public class HdfsSinkConnectorTestBase {
   protected void configureConnector() {
     connectorConfig = new HdfsSinkConnectorConfig(connectorProps);
     topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
-    includeTopicNameInDir = connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG);
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
     int schemaCacheSize = connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG);
     avroData = new AvroData(schemaCacheSize);

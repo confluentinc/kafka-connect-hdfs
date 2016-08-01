@@ -22,7 +22,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.util.HashMap;
+import java.util.Map;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 
@@ -30,7 +32,9 @@ public class HiveTestUtils {
 
   public static Partitioner getPartitioner() {
     Partitioner partitioner = new DefaultPartitioner();
-    partitioner.configure(new HashMap<String, Object>());
+    Map<String, Object> map = new HashMap<String, Object>();
+    map.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, true);
+    partitioner.configure(map);
     return partitioner;
   }
 

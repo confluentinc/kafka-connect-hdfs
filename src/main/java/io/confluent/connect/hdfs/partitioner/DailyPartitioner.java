@@ -30,6 +30,7 @@ public class DailyPartitioner extends TimeBasedPartitioner {
 
   @Override
   public void configure(Map<String, Object> config) {
+    configureBase(config);
     String localeString = (String) config.get(HdfsSinkConnectorConfig.LOCALE_CONFIG);
     if (localeString.equals("")) {
       throw new ConfigException(HdfsSinkConnectorConfig.LOCALE_CONFIG,

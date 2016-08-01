@@ -63,7 +63,6 @@ public class TopicPartitionWriter {
   private Partitioner partitioner;
   private String url;
   private String topicsDir;
-  private boolean includeTopicNameInDir;
   private State state;
   private Queue<SinkRecord> buffer;
   private boolean recovered;
@@ -137,7 +136,6 @@ public class TopicPartitionWriter {
     this.schemaFileReader = schemaFileReader;
 
     topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
-    includeTopicNameInDir = connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG);
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
     rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
@@ -264,7 +262,7 @@ public class TopicPartitionWriter {
           case WRITE_PARTITION_PAUSED:
             if (currentSchema == null) {
               if (compatibility != Compatibility.NONE && offset != -1) {
-                String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic(), includeTopicNameInDir);
+                String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
                 CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
                 FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
                 if (fileStatusWithMaxOffset != null) {
@@ -388,7 +386,7 @@ public class TopicPartitionWriter {
   }
 
   private String getDirectory(String encodedPartition) {
-    return partitioner.generatePartitionedPath(tp.topic(), encodedPartition, includeTopicNameInDir);
+    return partitioner.generatePartitionedPath(tp.topic(), encodedPartition);
   }
 
   private void nextState() {
@@ -408,7 +406,7 @@ public class TopicPartitionWriter {
 
   private void readOffset() throws ConnectException {
     try {
-      String path = FileUtils.topicDirectory(url, topicsDir, tp.topic(), includeTopicNameInDir);
+      String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
       CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
       FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(path), filter);
       if (fileStatusWithMaxOffset != null) {

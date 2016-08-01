@@ -22,27 +22,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class DefaultPartitioner implements Partitioner {
+public class DefaultPartitioner extends BasePartitioner {
 
   private static final String partitionField = "partition";
   private final List<FieldSchema> partitionFields =  new ArrayList<>();;
 
   @Override
   public void configure(Map<String, Object> config) {
+    super.configure(config);
     partitionFields.add(new FieldSchema(partitionField, TypeInfoFactory.stringTypeInfo.toString(), ""));
   }
 
   @Override
   public String encodePartition(SinkRecord sinkRecord) {
     return partitionField + "=" + String.valueOf(sinkRecord.kafkaPartition());
-  }
-
-  @Override
-  public String generatePartitionedPath(String topic, String encodedPartition, boolean includeTopicNameInPath) {
-    if(!includeTopicNameInPath){
-      return encodedPartition;
-    }
-    return topic + "/" + encodedPartition;
   }
 
   @Override

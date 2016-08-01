@@ -24,7 +24,6 @@ public abstract class HiveUtil {
 
   protected final String url;
   protected final String topicsDir;
-  protected final boolean includeTopicNameInDir;
   protected final AvroData avroData;
   protected final HiveMetaStore hiveMetaStore;
 
@@ -32,7 +31,6 @@ public abstract class HiveUtil {
   public HiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
     this.url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
     this.topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
-    this.includeTopicNameInDir = connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG);
     this.avroData = avroData;
     this.hiveMetaStore = hiveMetaStore;
   }

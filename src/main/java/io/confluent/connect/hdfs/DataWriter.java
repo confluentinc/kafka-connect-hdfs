@@ -62,7 +62,6 @@ public class DataWriter {
   private Storage storage;
   private Configuration conf;
   private String topicsDir;
-  private Boolean includeTopicNameInDir;
   private Format format;
   private Set<TopicPartition> assignment;
   private Partitioner partitioner;
@@ -162,7 +161,6 @@ public class DataWriter {
 
       url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
       topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
-      includeTopicNameInDir = connectorConfig.getBoolean(HdfsSinkConnectorConfig.TOPICS_NAME_DIR_INCLUDE_CONFIG);
       String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
 
       Class<? extends Storage> storageClass = (Class<? extends Storage>) Class
@@ -249,7 +247,7 @@ public class DataWriter {
 
     try {
       for (String topic: topics) {
-        String topicDir = FileUtils.topicDirectory(url, topicsDir, topic, includeTopicNameInDir);
+        String topicDir = FileUtils.topicDirectory(url, topicsDir, topic);
         CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
         FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
         if (fileStatusWithMaxOffset != null) {
@@ -408,6 +406,7 @@ public class DataWriter {
     map.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, config.getString(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG));
     map.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, config.getString(HdfsSinkConnectorConfig.LOCALE_CONFIG));
     map.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, config.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG));
+    map.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, config.getBoolean(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG));
     return map;
   }
 }

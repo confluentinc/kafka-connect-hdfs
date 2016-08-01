@@ -30,13 +30,14 @@ import java.util.Map;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.errors.PartitionException;
 
-public class FieldPartitioner implements Partitioner {
+public class FieldPartitioner extends BasePartitioner {
   private static final Logger log = LoggerFactory.getLogger(FieldPartitioner.class);
   private static String fieldName;
   private List<FieldSchema> partitionFields = new ArrayList<>();
 
   @Override
   public void configure(Map<String, Object> config) {
+    super.configure(config);
     fieldName = (String) config.get(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG);
     partitionFields.add(new FieldSchema(fieldName, TypeInfoFactory.stringTypeInfo.toString(), ""));
   }
@@ -69,14 +70,6 @@ public class FieldPartitioner implements Partitioner {
       log.error("Value is not Struct type.");
       throw new PartitionException("Error encoding partition.");
     }
-  }
-
-  @Override
-  public String generatePartitionedPath(String topic, String encodedPartition, boolean includeTopicNameInPath) {
-    if(!includeTopicNameInPath){
-      return encodedPartition;
-    }
-    return topic + "/" + encodedPartition;
   }
 
   @Override

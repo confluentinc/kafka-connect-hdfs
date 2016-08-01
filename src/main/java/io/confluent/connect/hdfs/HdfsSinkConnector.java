@@ -15,6 +15,7 @@
 package io.confluent.connect.hdfs;
 
 
+import io.confluent.connect.hdfs.parquet.ParquetLogMute;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.connector.Connector;
@@ -36,6 +37,10 @@ public class HdfsSinkConnector extends Connector {
   private static final Logger log = LoggerFactory.getLogger(HdfsSinkConnector.class);
   private Map<String, String> configProperties;
   private HdfsSinkConnectorConfig config;
+
+  public HdfsSinkConnector(){
+    ParquetLogMute.mute();
+  }
 
   @Override
   public String version() {

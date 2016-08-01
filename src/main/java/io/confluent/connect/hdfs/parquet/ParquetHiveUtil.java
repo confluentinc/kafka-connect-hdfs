@@ -58,7 +58,7 @@ public class ParquetHiveUtil extends HiveUtil {
     Table table = new Table(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
-    String tablePath = FileUtils.hiveDirectoryName(url, topicsDir, tableName, includeTopicNameInDir);
+    String tablePath = FileUtils.hiveDirectoryName(url, topicsDir, tableName);
     table.setDataLocation(new Path(tablePath));
     table.setSerializationLib(getHiveParquetSerde());
     try {
