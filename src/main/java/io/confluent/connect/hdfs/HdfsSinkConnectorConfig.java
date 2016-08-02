@@ -14,6 +14,11 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.partitioner.DailyPartitioner;
+import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
+import io.confluent.connect.hdfs.partitioner.HourlyPartitioner;
+import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
 import org.apache.kafka.clients.producer.internals.DefaultPartitioner;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -26,12 +31,6 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-
-import io.confluent.connect.hdfs.partitioner.DailyPartitioner;
-import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
-import io.confluent.connect.hdfs.partitioner.HourlyPartitioner;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
 
 public class HdfsSinkConnectorConfig extends AbstractConfig {
 
@@ -226,6 +225,12 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   public static final int FILENAME_OFFSET_ZERO_PAD_WIDTH_DEFAULT = 10;
   private static final String FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY = "Filename Offset Zero Pad Width";
 
+  public static final String PARTITION_INCLUDE_TOPIC_NAME_CONFIG = "partition.include.topic";
+  private static final String PARTITION_INCLUDE_TOPIC_NAME_DOC =
+          "If set to true(default) will include the topic name in the resulted HDFS folder; false otherwise";
+  private static final boolean PARTITION_INCLUDE_TOPIC_NAME_DEFAULT = true;
+  private static final String PARTITION_INCLUDE_TOPIC_NAME_DISPLAY="Include topic name in partition";
+
   // Schema group
   public static final String SCHEMA_COMPATIBILITY_CONFIG = "schema.compatibility";
   private static final String SCHEMA_COMPATIBILITY_DOC =
@@ -239,6 +244,7 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
       "The size of the schema cache used in the Avro converter.";
   public static final int SCHEMA_CACHE_SIZE_DEFAULT = 1000;
   private static final String SCHEMA_CACHE_SIZE_DISPLAY = "Schema Cache Size";
+
 
   // Internal group
   public static final String STORAGE_CLASS_CONFIG = "storage.class";
@@ -315,18 +321,19 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
         .define(LOCALE_CONFIG, Type.STRING, LOCALE_DEFAULT, Importance.MEDIUM, LOCALE_DOC, CONNECTOR_GROUP, 10, Width.MEDIUM, LOCALE_DISPLAY, partitionerClassDependentsRecommender)
         .define(TIMEZONE_CONFIG, Type.STRING, TIMEZONE_DEFAULT, Importance.MEDIUM, TIMEZONE_DOC, CONNECTOR_GROUP, 11, Width.MEDIUM, TIMEZONE_DISPLAY, partitionerClassDependentsRecommender)
         .define(FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, Type.INT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DEFAULT, ConfigDef.Range.atLeast(0), Importance.LOW, FILENAME_OFFSET_ZERO_PAD_WIDTH_DOC,
-                CONNECTOR_GROUP, 12, Width.SHORT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY);
-
+                CONNECTOR_GROUP, 12, Width.SHORT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY)
+        .define(PARTITION_INCLUDE_TOPIC_NAME_CONFIG, Type.BOOLEAN, PARTITION_INCLUDE_TOPIC_NAME_DEFAULT, Importance.MEDIUM, PARTITION_INCLUDE_TOPIC_NAME_DOC,
+                CONNECTOR_GROUP, 13, Width.SHORT,PARTITION_INCLUDE_TOPIC_NAME_DISPLAY);
     // Define Internal configuration group
     config.define(STORAGE_CLASS_CONFIG, Type.STRING, STORAGE_CLASS_DEFAULT, Importance.LOW, STORAGE_CLASS_DOC, INTERNAL_GROUP, 1, Width.MEDIUM, STORAGE_CLASS_DISPLAY);
   }
 
   private static class SchemaCompatibilityRecommender extends BooleanParentRecommender {
-    
+
     public SchemaCompatibilityRecommender() {
       super(HIVE_INTEGRATION_CONFIG);
     }
-      
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       boolean hiveIntegration = (Boolean) connectorConfigs.get(parentConfigName);
@@ -342,15 +349,15 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
       return true;
     }
   }
-  
+
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
-    
+
     protected String parentConfigName;
-    
+
     public BooleanParentRecommender(String parentConfigName) {
       this.parentConfigName = parentConfigName;
     }
-    
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       return new LinkedList<>();

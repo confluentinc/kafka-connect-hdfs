@@ -93,6 +93,10 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic;
   }
 
+  public static String topicsDirectory(String url, String topicsDir) {
+    return url + "/" + topicsDir;
+  }
+
   private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter)
       throws IOException {
     if (!storage.exists(path.toString())) {

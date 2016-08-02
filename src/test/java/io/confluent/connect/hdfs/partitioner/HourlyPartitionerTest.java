@@ -46,10 +46,28 @@ public class HourlyPartitionerTest {
     assertEquals("topic/year=2015/month=02/day=01/hour=03/", path);
   }
 
+  @Test
+  public void testHourlyPartitionerWithoutTopic() throws Exception {
+    Map<String, Object> config = createConfig();
+    config.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, false);
+
+    HourlyPartitioner partitioner = new HourlyPartitioner();
+    partitioner.configure(config);
+
+    String pathFormat = partitioner.getPathFormat();
+    String timeZoneString = (String) config.get(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
+    long timestamp = new DateTime(2015, 2, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
+    String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat,
+            timeZoneString, timestamp);
+    String path = partitioner.generatePartitionedPath("topic", encodedPartition);
+    assertEquals("year=2015/month=02/day=01/hour=03/", path);
+  }
+
   private Map<String, Object> createConfig() {
     Map<String, Object> config = new HashMap<>();
     config.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, "en");
     config.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
+    config.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, true);
     return config;
   }
 }

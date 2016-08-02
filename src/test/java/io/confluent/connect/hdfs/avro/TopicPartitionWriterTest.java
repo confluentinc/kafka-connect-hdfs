@@ -14,6 +14,21 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.FileUtils;
+import io.confluent.connect.hdfs.Format;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.RecordWriterProvider;
+import io.confluent.connect.hdfs.SchemaFileReader;
+import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
+import io.confluent.connect.hdfs.TopicPartitionWriter;
+import io.confluent.connect.hdfs.filter.CommittedFileFilter;
+import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
+import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
+import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
+import io.confluent.connect.hdfs.partitioner.TimeUtils;
+import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.hdfs.storage.StorageFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
@@ -32,23 +47,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.Format;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriterProvider;
-import io.confluent.connect.hdfs.SchemaFileReader;
-import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.hdfs.TopicPartitionWriter;
-import io.confluent.connect.hdfs.filter.CommittedFileFilter;
-import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
-import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
-import io.confluent.connect.hdfs.partitioner.TimeUtils;
-import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.storage.StorageFactory;
-
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
@@ -79,7 +79,9 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   @Test
   public void testWriteRecordDefaultWithPadding() throws Exception {
     Partitioner partitioner = new DefaultPartitioner();
-    partitioner.configure(Collections.<String, Object>emptyMap());
+    Map<String, Object> map = new HashMap<>();
+    map.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, true);
+    partitioner.configure(map);
     connectorProps.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
     configureConnector();
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
@@ -107,6 +109,41 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
                                "/" + TOPIC + "+" + PARTITION + "+06+08" + extension));
     verify(expectedFiles, records, schema);
+  }
+
+  @Test
+  public void testWriteRecordDefaultWithPaddingWithoutTopicName() throws Exception {
+    Partitioner partitioner = new DefaultPartitioner();
+    Map<String, Object> map = new HashMap<String, Object>();
+    map.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, false);
+    partitioner.configure(map);
+    connectorProps.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
+    configureConnector();
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+            TOPIC_PARTITION, storage, writerProvider, partitioner,  connectorConfig, context, avroData);
+
+    String key = "key";
+    Schema schema = createSchema();
+    Struct[] records = createRecords(schema);
+
+    Collection<SinkRecord> sinkRecords = createSinkRecords(records, key, schema);
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.recover();
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+    Set<Path> expectedFiles = new HashSet<>();
+    expectedFiles.add(new Path(url + "/" + topicsDir + "/partition=" + PARTITION +
+            "/" + TOPIC + "+" + PARTITION + "+00+02" + extension));
+    expectedFiles.add(new Path(url + "/" + topicsDir + "/partition=" + PARTITION +
+            "/" + TOPIC + "+" + PARTITION + "+03+05" + extension));
+    expectedFiles.add(new Path(url + "/" + topicsDir + "/partition=" + PARTITION +
+            "/" + TOPIC + "+" + PARTITION + "+06+08" + extension));
+    verifyWithoutTopicName(expectedFiles, records, schema);
   }
 
 
@@ -146,6 +183,48 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory3, TOPIC_PARTITION, 6, 8, extension, ZERO_PAD_FMT)));
 
     verify(expectedFiles, records, schema);
+  }
+
+  @Test
+  public void testWriteRecordFieldPartitionerWithoutTopicName() throws Exception {
+    Map<String, Object> config = createConfig();
+    config.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, false);
+    Partitioner partitioner = new FieldPartitioner();
+    partitioner.configure(config);
+
+    String partitionField = (String) config.get(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+            TOPIC_PARTITION, storage, writerProvider, partitioner, connectorConfig, context, avroData);
+
+    String key = "key";
+    Schema schema = createSchema();
+    Struct[] records = createRecords(schema);
+
+    Collection<SinkRecord> sinkRecords = createSinkRecords(records, key, schema);
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.recover();
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+
+    String directory1 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(16));
+    assertFalse(directory1.contains(TOPIC));
+    String directory2 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(17));
+    assertFalse(directory2.contains(TOPIC));
+    String directory3 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(18));
+    assertFalse(directory3.contains(TOPIC));
+
+    Set<Path> expectedFiles = new HashSet<>();
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory1, TOPIC_PARTITION, 0, 2, extension, ZERO_PAD_FMT)));
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory2, TOPIC_PARTITION, 3, 5, extension, ZERO_PAD_FMT)));
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory3, TOPIC_PARTITION, 6, 8, extension, ZERO_PAD_FMT)));
+
+    verifyWithoutTopicName(expectedFiles, records, schema);
   }
 
   @Test
@@ -189,6 +268,48 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     verify(expectedFiles, records, schema);
   }
 
+  @Test
+  public void testWriteRecordTimeBasedPartitionWithoutTopicName() throws Exception {
+    Map<String, Object> config = createConfig();
+    config.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, false);
+    Partitioner partitioner = new TimeBasedPartitioner();
+    partitioner.configure(config);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+            TOPIC_PARTITION, storage, writerProvider, partitioner, connectorConfig, context, avroData);
+
+    String key = "key";
+    Schema schema = createSchema();
+    Struct[] records = createRecords(schema);
+
+    Collection<SinkRecord> sinkRecords = createSinkRecords(records, key, schema);
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.recover();
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+
+    long partitionDurationMs = (Long) config.get(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG);
+    String pathFormat = (String) config.get(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG);
+    String timeZoneString = (String) config.get(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
+    long timestamp = System.currentTimeMillis();
+
+    String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
+
+    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition);
+    assertFalse(directory.contains(TOPIC));
+    Set<Path> expectedFiles = new HashSet<>();
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, 0, 2, extension, ZERO_PAD_FMT)));
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, 3, 5, extension, ZERO_PAD_FMT)));
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, 6, 8, extension, ZERO_PAD_FMT)));
+
+    verifyWithoutTopicName(expectedFiles, records, schema);
+  }
+
   private Map<String, Object> createConfig() {
     Map<String, Object> config = new HashMap<>();
     config.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
@@ -196,6 +317,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     config.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH/");
     config.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, "en");
     config.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
+    config.put(HdfsSinkConnectorConfig.PARTITION_INCLUDE_TOPIC_NAME_CONFIG, true);
     return config;
   }
 
@@ -259,6 +381,23 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
   private void verify(Set<Path> expectedFiles, Struct[] records, Schema schema) throws IOException {
     Path path = new Path(FileUtils.topicDirectory(url, topicsDir, TOPIC));
+    FileStatus[] statuses = FileUtils.traverse(storage, path, new CommittedFileFilter());
+    assertEquals(expectedFiles.size(), statuses.length);
+    int index = 0;
+    for (FileStatus status : statuses) {
+      Path filePath = status.getPath();
+      assertTrue(expectedFiles.contains(status.getPath()));
+      Collection<Object> avroRecords = schemaFileReader.readData(conf, filePath);
+      assertEquals(3, avroRecords.size());
+      for (Object avroRecord: avroRecords) {
+        assertEquals(avroData.fromConnectData(schema, records[index]), avroRecord);
+      }
+      index++;
+    }
+  }
+
+  private void verifyWithoutTopicName(Set<Path> expectedFiles, Struct[] records, Schema schema) throws IOException {
+    Path path = new Path(FileUtils.topicsDirectory(url, topicsDir));
     FileStatus[] statuses = FileUtils.traverse(storage, path, new CommittedFileFilter());
     assertEquals(expectedFiles.size(), statuses.length);
     int index = 0;

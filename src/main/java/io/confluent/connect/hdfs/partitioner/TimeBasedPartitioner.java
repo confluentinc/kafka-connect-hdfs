@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 
-public class TimeBasedPartitioner implements Partitioner {
+public class TimeBasedPartitioner extends BasePartitioner {
 
   // Duration of a partition in milliseconds.
   private long partitionDurationMs;
@@ -60,6 +60,7 @@ public class TimeBasedPartitioner implements Partitioner {
 
   @Override
   public void configure(Map<String, Object> config) {
+    super.configure(config);
     long partitionDurationMs = (long) config.get(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG);
     if (partitionDurationMs < 0) {
       throw new ConfigException(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG,
@@ -96,12 +97,6 @@ public class TimeBasedPartitioner implements Partitioner {
     long timestamp = System.currentTimeMillis();
     DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
     return bucket.toString(formatter);
-  }
-
-
-  @Override
-  public String generatePartitionedPath(String topic, String encodedPartition) {
-    return topic + "/" + encodedPartition;
   }
 
   @Override
