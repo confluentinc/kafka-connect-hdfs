@@ -315,7 +315,7 @@ public class WALFile {
         throws IOException {
       out.write(VERSION);                    // write the version
       out.write(sync);                       // write the sync bytes
-      out.flush();                           // flush header
+      out.hsync();                           // flush header
     }
 
 
@@ -328,7 +328,7 @@ public class WALFile {
         if (ownOutputStream) {
           out.close();
         } else {
-          out.flush();
+          out.hsync();
         }
         out = null;
       }
