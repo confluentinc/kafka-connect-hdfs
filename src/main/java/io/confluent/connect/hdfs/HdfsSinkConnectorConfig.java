@@ -190,6 +190,12 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   public static final String PARTITION_FIELD_NAME_DEFAULT = "";
   public static final String PARTITION_FIELD_NAME_DISPLAY = "Partition Field Name";
 
+  public static final String PARTITION_TIME_FIELD_NAME_CONFIG = "partition.timefield.name";
+  private static final String PARTITION_TIME_FIELD_NAME_DOC =
+          "The timestamp field name of SinkRecord when TimeBasedPartitioner is used, "
+          + "current time will be used on empty";
+  public static final String PARTITION_TIME_FIELD_NAME_DEFAULT = "";
+
   public static final String PARTITION_DURATION_MS_CONFIG = "partition.duration.ms";
   private static final String PARTITION_DURATION_MS_DOC =
       "The duration of a partition milliseconds used by ``TimeBasedPartitioner``. "
