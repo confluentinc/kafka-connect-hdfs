@@ -17,6 +17,8 @@ package io.confluent.connect.hdfs.partitioner;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.data.Struct;
 import org.joda.time.DateTime;
@@ -101,8 +103,12 @@ public class TimeBasedPartitioner implements Partitioner {
     if (timeFieldName.equals("")) {
       timestamp = System.currentTimeMillis();
     } else {
-      Struct struct = (Struct) sinkRecord.value();
-      timestamp = (long) struct.get(timeFieldName);
+      try {
+        Struct struct = (Struct) sinkRecord.value();
+        timestamp = (long) struct.get(timeFieldName);
+      } catch (ClassCastException | DataException e) {
+        throw new ConnectException("Failed to get time field:", e);
+      }
     }
 
     DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
