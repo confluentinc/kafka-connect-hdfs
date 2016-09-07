@@ -17,7 +17,6 @@
 package io.confluent.connect.hdfs.storage;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -37,12 +36,12 @@ public class HdfsStorage implements Storage {
   private final String url;
 
   public HdfsStorage(Configuration conf,  String url) throws IOException {
-    if (conf.get("fs.defaultFS") == CommonConfigurationKeys.FS_DEFAULT_NAME_DEFAULT) {
-      fs = FileSystem.newInstance(URI.create(url), conf);
-    } else {
+    if (url.equals(conf.get(FileSystem.FS_DEFAULT_NAME_KEY))){
       fs = FileSystem.newInstance(conf);
+    }else {
+      fs = FileSystem.newInstance(URI.create(url), conf);
     }
-
+    
     this.conf = conf;
     this.url = url;
   }
