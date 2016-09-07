@@ -24,7 +24,6 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.kafka.common.TopicPartition;
 
 import java.io.IOException;
-import java.net.URI;
 
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.hdfs.wal.WAL;
@@ -36,12 +35,13 @@ public class HdfsStorage implements Storage {
   private final String url;
 
   public HdfsStorage(Configuration conf,  String url) throws IOException {
-    if (url.equals(conf.get(FileSystem.FS_DEFAULT_NAME_KEY))){
-      fs = FileSystem.newInstance(conf);
-    }else {
-      fs = FileSystem.newInstance(URI.create(url), conf);
+    /* newInstance will return local FS if fs.DefaultFS not set HA compatible connectors will require hdfs-site and core-site.xml however */
+    if (!url.equals(conf.get(FileSystem.FS_DEFAULT_NAME_KEY))) {
+      conf.set(FileSystem.FS_DEFAULT_NAME_KEY,url);
     }
-    
+
+    fs = FileSystem.newInstance(conf);
+
     this.conf = conf;
     this.url = url;
   }
