@@ -17,7 +17,11 @@
 package io.confluent.connect.hdfs.storage;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.kafka.common.TopicPartition;
 
 import java.io.IOException;
@@ -25,8 +29,6 @@ import java.net.URI;
 
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.hdfs.wal.WAL;
-
-import static org.apache.hadoop.fs.CommonConfigurationKeys.*;
 
 public class HdfsStorage implements Storage {
 
