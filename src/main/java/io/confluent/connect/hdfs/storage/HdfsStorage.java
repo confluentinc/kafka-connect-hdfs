@@ -36,7 +36,7 @@ public class HdfsStorage implements Storage {
   private final String url;
 
   public HdfsStorage(Configuration conf,  String url) throws IOException {
-    fs = FileSystem.newInstance(URI.create(url), conf);
+    fs = FileSystem.newInstance(conf);
     this.conf = conf;
     this.url = url;
   }
