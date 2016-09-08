@@ -152,7 +152,7 @@ specifies the HDFS we are writing data to and you should set this according to y
 The ``flush.size`` specifies the number of records the connector need to write before invoking file
 commits.
 
-.. note:: For HA HDFS deployments you will need to include ``hadoop.conf.dir``, setting it to a directory which includes both hdfs-site.xml and core-site.xml. Once these files are in place and the worker nodes have been configured to pick them up ``hdfs.url`` may be set to the namenodes nameservice id. i.e. 'nameservice1' . 
+.. note:: For HA HDFS deployments you will need to include ``hadoop.conf.dir``, setting it to a directory which includes both hdfs-site.xml. Once hdfs-site.xml is in place and ``hadoop.conf.dir`` has been set ``hdfs.url`` may be set to the namenodes nameservice id. i.e. 'nameservice1' . 
 
 
 Format and Partitioner
