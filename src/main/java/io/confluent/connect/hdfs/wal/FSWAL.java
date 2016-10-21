@@ -77,6 +77,11 @@ public class FSWAL implements WAL {
         break;
       } catch (RemoteException e) {
         if (e.getClassName().equals(leaseException)) {
+          if (e.getMessage().contains("already the current lease holder")) {
+            // we are already holding the lease, no need to try to hold it again. Just return!
+            return;
+          }
+
           log.info("Cannot acquire lease on WAL {}", logFile);
           try {
             Thread.sleep(sleepIntervalMs);
