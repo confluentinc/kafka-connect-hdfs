@@ -60,6 +60,7 @@ public class LineWriterProvider implements RecordWriterProvider {
 //        System.out.println(value.toString());
 //        writer.append(record.value());
         out.writeUTF(record.value().toString());
+        out.flush();
       }
 
       @Override
