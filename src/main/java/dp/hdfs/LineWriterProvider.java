@@ -18,10 +18,12 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
+import java.io.FileWriter;
 import java.io.IOException;
 
 import io.confluent.connect.avro.AvroData;
@@ -46,11 +48,9 @@ public class LineWriterProvider implements RecordWriterProvider {
     Path path = new Path(fileName);
     final org.apache.kafka.connect.data.Schema schema = record.valueSchema();
     final FSDataOutputStream out = path.getFileSystem(conf).create(path);
-//    org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
-//    writer.create(avroSchema, out);
+    org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+    writer.create(avroSchema, out);
 
-
-    final FSDataOutputStream fileOut = path.getFileSystem(new Configuration()).create(path);
 
 
     return new RecordWriter<SinkRecord>() {
@@ -58,9 +58,8 @@ public class LineWriterProvider implements RecordWriterProvider {
       public void write(SinkRecord record) throws IOException {
 //        Object value = avroData.fromConnectData(record.valueSchema(), record.value());
 //        System.out.println(value.toString());
-//        writer.append(record.value());
-        out.writeUTF(record.value().toString());
-        out.flush();
+        writer.append(record.value());
+        out.write(record.value().toString().getBytes(),0,record.value().toString().length());
       }
 
       @Override
