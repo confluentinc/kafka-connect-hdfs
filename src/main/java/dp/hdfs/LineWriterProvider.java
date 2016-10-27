@@ -56,8 +56,8 @@ public class LineWriterProvider implements RecordWriterProvider {
     return new RecordWriter<SinkRecord>() {
       @Override
       public void write(SinkRecord record) throws IOException {
-        Object value = avroData.fromConnectData(record.valueSchema(), record.value());
-        System.out.println(value.toString());
+//        Object value = avroData.fromConnectData(record.valueSchema(), record.value());
+//        System.out.println(value.toString());
 //        writer.append(record.value());
         out.writeUTF(record.value().toString());
       }
