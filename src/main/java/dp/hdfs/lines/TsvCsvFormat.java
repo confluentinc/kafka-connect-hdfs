@@ -1,4 +1,4 @@
-package dp.hdfs;
+package dp.hdfs.lines;
 
 
 import io.confluent.connect.avro.AvroData;
