@@ -61,7 +61,9 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
       public void write(SinkRecord record) throws IOException {
         log.trace("Sink record: {}", record.toString());
         Object value = avroData.fromConnectData(schema, record.value());
-        writer.append(value);
+        System.out.println(value.toString());
+        System.out.println(record.value());
+//        writer.append(value);
       }
 
       @Override
