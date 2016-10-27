@@ -59,6 +59,7 @@ public class LineWriterProvider implements RecordWriterProvider {
         Object value = avroData.fromConnectData(record.valueSchema(), record.value());
         System.out.println(value.toString());
         writer.append(record.value());
+        out.writeUTF(record.value().toString());
       }
 
       @Override
