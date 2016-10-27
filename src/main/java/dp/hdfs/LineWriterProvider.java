@@ -13,6 +13,9 @@ package dp.hdfs; /**
  **/
 
 import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.io.DatumWriter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
@@ -38,16 +41,15 @@ public class LineWriterProvider implements RecordWriterProvider {
   public RecordWriter<SinkRecord> getRecordWriter(
       Configuration conf, final String fileName, SinkRecord record, final AvroData avroData)
       throws IOException {
-    final Schema avroSchema = avroData.fromConnectSchema(record.valueSchema());
-    CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
+    DatumWriter<Object> datumWriter = new GenericDatumWriter<>();
+    final DataFileWriter<Object> writer = new DataFileWriter<>(datumWriter);
+    Path path = new Path(fileName);
+    final org.apache.kafka.connect.data.Schema schema = record.valueSchema();
+    final FSDataOutputStream out = path.getFileSystem(conf).create(path);
+//    org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+//    writer.create(avroSchema, out);
 
-    int blockSize = 256 * 1024 * 1024;
-    int pageSize = 64 * 1024;
 
-//    Path path = new Path(fileName);
-//    final ParquetWriter<GenericRecord> writer = new AvroParquetWriter<>(path, avroSchema, compressionCodecName, blockSize, pageSize);
-
-    Path path = new Path("/mx/");
     final FSDataOutputStream fileOut = path.getFileSystem(new Configuration()).create(path);
 
 
@@ -56,6 +58,7 @@ public class LineWriterProvider implements RecordWriterProvider {
       public void write(SinkRecord record) throws IOException {
         Object value = avroData.fromConnectData(record.valueSchema(), record.value());
         System.out.println(value.toString());
+        writer.append(record.value());
       }
 
       @Override

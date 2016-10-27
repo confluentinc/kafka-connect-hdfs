@@ -53,15 +53,14 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
 
     final Schema schema = record.valueSchema();
     final FSDataOutputStream out = path.getFileSystem(conf).create(path);
-    org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
-    writer.create(avroSchema, out);
+//    org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+//    writer.create(avroSchema, out);
 
     return new RecordWriter<SinkRecord>(){
       @Override
       public void write(SinkRecord record) throws IOException {
         log.trace("Sink record: {}", record.toString());
         Object value = avroData.fromConnectData(schema, record.value());
-        System.out.println(value.toString());
         System.out.println(record.value());
 //        writer.append(value);
       }
