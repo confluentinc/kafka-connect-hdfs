@@ -372,6 +372,7 @@ public class DataWriter {
 
   @SuppressWarnings("unchecked")
   private Format getFormat() throws ClassNotFoundException, IllegalAccessException, InstantiationException{
+    String name = connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
     return  ((Class<Format>) Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG))).newInstance();
   }
 
