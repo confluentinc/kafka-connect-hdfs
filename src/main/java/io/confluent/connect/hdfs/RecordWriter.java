@@ -18,7 +18,10 @@ package io.confluent.connect.hdfs;
 
 import java.io.IOException;
 
-public interface RecordWriter<V> {
+@Deprecated
+public interface RecordWriter<V> extends io.confluent.connect.storage.RecordWriter<V> {
+  @Override
   void write(V value) throws IOException;
+  @Override
   void close() throws IOException;
 }

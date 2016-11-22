@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs;
 
-import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
@@ -32,8 +31,9 @@ import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
 import io.confluent.connect.hdfs.partitioner.HourlyPartitioner;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
 
-public class HdfsSinkConnectorConfig extends AbstractConfig {
+public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   // HDFS Group
   public static final String HDFS_URL_CONFIG = "hdfs.url";
@@ -259,8 +259,6 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   private static final ConfigDef.Recommender partitionerClassDependentsRecommender = new PartitionerClassDependentsRecommender();
   private static final ConfigDef.Recommender schemaCompatibilityRecommender = new SchemaCompatibilityRecommender();
 
-  private static ConfigDef config = new ConfigDef();
-
   static {
 
     // Define HDFS configuration group
@@ -405,7 +403,7 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   }
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
-    super(config, props);
+    super(props);
   }
 
   public static void main(String[] args) {

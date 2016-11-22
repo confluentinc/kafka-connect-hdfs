@@ -18,13 +18,26 @@ package io.confluent.connect.hdfs.wal;
 
 import org.apache.kafka.connect.errors.ConnectException;
 
-public interface WAL {
+@Deprecated
+public interface WAL extends io.confluent.connect.storage.wal.WAL {
   String beginMarker = "BEGIN";
   String endMarker = "END";
+
+  @Override
   void acquireLease() throws ConnectException;
+
+  @Override
   void append(String tempFile, String committedFile) throws ConnectException;
+
+  @Override
   void apply() throws ConnectException;
+
+  @Override
   void truncate() throws ConnectException;
+
+  @Override
   void close() throws ConnectException;
+
+  @Override
   String getLogFile();
 }

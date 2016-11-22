@@ -21,23 +21,22 @@ import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 
-public abstract class HiveUtil {
-
-  protected final String url;
-  protected final String topicsDir;
-  protected final AvroData avroData;
-  protected final HiveMetaStore hiveMetaStore;
-
+@Deprecated
+public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUtil {
 
   public HiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    this.url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
-    this.topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
-    this.avroData = avroData;
-    this.hiveMetaStore = hiveMetaStore;
+    super(connectorConfig, avroData, hiveMetaStore);
+  }
+
+  @Override
+  public void createTable(String database, String tableName,
+                                   Schema schema, io.confluent.connect.storage.partitioner.Partitioner partitioner) {
+    createTable(database, tableName, schema, (Partitioner) partitioner);
   }
 
   public abstract void createTable(String database, String tableName, Schema schema, Partitioner partitioner);
 
+  @Override
   public abstract void alterSchema(String database, String tableName, Schema schema);
   
   public Table newTable(String database, String table){

@@ -25,16 +25,38 @@ import java.io.IOException;
 
 import io.confluent.connect.hdfs.wal.WAL;
 
-public interface Storage {
+@Deprecated
+public interface Storage extends io.confluent.connect.storage.Storage {
+  @Override
   boolean exists(String filename) throws IOException;
+
+  @Override
   boolean mkdirs(String filename) throws IOException;
+
+  @Override
   void append(String filename, Object object) throws IOException;
+
+  @Override
   void delete(String filename) throws IOException;
+
+  @Override
   void commit(String tempFile, String committedFile) throws IOException;
+
+  @Override
   void close() throws IOException;
+
+  @Override
   WAL wal(String topicsDir, TopicPartition topicPart);
+
+  @Override
   FileStatus[] listStatus(String path, PathFilter filter) throws IOException;
+
+  @Override
   FileStatus[] listStatus(String path) throws IOException;
+
+  @Override
   String url();
+
+  @Override
   Configuration conf();
 }

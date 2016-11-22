@@ -18,8 +18,13 @@ import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 
-public interface Format {
+@Deprecated
+public interface Format
+    extends io.confluent.connect.storage.Format<HdfsSinkConnectorConfig, AvroData, HiveMetaStore> {
+  @Override
   RecordWriterProvider getRecordWriterProvider();
+  @Override
   SchemaFileReader getSchemaFileReader(AvroData avroData);
+  @Override
   HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore);
 }

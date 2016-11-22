@@ -21,7 +21,10 @@ import org.apache.kafka.connect.data.Schema;
 import java.io.IOException;
 import java.util.Collection;
 
-public interface SchemaFileReader {
+@Deprecated
+public interface SchemaFileReader extends io.confluent.connect.storage.SchemaFileReader {
+  @Override
   Schema getSchema(Configuration conf, Path path) throws IOException;
+  @Override
   Collection<Object> readData(Configuration conf, Path path) throws IOException;
 }
