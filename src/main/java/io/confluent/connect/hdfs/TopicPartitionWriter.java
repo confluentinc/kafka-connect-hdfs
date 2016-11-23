@@ -80,7 +80,7 @@ public class TopicPartitionWriter {
   private AvroData avroData;
   private Set<String> appended;
   private long offset;
-  private boolean sawInvalidOffset;
+  private boolean sawStaleOffset;
   private Map<String, Long> startOffsets;
   private Map<String, Long> offsets;
   private long timeoutMs;
@@ -156,7 +156,7 @@ public class TopicPartitionWriter {
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
     offset = -1L;
-    sawInvalidOffset = false;
+    sawStaleOffset = false;
     extension = writerProvider.getExtension();
     zeroPadOffsetFormat
         = "%0" +
@@ -511,23 +511,23 @@ public class TopicPartitionWriter {
     long expectedOffset = offset + recordCounter;
     if (offset == -1) {
       offset = record.kafkaOffset();
-    } else if (record.kafkaOffset() != expectedOffset) {
+    } else if (record.kafkaOffset() < expectedOffset) {
       // Currently it's possible to see stale data with the wrong offset after a rebalance when you
       // rewind, which we do since we manage our own offsets. See KAFKA-2894.
-      if (!sawInvalidOffset) {
+      if (!sawStaleOffset) {
         log.info(
             "Ignoring stale out-of-order record in {}-{}. Has offset {} instead of expected offset {}",
             record.topic(), record.kafkaPartition(), record.kafkaOffset(), expectedOffset);
       }
-      sawInvalidOffset = true;
+      sawStaleOffset = true;
       return;
     }
 
-    if (sawInvalidOffset) {
+    if (sawStaleOffset) {
       log.info(
           "Recovered from stale out-of-order records in {}-{} with offset {}",
           record.topic(), record.kafkaPartition(), expectedOffset);
-      sawInvalidOffset = false;
+      sawStaleOffset = false;
     }
 
     String encodedPartition = partitioner.encodePartition(record);
