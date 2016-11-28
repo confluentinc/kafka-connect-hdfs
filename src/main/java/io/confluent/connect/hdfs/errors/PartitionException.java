@@ -14,7 +14,8 @@
 
 package io.confluent.connect.hdfs.errors;
 
-public class PartitionException extends RuntimeException {
+@Deprecated
+public class PartitionException extends io.confluent.connect.storage.errors.PartitionException {
   
   public PartitionException(String s) {
     super(s);
