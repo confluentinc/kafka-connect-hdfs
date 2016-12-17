@@ -14,7 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
-import io.confluent.kafka.serializers.NonRecordContainer;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -32,8 +32,9 @@ import java.util.Map;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.avro.AvroFileReader;
 import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.storage.StorageFactory;
-import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.storage.StorageFactory;
+import io.confluent.connect.storage.wal.WAL;
+import io.confluent.kafka.serializers.NonRecordContainer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -243,7 +244,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     @SuppressWarnings("unchecked")
     Class<? extends Storage> storageClass = (Class<? extends Storage>)
         Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-    Storage storage = StorageFactory.createStorage(storageClass, conf, url);
+    Storage storage = StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
 
     for (TopicPartition tp: tempfiles.keySet()) {
       WAL wal = storage.wal(logsDir, tp);

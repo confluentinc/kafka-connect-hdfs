@@ -25,11 +25,14 @@ import org.apache.kafka.common.TopicPartition;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
 
 import io.confluent.connect.hdfs.wal.FSWAL;
-import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.storage.wal.WAL;
 
-public class HdfsStorage implements Storage {
+public class HdfsStorage implements io.confluent.connect.storage.Storage<List<FileStatus>, PathFilter, Configuration>,
+    Storage {
 
   private final FileSystem fs;
   private final Configuration conf;
@@ -42,19 +45,17 @@ public class HdfsStorage implements Storage {
   }
 
   @Override
-  public FileStatus[] listStatus(String path, PathFilter filter) throws IOException {
-    return fs.listStatus(new Path(path), filter);
+  public List<FileStatus> listStatus(String path, PathFilter filter) throws IOException {
+    return Arrays.asList(fs.listStatus(new Path(path), filter));
   }
 
   @Override
-  public FileStatus[] listStatus(String path) throws IOException {
-    return fs.listStatus(new Path(path));
+  public List<FileStatus> listStatus(String path) throws IOException {
+    return Arrays.asList(fs.listStatus(new Path(path)));
   }
 
   @Override
-  public void append(String filename, Object object) throws IOException {
-
-  }
+  public void append(String filename, Object object) throws IOException {}
 
   @Override
   public boolean mkdirs(String filename) throws IOException {

@@ -92,6 +92,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
   }
 
   @After
+  @Override
   public void tearDown() throws Exception {
     super.tearDown();
   }

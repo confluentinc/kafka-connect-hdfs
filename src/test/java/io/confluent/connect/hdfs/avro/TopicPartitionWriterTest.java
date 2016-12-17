@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
@@ -46,7 +47,7 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
 import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.storage.StorageFactory;
+import io.confluent.connect.storage.StorageFactory;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -67,7 +68,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     @SuppressWarnings("unchecked")
     Class<? extends Storage> storageClass = (Class<? extends Storage>) Class
             .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-    storage = StorageFactory.createStorage(storageClass, conf, url);
+    storage = StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
     createTopicDir(url, topicsDir, TOPIC);
     createLogsDir(url, logsDir);
   }

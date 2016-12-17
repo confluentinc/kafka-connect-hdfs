@@ -14,15 +14,17 @@
 
 package io.confluent.connect.hdfs.wal;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.Test;
 
-import io.confluent.connect.hdfs.storage.StorageFactory;
+import io.confluent.connect.storage.StorageFactory;
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.storage.wal.WAL;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -40,7 +42,7 @@ public class WALTest extends TestWithMiniDFSCluster {
     @SuppressWarnings("unchecked")
     Class<? extends Storage> storageClass = (Class<? extends Storage>)
         Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-    Storage storage = StorageFactory.createStorage(storageClass, conf, url);
+    Storage storage = StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
 
     final WAL wal1 = storage.wal(topicsDir, TOPIC_PARTITION);
     final WAL wal2 = storage.wal(topicsDir, TOPIC_PARTITION);

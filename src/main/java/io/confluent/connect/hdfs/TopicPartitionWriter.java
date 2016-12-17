@@ -53,7 +53,7 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.schema.Compatibility;
 import io.confluent.connect.hdfs.schema.SchemaUtils;
 import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.storage.wal.WAL;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);

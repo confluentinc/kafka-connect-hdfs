@@ -55,7 +55,7 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public FileStatus[] listStatus(String path) throws IOException {
+  public List<FileStatus> listStatus(String path) throws IOException {
     List<FileStatus> result = new ArrayList<>();
     for (String key: data.keySet()) {
       if (key.startsWith(path)) {
@@ -63,11 +63,11 @@ public class MemoryStorage implements Storage {
         result.add(status);
       }
     }
-    return result.toArray(new FileStatus[result.size()]);
+    return result;
   }
 
   @Override
-  public FileStatus[] listStatus(String path, PathFilter filter) throws IOException {
+  public List<FileStatus> listStatus(String path, PathFilter filter) throws IOException {
     if (failure == Failure.listStatusFailure) {
       failure = Failure.noFailure;
       throw new IOException("listStatus failed.");
@@ -79,7 +79,7 @@ public class MemoryStorage implements Storage {
           result.add(status);
       }
     }
-    return result.toArray(new FileStatus[result.size()]);
+    return result;
   }
 
   @Override

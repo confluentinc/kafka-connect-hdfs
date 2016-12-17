@@ -164,8 +164,8 @@ public class DataWriter {
 
       @SuppressWarnings("unchecked")
       Class<? extends Storage> storageClass = (Class<? extends Storage>) Class
-              .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-      storage = StorageFactory.createStorage(storageClass, conf, url);
+          .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
+      storage = io.confluent.connect.storage.StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
 
       createDir(topicsDir);
       createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);

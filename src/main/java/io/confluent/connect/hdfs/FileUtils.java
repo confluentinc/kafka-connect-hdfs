@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 
@@ -95,7 +96,7 @@ public class FileUtils {
       return new ArrayList<>();
     }
     ArrayList<FileStatus> result = new ArrayList<>();
-    FileStatus[] statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.listStatus(path.toString());
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         result.addAll(traverseImpl(storage, status.getPath(), filter));
@@ -121,7 +122,7 @@ public class FileUtils {
     }
     long maxOffset = -1L;
     FileStatus fileStatusWithMaxOffset = null;
-    FileStatus[] statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.listStatus(path.toString());
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         FileStatus fileStatus = fileStatusWithMaxOffset(storage, status.getPath(), filter);
@@ -158,12 +159,12 @@ public class FileUtils {
 
   private static ArrayList<FileStatus> getDirectoriesImpl(Storage storage, Path path)
       throws IOException {
-    FileStatus[] statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.listStatus(path.toString());
     ArrayList<FileStatus> result = new ArrayList<>();
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         int count = 0;
-        FileStatus[] fileStatuses = storage.listStatus(status.getPath().toString());
+        List<FileStatus> fileStatuses = storage.listStatus(status.getPath().toString());
         for (FileStatus fileStatus : fileStatuses) {
           if (fileStatus.isDirectory()) {
             result.addAll(getDirectoriesImpl(storage, fileStatus.getPath()));
@@ -171,7 +172,7 @@ public class FileUtils {
             count++;
           }
         }
-        if (count == fileStatuses.length) {
+        if (count == fileStatuses.size()) {
           result.add(status);
         }
       }
