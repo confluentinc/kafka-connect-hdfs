@@ -76,7 +76,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   public void testWriteRecordDefaultWithPadding() throws Exception {
     Partitioner partitioner = new DefaultPartitioner();
     partitioner.configure(Collections.<String, Object>emptyMap());
-    connectorProps.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
+    properties.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
     configureConnector();
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION, storage, writerProvider, partitioner,  connectorConfig, context, avroData);
