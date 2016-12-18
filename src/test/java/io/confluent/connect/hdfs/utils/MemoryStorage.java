@@ -21,8 +21,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -55,7 +55,7 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public List<FileStatus> listStatus(String path) throws IOException {
+  public List<FileStatus> listStatus(String path) {
     List<FileStatus> result = new ArrayList<>();
     for (String key: data.keySet()) {
       if (key.startsWith(path)) {
@@ -67,10 +67,10 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public List<FileStatus> listStatus(String path, PathFilter filter) throws IOException {
+  public List<FileStatus> listStatus(String path, PathFilter filter) {
     if (failure == Failure.listStatusFailure) {
       failure = Failure.noFailure;
-      throw new IOException("listStatus failed.");
+      throw new ConnectException("listStatus failed.");
     }
     List<FileStatus> result = new ArrayList<>();
     for (String key: data.keySet()) {
@@ -83,10 +83,10 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public void append(String filename, Object object) throws IOException {
+  public void append(String filename, Object object) {
     if (failure == Failure.appendFailure) {
       failure = Failure.noFailure;
-      throw new IOException("append failed.");
+      throw new ConnectException("append failed.");
     }
     if (!data.containsKey(filename)) {
       data.put(filename, new LinkedList<>());
@@ -95,28 +95,28 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public boolean mkdirs(String filename) throws IOException {
+  public boolean mkdirs(String filename) {
     if (failure == Failure.mkdirsFailure) {
       failure = Failure.noFailure;
-      throw new IOException("mkdirs failed.");
+      throw new ConnectException("mkdirs failed.");
     }
     return true;
   }
 
   @Override
-  public boolean exists(String filename) throws IOException {
+  public boolean exists(String filename) {
     if (failure == Failure.existsFailure) {
       failure = Failure.noFailure;
-      throw new IOException("exists failed.");
+      throw new ConnectException("exists failed.");
     }
     return data.containsKey(filename);
   }
 
   @Override
-  public void delete(String filename) throws IOException {
+  public void delete(String filename) {
     if (failure == Failure.deleteFailure) {
       failure = Failure.noFailure;
-      throw new IOException("delete failed.");
+      throw new ConnectException("delete failed.");
     }
     if (data.containsKey(filename)) {
       data.get(filename).clear();
@@ -125,10 +125,10 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public void commit(String tempFile, String committedFile) throws IOException {
+  public void commit(String tempFile, String committedFile) {
     if (failure == Failure.commitFailure) {
       failure = Failure.noFailure;
-      throw new IOException("commit failed.");
+      throw new ConnectException("commit failed.");
     }
     if (!data.containsKey(committedFile)) {
       List<Object> entryList = data.get(tempFile);
@@ -138,10 +138,10 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public void close() throws IOException {
+  public void close() {
     if (failure == Failure.closeFailure) {
       failure = Failure.noFailure;
-      throw new IOException("close failed.");
+      throw new ConnectException("close failed.");
     }
     data.clear();
   }

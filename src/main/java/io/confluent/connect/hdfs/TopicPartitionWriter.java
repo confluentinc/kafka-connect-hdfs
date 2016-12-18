@@ -18,7 +18,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.IllegalWorkerStateException;
@@ -50,9 +49,8 @@ import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.schema.Compatibility;
-import io.confluent.connect.hdfs.schema.SchemaUtils;
 import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
 
 public class TopicPartitionWriter {
@@ -85,7 +83,7 @@ public class TopicPartitionWriter {
   private Map<String, Long> offsets;
   private long timeoutMs;
   private long failureTime;
-  private Compatibility compatibility;
+  private StorageSchemaCompatibility compatibility;
   private Schema currentSchema;
   private HdfsSinkConnectorConfig connectorConfig;
   private String extension;
@@ -141,7 +139,7 @@ public class TopicPartitionWriter {
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
     rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
     timeoutMs = connectorConfig.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG);
-    compatibility = SchemaUtils.getCompatibility(
+    compatibility = StorageSchemaCompatibility.getCompatibility(
         connectorConfig.getString(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
 
     String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
@@ -267,7 +265,7 @@ public class TopicPartitionWriter {
             nextState();
           case WRITE_PARTITION_PAUSED:
             if (currentSchema == null) {
-              if (compatibility != Compatibility.NONE && offset != -1) {
+              if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
                 String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
                 CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
                 FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
@@ -278,7 +276,7 @@ public class TopicPartitionWriter {
             }
             SinkRecord record = buffer.peek();
             Schema valueSchema = record.valueSchema();
-            if (SchemaUtils.shouldChangeSchema(valueSchema, currentSchema, compatibility)) {
+            if (compatibility.shouldChangeSchema(valueSchema, currentSchema)) {
               currentSchema = valueSchema;
               if (hiveIntegration) {
                 createHiveTable();
@@ -290,7 +288,7 @@ public class TopicPartitionWriter {
                 break;
               }
             } else {
-              SinkRecord projectedRecord = SchemaUtils.project(record, currentSchema, compatibility);
+              SinkRecord projectedRecord = compatibility.project(record, currentSchema);
               writeRecord(projectedRecord);
               buffer.poll();
               if (shouldRotate(now)) {

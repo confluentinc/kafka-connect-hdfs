@@ -134,16 +134,12 @@ public class FSWAL implements WAL {
 
   @Override
   public void truncate() throws ConnectException {
-    try {
-      String oldLogFile = logFile + ".1";
-      storage.delete(oldLogFile);
-      storage.commit(logFile, oldLogFile);
-      // Clean out references to the current WAL file.
-      // Open a new one on the next lease acquisition.
-      close();
-    } catch (IOException e) {
-      throw new ConnectException(e);
-    }
+    String oldLogFile = logFile + ".1";
+    storage.delete(oldLogFile);
+    storage.commit(logFile, oldLogFile);
+    // Clean out references to the current WAL file.
+    // Open a new one on the next lease acquisition.
+    close();
   }
 
   @Override

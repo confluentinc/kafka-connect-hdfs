@@ -52,7 +52,7 @@ import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.storage.StorageFactory;
+import io.confluent.connect.storage.StorageFactory;
 
 public class DataWriter {
   private static final Logger log = LoggerFactory.getLogger(DataWriter.class);
@@ -165,7 +165,7 @@ public class DataWriter {
       @SuppressWarnings("unchecked")
       Class<? extends Storage> storageClass = (Class<? extends Storage>) Class
           .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-      storage = io.confluent.connect.storage.StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
+      storage = StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
 
       createDir(topicsDir);
       createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
@@ -322,11 +322,8 @@ public class DataWriter {
       }
     }
 
-    try {
-      storage.close();
-    } catch (IOException e) {
-      throw new ConnectException(e);
-    }
+    storage.close();
+
     if (ticketRenewThread != null) {
       synchronized (this) {
         isRunning = false;
@@ -363,7 +360,7 @@ public class DataWriter {
     return topicPartitionWriter.getTempFiles();
   }
 
-  private void createDir(String dir) throws IOException {
+  private void createDir(String dir) {
     String path = url + "/" + dir;
     if (!storage.exists(path)) {
       storage.mkdirs(path);

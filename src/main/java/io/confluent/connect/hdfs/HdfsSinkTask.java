@@ -29,8 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.schema.Compatibility;
-import io.confluent.connect.hdfs.schema.SchemaUtils;
+import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 
 public class HdfsSinkTask extends SinkTask {
 
@@ -54,9 +53,9 @@ public class HdfsSinkTask extends SinkTask {
       HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
       boolean hiveIntegration = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
-        Compatibility compatibility = SchemaUtils.getCompatibility(
+        StorageSchemaCompatibility compatibility = StorageSchemaCompatibility.getCompatibility(
             connectorConfig.getString(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
-        if (compatibility == Compatibility.NONE) {
+        if (compatibility == StorageSchemaCompatibility.NONE) {
           throw new ConfigException("Hive Integration requires schema compatibility to be BACKWARD, FORWARD or FULL");
         }
       }

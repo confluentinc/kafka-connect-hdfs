@@ -22,6 +22,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 
 import java.io.IOException;
 import java.net.URI;
@@ -45,43 +46,66 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<List<Fi
   }
 
   @Override
-  public List<FileStatus> listStatus(String path, PathFilter filter) throws IOException {
-    return Arrays.asList(fs.listStatus(new Path(path), filter));
+  public List<FileStatus> listStatus(String path, PathFilter filter) {
+    try {
+      return Arrays.asList(fs.listStatus(new Path(path), filter));
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
-  public List<FileStatus> listStatus(String path) throws IOException {
-    return Arrays.asList(fs.listStatus(new Path(path)));
+  public List<FileStatus> listStatus(String path) {
+    try {
+      return Arrays.asList(fs.listStatus(new Path(path)));
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
-  public void append(String filename, Object object) throws IOException {}
+  public void append(String filename, Object object) {}
 
   @Override
-  public boolean mkdirs(String filename) throws IOException {
-    return fs.mkdirs(new Path(filename));
+  public boolean mkdirs(String filename) {
+    try {
+      return fs.mkdirs(new Path(filename));
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
-  public boolean exists(String filename) throws IOException {
-    return fs.exists(new Path(filename));
+  public boolean exists(String filename) {
+    try {
+      return fs.exists(new Path(filename));
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
-  public void commit(String tempFile, String committedFile) throws IOException {
+  public void commit(String tempFile, String committedFile) {
     renameFile(tempFile, committedFile);
   }
 
-
   @Override
-  public void delete(String filename) throws IOException {
-    fs.delete(new Path(filename), true);
+  public void delete(String filename) {
+    try {
+      fs.delete(new Path(filename), true);
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
-  public void close() throws IOException {
+  public void close() {
     if (fs != null) {
-      fs.close();
+      try {
+        fs.close();
+      } catch (IOException e) {
+        throw new ConnectException(e);
+      }
     }
   }
 
@@ -100,14 +124,18 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<List<Fi
     return url;
   }
 
-  private void renameFile(String sourcePath, String targetPath) throws IOException {
+  private void renameFile(String sourcePath, String targetPath) {
     if (sourcePath.equals(targetPath)) {
       return;
     }
-    final Path srcPath = new Path(sourcePath);
-    final Path dstPath = new Path(targetPath);
-    if (fs.exists(srcPath)) {
-      fs.rename(srcPath, dstPath);
+    try {
+      final Path srcPath = new Path(sourcePath);
+      final Path dstPath = new Path(targetPath);
+      if (fs.exists(srcPath)) {
+        fs.rename(srcPath, dstPath);
+      }
+    } catch (IOException e) {
+      throw new ConnectException(e);
     }
   }
 }
