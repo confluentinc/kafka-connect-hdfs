@@ -105,7 +105,7 @@ public class DataWriter {
 
         if (principalConfig == null || keytab == null) {
           throw new ConfigException(
-              "Hadoop is using Kerboros for authentication, you need to provide both a connect principal and "
+              "Hadoop is using Kerberos for authentication, you need to provide both a connect principal and "
               + "the path to the keytab of the principal.");
         }
 

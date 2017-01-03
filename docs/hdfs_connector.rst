@@ -212,7 +212,7 @@ To work with secure HDFS and Hive metastore, you need to specify ``hdfs.authenti
   connect.hdfs.keytab=path to the connector keytab
   hdfs.namenode.principal=namenode principal
 
-You need to create the Kafka connect principals and keytab files via Kerboros and distribute the
+You need to create the Kafka connect principals and keytab files via Kerberos and distribute the
 keytab file to all hosts that running the connector and ensures that only the connector user
 has read access to the keytab file.
 
