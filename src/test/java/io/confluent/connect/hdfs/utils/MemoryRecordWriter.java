@@ -17,7 +17,6 @@ package io.confluent.connect.hdfs.utils;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 

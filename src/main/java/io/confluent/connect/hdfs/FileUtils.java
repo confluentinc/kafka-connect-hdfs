@@ -90,8 +90,7 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic;
   }
 
-  private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter)
-      throws IOException {
+  private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter) {
     if (!storage.exists(path.toString())) {
       return new ArrayList<>();
     }
@@ -115,8 +114,7 @@ public class FileUtils {
     return result.toArray(new FileStatus[result.size()]);
   }
 
-  public static FileStatus fileStatusWithMaxOffset(Storage storage, Path path,
-                                                   CommittedFileFilter filter) throws IOException {
+  public static FileStatus fileStatusWithMaxOffset(Storage storage, Path path, CommittedFileFilter filter) {
     if (!storage.exists(path.toString())) {
       return null;
     }
@@ -157,8 +155,7 @@ public class FileUtils {
     return Long.parseLong(m.group(HdfsSinkConnectorConstants.PATTERN_END_OFFSET_GROUP));
   }
 
-  private static ArrayList<FileStatus> getDirectoriesImpl(Storage storage, Path path)
-      throws IOException {
+  private static ArrayList<FileStatus> getDirectoriesImpl(Storage storage, Path path) {
     List<FileStatus> statuses = storage.listStatus(path.toString());
     ArrayList<FileStatus> result = new ArrayList<>();
     for (FileStatus status : statuses) {

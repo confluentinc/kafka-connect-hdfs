@@ -48,7 +48,7 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void start(Map<String, String> props) {
-    Set<TopicPartition> assignment = context.assignment();;
+    Set<TopicPartition> assignment = context.assignment();
     try {
       HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
       boolean hiveIntegration = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);

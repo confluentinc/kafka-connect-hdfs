@@ -19,6 +19,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.hadoop.ParquetReader;
 
@@ -51,7 +52,7 @@ public class ParquetFileReader implements SchemaFileReader,
       parquetReader.close();
       return schema;
     } catch (IOException e) {
-      throw new ConnectException(e);
+      throw new DataException(e);
     }
   }
 
@@ -68,7 +69,7 @@ public class ParquetFileReader implements SchemaFileReader,
       }
       parquetReader.close();
     } catch (IOException e) {
-      throw new ConnectException(e);
+      throw new DataException(e);
     }
     return result;
   }

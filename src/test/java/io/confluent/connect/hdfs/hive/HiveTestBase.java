@@ -50,7 +50,7 @@ public class HiveTestBase extends TestWithMiniDFSCluster {
     return props;
   }
 
-  private void cleanHive() throws Exception {
+  private void cleanHive() {
     // ensures all tables are removed
     for (String database : hiveMetaStore.getAllDatabases()) {
       for (String table : hiveMetaStore.getAllTables(database)) {

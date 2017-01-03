@@ -19,6 +19,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +61,7 @@ public class FSWAL implements WAL {
       writer.append(key, value);
       writer.hsync();
     } catch (IOException e) {
-      throw new ConnectException(e);
+      throw new DataException(e);
     }
   }
 
@@ -88,7 +89,7 @@ public class FSWAL implements WAL {
           throw new ConnectException(e);
         }
       } catch (IOException e) {
-        throw new ConnectException("Error creating writer for log file " + logFile, e);
+        throw new DataException("Error creating writer for log file " + logFile, e);
       }
     }
     if (sleepIntervalMs >= MAX_SLEEP_INTERVAL_MS) {
@@ -128,7 +129,7 @@ public class FSWAL implements WAL {
         }
       }
     } catch (IOException e) {
-      throw new ConnectException(e);
+      throw new DataException(e);
     }
   }
 
@@ -154,7 +155,7 @@ public class FSWAL implements WAL {
         reader = null;
       }
     } catch (IOException e) {
-      throw new ConnectException("Error closing " + logFile, e);
+      throw new DataException("Error closing " + logFile, e);
     }
   }
 

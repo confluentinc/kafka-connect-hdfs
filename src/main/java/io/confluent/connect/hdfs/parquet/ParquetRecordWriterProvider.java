@@ -19,6 +19,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -60,7 +61,7 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider,
           try {
             writer.write((GenericRecord) value);
           } catch (IOException e) {
-            throw new ConnectException(e);
+            throw new DataException(e);
           }
         }
 
@@ -69,7 +70,7 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider,
           try {
             writer.close();
           } catch (IOException e) {
-            throw new ConnectException(e);
+            throw new DataException(e);
           }
         }
       };

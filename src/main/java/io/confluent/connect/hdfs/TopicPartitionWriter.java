@@ -20,6 +20,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.errors.IllegalWorkerStateException;
 import org.apache.kafka.connect.errors.SchemaProjectorException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -29,7 +30,6 @@ import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -85,7 +85,6 @@ public class TopicPartitionWriter {
   private long failureTime;
   private StorageSchemaCompatibility compatibility;
   private Schema currentSchema;
-  private HdfsSinkConnectorConfig connectorConfig;
   private String extension;
   private final String zeroPadOffsetFormat;
   private DateTimeZone timeZone;
@@ -124,7 +123,6 @@ public class TopicPartitionWriter {
       ExecutorService executorService,
       Queue<Future<Void>> hiveUpdateFutures) {
     this.tp = tp;
-    this.connectorConfig = connectorConfig;
     this.context = context;
     this.avroData = avroData;
     this.storage = storage;
@@ -318,7 +316,7 @@ public class TopicPartitionWriter {
         }
       } catch (SchemaProjectorException | IllegalWorkerStateException | HiveMetaStoreException e ) {
         throw new RuntimeException(e);
-      } catch (IOException | ConnectException e) {
+      } catch (ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = System.currentTimeMillis();
         setRetryTimeout(timeoutMs);
@@ -335,7 +333,7 @@ public class TopicPartitionWriter {
           closeTempFile();
           appendToWAL();
           commitFile();
-        } catch (IOException e) {
+        } catch (DataException e) {
           log.error("Exception on topic partition {}: ", tp, e);
           failureTime = System.currentTimeMillis();
           setRetryTimeout(timeoutMs);
@@ -358,7 +356,7 @@ public class TopicPartitionWriter {
           closeTempFile(encodedPartition);
           deleteTempFile(encodedPartition);
         }
-      } catch (IOException e) {
+      } catch (DataException e) {
         log.error("Error discarding temp file {} for {} {} when closing TopicPartitionWriter:",
                   tempFiles.get(encodedPartition), tp, encodedPartition, e);
       }
@@ -401,10 +399,6 @@ public class TopicPartitionWriter {
     return tempFiles;
   }
 
-  public String getExtension() {
-    return writerProvider.getExtension();
-  }
-
   private String getDirectory(String encodedPartition) {
     return partitioner.generatePartitionedPath(tp.topic(), encodedPartition);
   }
@@ -426,15 +420,11 @@ public class TopicPartitionWriter {
   }
 
   private void readOffset() throws ConnectException {
-    try {
-      String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
-      CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
-      FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(path), filter);
-      if (fileStatusWithMaxOffset != null) {
-        offset = FileUtils.extractOffset(fileStatusWithMaxOffset.getPath().getName()) + 1;
-      }
-    } catch (IOException e) {
-      throw new ConnectException(e);
+    String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
+    CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
+    FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(path), filter);
+    if (fileStatusWithMaxOffset != null) {
+      offset = FileUtils.extractOffset(fileStatusWithMaxOffset.getPath().getName()) + 1;
     }
   }
 
@@ -501,7 +491,7 @@ public class TopicPartitionWriter {
     }
   }
 
-  private void writeRecord(SinkRecord record) throws IOException {
+  private void writeRecord(SinkRecord record) {
     long expectedOffset = offset + recordCounter;
     if (offset == -1) {
       offset = record.kafkaOffset();
@@ -537,7 +527,7 @@ public class TopicPartitionWriter {
     recordCounter++;
   }
 
-  private void closeTempFile(String encodedPartition) throws IOException {
+  private void closeTempFile(String encodedPartition) {
     if (writers.containsKey(encodedPartition)) {
       RecordWriter<SinkRecord> writer = writers.get(encodedPartition);
       writer.close();
@@ -545,13 +535,13 @@ public class TopicPartitionWriter {
     }
   }
 
-  private void closeTempFile() throws IOException {
+  private void closeTempFile() {
     for (String encodedPartition: tempFiles.keySet()) {
       closeTempFile(encodedPartition);
     }
   }
 
-  private void appendToWAL(String encodedPartition) throws IOException {
+  private void appendToWAL(String encodedPartition) {
     String tempFile = tempFiles.get(encodedPartition);
     if (appended.contains(tempFile)) {
       return;
@@ -569,7 +559,7 @@ public class TopicPartitionWriter {
     appended.add(tempFile);
   }
 
-  private void appendToWAL() throws IOException {
+  private void appendToWAL() {
     beginAppend();
     for (String encodedPartition: tempFiles.keySet()) {
       appendToWAL(encodedPartition);
@@ -577,26 +567,26 @@ public class TopicPartitionWriter {
     endAppend();
   }
 
-  private void beginAppend() throws IOException {
+  private void beginAppend() {
     if (!appended.contains(WAL.beginMarker)) {
       wal.append(WAL.beginMarker, "");
     }
   }
 
-  private void endAppend() throws IOException {
+  private void endAppend() {
     if (!appended.contains(WAL.endMarker)) {
       wal.append(WAL.endMarker, "");
     }
   }
 
-  private void commitFile() throws IOException {
+  private void commitFile() {
     appended.clear();
     for (String encodedPartition: tempFiles.keySet()) {
       commitFile(encodedPartition);
     }
   }
 
-  private void commitFile(String encodedPartiton) throws IOException {
+  private void commitFile(String encodedPartiton) {
     if (!startOffsets.containsKey(encodedPartiton)) {
       return;
     }
@@ -619,7 +609,7 @@ public class TopicPartitionWriter {
     log.info("Committed {} for {}", committedFile, tp);
   }
 
-  private void deleteTempFile(String encodedPartiton) throws IOException {
+  private void deleteTempFile(String encodedPartiton) {
     storage.delete(tempFiles.get(encodedPartiton));
   }
 

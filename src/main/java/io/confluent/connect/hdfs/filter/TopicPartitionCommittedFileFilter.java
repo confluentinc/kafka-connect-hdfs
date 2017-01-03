@@ -17,10 +17,9 @@ package io.confluent.connect.hdfs.filter;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 
-import io.confluent.connect.hdfs.HdfsSinkConnector;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConstants;
-
 import java.util.regex.Matcher;
+
+import io.confluent.connect.hdfs.HdfsSinkConnectorConstants;
 
 public class TopicPartitionCommittedFileFilter extends CommittedFileFilter {
   private TopicPartition tp;

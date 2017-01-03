@@ -22,7 +22,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +56,7 @@ public class AvroRecordWriterProvider implements RecordWriterProvider,
       org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
       writer.create(avroSchema, out);
     } catch (IOException e) {
-      throw new ConnectException(e);
+      throw new DataException(e);
     }
 
     return new RecordWriter<SinkRecord>() {
@@ -72,7 +72,7 @@ public class AvroRecordWriterProvider implements RecordWriterProvider,
           else
             writer.append(value);
         } catch (IOException e) {
-          throw new ConnectException(e);
+          throw new DataException(e);
         }
       }
 
@@ -81,7 +81,7 @@ public class AvroRecordWriterProvider implements RecordWriterProvider,
         try {
           writer.close();
         } catch (IOException e) {
-          throw new ConnectException(e);
+          throw new DataException(e);
         }
       }
     };

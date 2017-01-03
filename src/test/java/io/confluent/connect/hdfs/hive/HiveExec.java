@@ -70,7 +70,7 @@ public class HiveExec {
   }
 
 
-  private String[] getHiveArgs(String... args) throws IOException {
+  private String[] getHiveArgs(String... args) {
     List<String> newArgs = new LinkedList<>();
     newArgs.addAll(Arrays.asList(args));
     if (hiveConf.getBoolean(HIVE_SASL_ENABLED, false)) {
