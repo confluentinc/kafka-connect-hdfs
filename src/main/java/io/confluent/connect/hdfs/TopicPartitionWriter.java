@@ -586,14 +586,14 @@ public class TopicPartitionWriter {
     }
   }
 
-  private void commitFile(String encodedPartiton) {
-    if (!startOffsets.containsKey(encodedPartiton)) {
+  private void commitFile(String encodedPartition) {
+    if (!startOffsets.containsKey(encodedPartition)) {
       return;
     }
-    long startOffset = startOffsets.get(encodedPartiton);
-    long endOffset = offsets.get(encodedPartiton);
-    String tempFile = tempFiles.get(encodedPartiton);
-    String directory = getDirectory(encodedPartiton);
+    long startOffset = startOffsets.get(encodedPartition);
+    long endOffset = offsets.get(encodedPartition);
+    String tempFile = tempFiles.get(encodedPartition);
+    String directory = getDirectory(encodedPartition);
     String committedFile = FileUtils.committedFileName(url, topicsDir, directory, tp,
                                                        startOffset, endOffset, extension,
                                                        zeroPadOffsetFormat);
@@ -603,14 +603,14 @@ public class TopicPartitionWriter {
       storage.mkdirs(directoryName);
     }
     storage.commit(tempFile, committedFile);
-    startOffsets.remove(encodedPartiton);
+    startOffsets.remove(encodedPartition);
     offset = offset + recordCounter;
     recordCounter = 0;
     log.info("Committed {} for {}", committedFile, tp);
   }
 
-  private void deleteTempFile(String encodedPartiton) {
-    storage.delete(tempFiles.get(encodedPartiton));
+  private void deleteTempFile(String encodedPartition) {
+    storage.delete(tempFiles.get(encodedPartition));
   }
 
   private void setRetryTimeout(long timeoutMs) {
