@@ -282,7 +282,7 @@ public class DataWriter {
     }
   }
 
-  public void close(Collection<TopicPartition> partitions) {
+  public void close() {
     // Close any writers we have. We may get assigned the same partitions and end up duplicating
     // some effort since we'll have to reprocess those messages. It may be possible to hold on to
     // the TopicPartitionWriter and continue to use the temp file, but this can get significantly

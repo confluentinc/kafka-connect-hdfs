@@ -58,7 +58,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
@@ -101,7 +101,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecords(3, 50);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     long[] validOffsets = {0, 10, 20, 30, 40, 50, 53};
@@ -113,19 +113,19 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
 
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : context.assignment()) {
       hdfsWriter.recover(tp);
     }
 
-    List<SinkRecord> sinkRecords = createSinkRecords(7, 0, assignment);
+    List<SinkRecord> sinkRecords = createSinkRecords(7, 0, context.assignment());
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {0, 3, 6};
-    verify(sinkRecords, validOffsets, assignment);
+    verify(sinkRecords, validOffsets, context.assignment());
   }
 
   @Test
@@ -133,18 +133,19 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
 
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : context.assignment()) {
       hdfsWriter.recover(tp);
     }
 
-    List<SinkRecord> sinkRecords = createSinkRecordsInterleaved(7 * assignment.size(), 0, assignment);
+    List<SinkRecord> sinkRecords = createSinkRecordsInterleaved(7 * context.assignment().size(), 0,
+        context.assignment());
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     long[] validOffsets = {0, 3, 6};
-    verify(sinkRecords, validOffsets, assignment);
+    verify(sinkRecords, validOffsets, context.assignment());
   }
 
   @Test
@@ -152,14 +153,15 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
 
-    List<SinkRecord> sinkRecords = createSinkRecordsInterleaved(7 * assignment.size(), 9, assignment);
+    List<SinkRecord> sinkRecords = createSinkRecordsInterleaved(7 * context.assignment().size(), 9,
+        context.assignment());
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     long[] validOffsets = {9, 12, 15};
-    verify(sinkRecords, validOffsets, assignment);
+    verify(sinkRecords, validOffsets, context.assignment());
   }
 
   @Test
@@ -188,7 +190,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     long previousOffset = committedOffsets.get(TOPIC_PARTITION);
     assertEquals(previousOffset, 6L);
 
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 
@@ -201,7 +203,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecords(7, 3);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     // Last file (offset 9) doesn't satisfy size requirement and gets discarded on close
@@ -214,23 +216,23 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
 
-    // Initial assignment is {TP1, TP2}
-    for (TopicPartition tp: assignment) {
+    Set<TopicPartition> originalAssignment = new HashSet<>(context.assignment());
+    // Starts with TOPIC_PARTITION and TOPIC_PARTITION2
+    for (TopicPartition tp : originalAssignment) {
       hdfsWriter.recover(tp);
     }
 
-    List<SinkRecord> sinkRecords = createSinkRecords(7, 0, assignment);
+    Set<TopicPartition> nextAssignment = new HashSet<>();
+    nextAssignment.add(TOPIC_PARTITION);
+    nextAssignment.add(TOPIC_PARTITION3);
+
+    List<SinkRecord> sinkRecords = createSinkRecords(7, 0, originalAssignment);
+
     hdfsWriter.write(sinkRecords);
-
-    Set<TopicPartition> oldAssignment = new HashSet<>(assignment);
-
-    Set<TopicPartition> newAssignment = new HashSet<>();
-    newAssignment.add(TOPIC_PARTITION);
-    newAssignment.add(TOPIC_PARTITION3);
-
-    hdfsWriter.close(assignment);
-    assignment = newAssignment;
-    hdfsWriter.open(newAssignment);
+    hdfsWriter.close();
+    // Set the new assignment to the context
+    context.setAssignment(nextAssignment);
+    hdfsWriter.open(nextAssignment);
 
     assertEquals(null, hdfsWriter.getBucketWriter(TOPIC_PARTITION2));
     assertNotNull(hdfsWriter.getBucketWriter(TOPIC_PARTITION));
@@ -241,10 +243,10 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     verify(sinkRecords, validOffsetsTopicPartition2, Collections.singleton(TOPIC_PARTITION2), true);
 
     // Message offsets start at 6 because we discarded the in-progress temp file on re-balance
-    sinkRecords = createSinkRecords(3, 6, assignment);
+    sinkRecords = createSinkRecords(3, 6, context.assignment());
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(newAssignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     // Last file (offset 9) doesn't satisfy size requirement and gets discarded on close
@@ -253,8 +255,6 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
     long[] validOffsetsTopicPartition3 = {6, 9};
     verify(sinkRecords, validOffsetsTopicPartition3, Collections.singleton(TOPIC_PARTITION3), true);
-
-    assignment = oldAssignment;
   }
 
   @Test
@@ -271,7 +271,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecordsWithAlternatingSchemas(7, 0);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
     long[] validOffsets = {0, 1, 3, 5, 7};
     verify(sinkRecords, validOffsets);
@@ -290,7 +290,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecordsWithAlternatingSchemas(7, 0);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     long[] validOffsets = {0, 1, 2, 3, 4, 5, 6};
@@ -312,7 +312,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecordsWithAlternatingSchemas(8, 0).subList(1, 8);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     long[] validOffsets = {1, 2, 4, 6, 8};
@@ -338,7 +338,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     } catch (RuntimeException e) {
       // expected
     } finally {
-      hdfsWriter.close(assignment);
+      hdfsWriter.close();
       hdfsWriter.stop();
       long[] validOffsets = {};
       verify(Collections.<SinkRecord>emptyList(), validOffsets);
@@ -359,8 +359,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, FLUSH_SIZE_CONFIG);
     props.put(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG, ROTATE_INTERVAL_MS_CONFIG);
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
-    assignment = new HashSet<>();
-    assignment.add(TOPIC_PARTITION);
+    context.assignment().add(TOPIC_PARTITION);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
@@ -382,7 +381,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     long previousOffset = committedOffsets.get(TOPIC_PARTITION);
     assertEquals(NUMBER_OF_RECORDS, previousOffset);
 
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 

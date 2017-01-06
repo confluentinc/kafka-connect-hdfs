@@ -67,7 +67,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Map<String, String> props = createProps();
@@ -97,7 +97,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     assertEquals(expectedPartitions, partitions);
 
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 
@@ -123,7 +123,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
@@ -221,7 +221,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
@@ -297,7 +297,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);

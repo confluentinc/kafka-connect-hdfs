@@ -140,7 +140,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 

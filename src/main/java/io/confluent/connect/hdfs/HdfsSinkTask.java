@@ -83,7 +83,7 @@ public class HdfsSinkTask extends SinkTask {
       log.info("Couldn't start HdfsSinkConnector:", e);
       log.info("Shutting down HdfsSinkConnector.");
       if (hdfsWriter != null) {
-        hdfsWriter.close(assignment);
+        hdfsWriter.close();
         hdfsWriter.stop();
       }
     }
@@ -117,7 +117,7 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    hdfsWriter.close(partitions);
+    hdfsWriter.close();
   }
 
   private void recover(Set<TopicPartition> assignment) {

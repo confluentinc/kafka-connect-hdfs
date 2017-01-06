@@ -52,7 +52,7 @@ public class DataWriterParquetTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close

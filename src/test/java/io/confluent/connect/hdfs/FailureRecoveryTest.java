@@ -87,7 +87,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     content = data.get(logFile);
     assertEquals(6, content.size());
 
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 
@@ -163,7 +163,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     }
 
     hdfsWriter.write(new ArrayList<SinkRecord>());
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 
@@ -226,7 +226,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     }
 
     hdfsWriter.write(new ArrayList<SinkRecord>());
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 }

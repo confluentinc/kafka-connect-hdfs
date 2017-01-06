@@ -158,7 +158,7 @@ public class ParquetHiveUtilTest extends HiveTestBase {
       sinkRecords.add(sinkRecord);
     }
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 
