@@ -16,6 +16,7 @@
 
 package io.confluent.connect.hdfs.utils;
 
+import org.apache.avro.file.SeekableInput;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -23,6 +24,7 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -163,5 +165,15 @@ public class MemoryStorage implements Storage {
 
   public void setFailure(Failure failure) {
     this.failure = failure;
+  }
+
+  @Override
+  public SeekableInput open(String filename, Configuration conf) {
+    return null;
+  }
+
+  @Override
+  public OutputStream create(String filename, Configuration conf, boolean overwrite) {
+    return null;
   }
 }

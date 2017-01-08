@@ -16,6 +16,8 @@
 
 package io.confluent.connect.hdfs.storage;
 
+import org.apache.avro.file.SeekableInput;
+import org.apache.avro.mapred.FsInput;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -25,6 +27,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
@@ -32,7 +35,7 @@ import java.util.List;
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.storage.wal.WAL;
 
-public class HdfsStorage implements io.confluent.connect.storage.Storage<List<FileStatus>, PathFilter, Configuration>,
+public class HdfsStorage implements io.confluent.connect.storage.Storage<Configuration, PathFilter, List<FileStatus>>,
     Storage {
 
   private final FileSystem fs;
@@ -134,6 +137,23 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<List<Fi
       if (fs.exists(srcPath)) {
         fs.rename(srcPath, dstPath);
       }
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
+  }
+
+  public SeekableInput open(String filename, Configuration conf) {
+    try {
+      return new FsInput(new Path(filename), conf);
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
+  }
+
+  public OutputStream create(String filename, Configuration conf, boolean overwrite) {
+    try {
+      Path path = new Path(filename);
+      return path.getFileSystem(conf).create(path);
     } catch (IOException e) {
       throw new ConnectException(e);
     }

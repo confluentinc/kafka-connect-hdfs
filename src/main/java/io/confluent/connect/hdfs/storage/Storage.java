@@ -23,4 +23,4 @@ import org.apache.hadoop.fs.PathFilter;
 import java.util.List;
 
 @Deprecated
-public interface Storage extends io.confluent.connect.storage.Storage<List<FileStatus>, PathFilter, Configuration> {}
+public interface Storage extends io.confluent.connect.storage.Storage<Configuration, PathFilter, List<FileStatus>> {}
