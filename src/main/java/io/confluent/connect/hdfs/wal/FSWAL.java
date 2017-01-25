@@ -60,6 +60,7 @@ public class FSWAL implements WAL {
       writer.append(key, value);
       writer.hsync();
     } catch (IOException e) {
+      reset();
       throw new ConnectException(e);
     }
   }
@@ -77,11 +78,6 @@ public class FSWAL implements WAL {
         break;
       } catch (RemoteException e) {
         if (e.getClassName().equals(leaseException)) {
-          if (e.getMessage().contains("already the current lease holder")) {
-            // we are already holding the lease, no need to try to hold it again. Just return!
-            return;
-          }
-
           log.info("Cannot acquire lease on WAL {}", logFile);
           try {
             Thread.sleep(sleepIntervalMs);
@@ -99,6 +95,11 @@ public class FSWAL implements WAL {
     if (sleepIntervalMs >= MAX_SLEEP_INTERVAL_MS) {
       throw new ConnectException("Cannot acquire lease after timeout, will retry.");
     }
+  }
+
+  private void reset() {
+    writer = null;
+    reader = null;
   }
 
   @Override
@@ -133,6 +134,7 @@ public class FSWAL implements WAL {
         }
       }
     } catch (IOException e) {
+      reset();
       throw new ConnectException(e);
     }
   }
@@ -148,6 +150,8 @@ public class FSWAL implements WAL {
       close();
     } catch (IOException e) {
       throw new ConnectException(e);
+    } finally {
+      reset();
     }
   }
 

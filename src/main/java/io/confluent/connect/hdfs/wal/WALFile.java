@@ -34,6 +34,7 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.serializer.Deserializer;
 import org.apache.hadoop.io.serializer.SerializationFactory;
 import org.apache.hadoop.io.serializer.Serializer;
+import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.util.Options;
 import org.apache.hadoop.util.Time;
 
@@ -55,6 +56,8 @@ public class WALFile {
   private static final int SYNC_ESCAPE = -1;      // "length" of sync entries
   private static final int SYNC_HASH_SIZE = 16;   // number of bytes in hash
   private static final int SYNC_SIZE = 4 + SYNC_HASH_SIZE; // escape + hash
+
+  private static final String leaseException = "org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException";
 
   /**
    * The number of bytes between sync points.
@@ -194,40 +197,52 @@ public class WALFile {
                                            "compatible with stream");
       }
 
+      FileSystem fs = null;
       FSDataOutputStream out;
       boolean ownStream = fileOption != null;
-      if (ownStream) {
-        Path p = fileOption.getValue();
-        FileSystem fs;
-        fs = p.getFileSystem(conf);
-        int bufferSize = bufferSizeOption == null ? getBufferSize(conf) :
-                         bufferSizeOption.getValue();
-        short replication = replicationOption == null ?
-                            fs.getDefaultReplication(p) :
-                            (short) replicationOption.getValue();
-        long blockSize = blockSizeOption == null ? fs.getDefaultBlockSize(p) :
-                         blockSizeOption.getValue();
 
-        if (appendIfExistsOption != null && appendIfExistsOption.getValue()
+      try {
+        if (ownStream) {
+          Path p = fileOption.getValue();
+          fs = p.getFileSystem(conf);
+          int bufferSize = bufferSizeOption == null ? getBufferSize(conf) :
+            bufferSizeOption.getValue();
+          short replication = replicationOption == null ?
+            fs.getDefaultReplication(p) :
+            (short) replicationOption.getValue();
+          long blockSize = blockSizeOption == null ? fs.getDefaultBlockSize(p) :
+            blockSizeOption.getValue();
+
+          if (appendIfExistsOption != null && appendIfExistsOption.getValue()
             && fs.exists(p)) {
-          // Read the file and verify header details
-          try (WALFile.Reader reader =
+            // Read the file and verify header details
+            try (WALFile.Reader reader =
                    new WALFile.Reader(conf, WALFile.Reader.file(p), new Reader.OnlyHeaderOption())){
-            if (reader.getVersion() != VERSION[3]) {
-              throw new VersionMismatchException(VERSION[3], reader.getVersion());
+              if (reader.getVersion() != VERSION[3]) {
+                throw new VersionMismatchException(VERSION[3], reader.getVersion());
+              }
+              sync = reader.getSync();
             }
-            sync = reader.getSync();
+            out = fs.append(p, bufferSize);
+            this.appendMode = true;
+          } else {
+            out = fs.create(p, true, bufferSize, replication, blockSize);
           }
-          out = fs.append(p, bufferSize);
-          this.appendMode = true;
         } else {
-          out = fs.create(p, true, bufferSize, replication, blockSize);
+          out = streamOption.getValue();
         }
-      } else {
-        out = streamOption.getValue();
+
+        init(conf, out, ownStream);
+      } catch (RemoteException re) {
+        log.error("Failed creating a WAL Writer: " + re.getMessage());
+        if (re.getClassName().equals(leaseException)) {
+          if (fs != null) {
+            fs.close();
+          }
+        }
+        throw re;
       }
 
-      init(conf, out, ownStream);
     }
 
     void init(Configuration conf, FSDataOutputStream out, boolean ownStream)
@@ -499,6 +514,7 @@ public class WALFile {
       BufferSizeOption bufOpt = Options.getOption(BufferSizeOption.class, opts);
       OnlyHeaderOption headerOnly =
           Options.getOption(OnlyHeaderOption.class, opts);
+
       // check for consistency
       if ((fileOpt == null) == (streamOpt == null)) {
         throw new
@@ -508,25 +524,38 @@ public class WALFile {
         throw new IllegalArgumentException("buffer size can only be set when" +
                                            " a file is specified.");
       }
+
       // figure out the real values
       Path filename = null;
       FSDataInputStream file;
       final long len;
-      if (fileOpt != null) {
-        filename = fileOpt.getValue();
-        FileSystem fs = filename.getFileSystem(conf);
-        int bufSize = bufOpt == null ? getBufferSize(conf) : bufOpt.getValue();
-        len = null == lenOpt
-              ? fs.getFileStatus(filename).getLen()
-              : lenOpt.getValue();
-        file = openFile(fs, filename, bufSize, len);
-      } else {
-        len = null == lenOpt ? Long.MAX_VALUE : lenOpt.getValue();
-        file = streamOpt.getValue();
+      FileSystem fs = null;
+
+      try {
+        if (fileOpt != null) {
+          filename = fileOpt.getValue();
+          fs = filename.getFileSystem(conf);
+          int bufSize = bufOpt == null ? getBufferSize(conf) : bufOpt.getValue();
+          len = null == lenOpt
+            ? fs.getFileStatus(filename).getLen()
+            : lenOpt.getValue();
+          file = openFile(fs, filename, bufSize, len);
+        } else {
+          len = null == lenOpt ? Long.MAX_VALUE : lenOpt.getValue();
+          file = streamOpt.getValue();
+        }
+        long start = startOpt == null ? 0 : startOpt.getValue();
+        // really set up
+        initialize(filename, file, start, len, conf, headerOnly != null);
+      } catch (RemoteException re) {
+        log.error("Failed creating a WAL Reader: " + re.getMessage());
+        if (re.getClassName().equals(leaseException)) {
+          if (fs != null) {
+            fs.close();
+          }
+        }
+        throw re;
       }
-      long start = startOpt == null ? 0 : startOpt.getValue();
-      // really set up
-      initialize(filename, file, start, len, conf, headerOnly != null);
     }
 
     /**

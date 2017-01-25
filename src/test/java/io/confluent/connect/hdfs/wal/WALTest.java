@@ -73,6 +73,7 @@ public class WALTest extends TestWithMiniDFSCluster {
     });
     thread.start();
 
+    Thread.sleep(3001);
     wal2.acquireLease();
     assertTrue(closed);
     wal2.apply();
