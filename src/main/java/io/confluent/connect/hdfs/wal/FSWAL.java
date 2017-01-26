@@ -60,7 +60,7 @@ public class FSWAL implements WAL {
       writer.append(key, value);
       writer.hsync();
     } catch (IOException e) {
-      reset();
+      close();
       throw new ConnectException(e);
     }
   }
@@ -97,11 +97,6 @@ public class FSWAL implements WAL {
     }
   }
 
-  private void reset() {
-    writer = null;
-    reader = null;
-  }
-
   @Override
   public void apply() throws ConnectException {
     try {
@@ -134,7 +129,7 @@ public class FSWAL implements WAL {
         }
       }
     } catch (IOException e) {
-      reset();
+      close();
       throw new ConnectException(e);
     }
   }
@@ -151,7 +146,7 @@ public class FSWAL implements WAL {
     } catch (IOException e) {
       throw new ConnectException(e);
     } finally {
-      reset();
+      close();
     }
   }
 
@@ -168,6 +163,9 @@ public class FSWAL implements WAL {
       }
     } catch (IOException e) {
       throw new ConnectException("Error closing " + logFile, e);
+    } finally {
+      writer = null;
+      reader = null;
     }
   }
 
