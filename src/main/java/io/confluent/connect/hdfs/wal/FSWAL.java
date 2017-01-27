@@ -42,6 +42,7 @@ public class FSWAL implements WAL {
   private String logFile = null;
   private Configuration conf = null;
   private Storage storage = null;
+  private long sleepIntervalMs = 1000L;
 
   public FSWAL(String logsDir, TopicPartition topicPart, Storage storage)
       throws ConnectException {
@@ -65,8 +66,11 @@ public class FSWAL implements WAL {
     }
   }
 
+  public long getSleepIntervalMs() {
+    return sleepIntervalMs;
+  }
+
   public void acquireLease() throws ConnectException {
-    long sleepIntervalMs = 1000L;
     long MAX_SLEEP_INTERVAL_MS = 16000L;
     while (sleepIntervalMs < MAX_SLEEP_INTERVAL_MS) {
       try {

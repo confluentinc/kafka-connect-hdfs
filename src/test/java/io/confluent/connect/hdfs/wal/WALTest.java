@@ -34,7 +34,7 @@ public class WALTest extends TestWithMiniDFSCluster {
   private static final String extension = ".avro";
 
   @Test
-  public void testWALMultiClient() throws Exception {
+  public void testMultiWALFromOneDFSClient() throws Exception {
     fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
 
     @SuppressWarnings("unchecked")
@@ -62,8 +62,8 @@ public class WALTest extends TestWithMiniDFSCluster {
       @Override
       public void run() {
         try {
-          // holding the lease for awhile
-          Thread.sleep(3000);
+          // holding the lease for time that is less than wal2's retry interval, which is 1000 ms.
+          Thread.sleep(wal2.getSleepIntervalMs()-100);
           closed = true;
           wal1.close();
         } catch (ConnectException | InterruptedException e) {
@@ -73,7 +73,8 @@ public class WALTest extends TestWithMiniDFSCluster {
     });
     thread.start();
 
-    Thread.sleep(3001);
+    // AcquireLease will try to acquire the same lease that wal1 is holding and fail
+    // It will then retry after waiting for 1000 ms.
     wal2.acquireLease();
     assertTrue(closed);
     wal2.apply();
