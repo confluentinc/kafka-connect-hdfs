@@ -61,6 +61,7 @@ public class FSWAL implements WAL {
       writer.append(key, value);
       writer.hsync();
     } catch (IOException e) {
+      log.error("Error appending WAL file: {}, {}", logFile, e);
       close();
       throw new ConnectException(e);
     }
@@ -133,6 +134,7 @@ public class FSWAL implements WAL {
         }
       }
     } catch (IOException e) {
+      log.error("Error applying WAL file: {}, {}", logFile, e);
       close();
       throw new ConnectException(e);
     }

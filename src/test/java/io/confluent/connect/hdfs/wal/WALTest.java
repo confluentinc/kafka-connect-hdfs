@@ -43,7 +43,7 @@ public class WALTest extends TestWithMiniDFSCluster {
     Storage storage = StorageFactory.createStorage(storageClass, conf, url);
 
     final WAL wal1 = storage.wal(topicsDir, TOPIC_PARTITION);
-    final WAL wal2 = storage.wal(topicsDir, TOPIC_PARTITION);
+    final FSWAL wal2 = (FSWAL)storage.wal(topicsDir, TOPIC_PARTITION);
 
     String directory = TOPIC + "/" + String.valueOf(PARTITION);
     final String tempfile = FileUtils.tempFileName(url, topicsDir, directory, extension);
