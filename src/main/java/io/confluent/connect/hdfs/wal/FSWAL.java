@@ -34,15 +34,13 @@ import io.confluent.connect.hdfs.wal.WALFile.Writer;
 public class FSWAL implements WAL {
 
   private static final Logger log = LoggerFactory.getLogger(FSWAL.class);
-  private static final String leaseException =
-      "org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException";
 
   private WALFile.Writer writer = null;
   private WALFile.Reader reader = null;
   private String logFile = null;
   private Configuration conf = null;
   private Storage storage = null;
-  private long sleepIntervalMs = 1000L;
+  private long sleepIntervalMs = WALConstants.INITIAL_SLEEP_INTERVAL_MS;
 
   public FSWAL(String logsDir, TopicPartition topicPart, Storage storage)
       throws ConnectException {
@@ -67,13 +65,8 @@ public class FSWAL implements WAL {
     }
   }
 
-  public long getSleepIntervalMs() {
-    return sleepIntervalMs;
-  }
-
   public void acquireLease() throws ConnectException {
-    long MAX_SLEEP_INTERVAL_MS = 16000L;
-    while (sleepIntervalMs < MAX_SLEEP_INTERVAL_MS) {
+    while (sleepIntervalMs < WALConstants.MAX_SLEEP_INTERVAL_MS) {
       try {
         if (writer == null) {
           writer = WALFile.createWriter(conf, Writer.file(new Path(logFile)),
@@ -82,7 +75,7 @@ public class FSWAL implements WAL {
         }
         break;
       } catch (RemoteException e) {
-        if (e.getClassName().equals(leaseException)) {
+        if (e.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
           log.info("Cannot acquire lease on WAL {}", logFile);
           try {
             Thread.sleep(sleepIntervalMs);
@@ -97,7 +90,7 @@ public class FSWAL implements WAL {
         throw new ConnectException("Error creating writer for log file " + logFile, e);
       }
     }
-    if (sleepIntervalMs >= MAX_SLEEP_INTERVAL_MS) {
+    if (sleepIntervalMs >= WALConstants.MAX_SLEEP_INTERVAL_MS) {
       throw new ConnectException("Cannot acquire lease after timeout, will retry.");
     }
   }
@@ -146,9 +139,6 @@ public class FSWAL implements WAL {
       String oldLogFile = logFile + ".1";
       storage.delete(oldLogFile);
       storage.commit(logFile, oldLogFile);
-      // Clean out references to the current WAL file.
-      // Open a new one on the next lease acquisition.
-      close();
     } catch (IOException e) {
       throw new ConnectException(e);
     } finally {
@@ -161,11 +151,9 @@ public class FSWAL implements WAL {
     try {
       if (writer != null) {
         writer.close();
-        writer = null;
       }
       if (reader != null) {
         reader.close();
-        reader = null;
       }
     } catch (IOException e) {
       throw new ConnectException("Error closing " + logFile, e);

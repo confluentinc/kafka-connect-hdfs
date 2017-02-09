@@ -43,7 +43,7 @@ public class WALTest extends TestWithMiniDFSCluster {
     Storage storage = StorageFactory.createStorage(storageClass, conf, url);
 
     final WAL wal1 = storage.wal(topicsDir, TOPIC_PARTITION);
-    final FSWAL wal2 = (FSWAL)storage.wal(topicsDir, TOPIC_PARTITION);
+    final FSWAL wal2 = (FSWAL) storage.wal(topicsDir, TOPIC_PARTITION);
 
     String directory = TOPIC + "/" + String.valueOf(PARTITION);
     final String tempfile = FileUtils.tempFileName(url, topicsDir, directory, extension);
@@ -62,8 +62,8 @@ public class WALTest extends TestWithMiniDFSCluster {
       @Override
       public void run() {
         try {
-          // holding the lease for time that is less than wal2's retry interval, which is 1000 ms.
-          Thread.sleep(wal2.getSleepIntervalMs()-100);
+          // holding the lease for time that is less than wal2's initial retry interval, which is 1000 ms.
+          Thread.sleep(WALConstants.INITIAL_SLEEP_INTERVAL_MS - 100);
           closed = true;
           wal1.close();
         } catch (ConnectException | InterruptedException e) {
@@ -73,8 +73,7 @@ public class WALTest extends TestWithMiniDFSCluster {
     });
     thread.start();
 
-    // AcquireLease will try to acquire the same lease that wal1 is holding and fail
-    // It will then retry after waiting for 1000 ms.
+    // acquireLease() will try to acquire the lease that wal1 is holding and fail. It will retry after 1000 ms.
     wal2.acquireLease();
     assertTrue(closed);
     wal2.apply();

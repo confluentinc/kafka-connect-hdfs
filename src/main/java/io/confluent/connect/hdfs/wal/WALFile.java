@@ -57,8 +57,6 @@ public class WALFile {
   private static final int SYNC_HASH_SIZE = 16;   // number of bytes in hash
   private static final int SYNC_SIZE = 4 + SYNC_HASH_SIZE; // escape + hash
 
-  private static final String leaseException = "org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException";
-
   /**
    * The number of bytes between sync points.
    */
@@ -235,7 +233,7 @@ public class WALFile {
         init(conf, out, ownStream);
       } catch (RemoteException re) {
         log.error("Failed creating a WAL Writer: " + re.getMessage());
-        if (re.getClassName().equals(leaseException)) {
+        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
           if (fs != null) {
             fs.close();
           }
@@ -549,7 +547,7 @@ public class WALFile {
         initialize(filename, file, start, len, conf, headerOnly != null);
       } catch (RemoteException re) {
         log.error("Failed creating a WAL Reader: " + re.getMessage());
-        if (re.getClassName().equals(leaseException)) {
+        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
           if (fs != null) {
             fs.close();
           }
