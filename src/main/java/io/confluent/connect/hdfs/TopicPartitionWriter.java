@@ -18,7 +18,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.IllegalWorkerStateException;
@@ -71,6 +70,7 @@ public class TopicPartitionWriter {
   private SinkTaskContext context;
   private int recordCounter;
   private int flushSize;
+  private boolean checkStaleOffsets;
   private long rotateIntervalMs;
   private long lastRotate;
   private long rotateScheduleIntervalMs;
@@ -80,7 +80,7 @@ public class TopicPartitionWriter {
   private AvroData avroData;
   private Set<String> appended;
   private long offset;
-  private boolean sawStaleOffset;
+  private boolean sawInvalidOffset;
   private Map<String, Long> startOffsets;
   private Map<String, Long> offsets;
   private long timeoutMs;
@@ -136,6 +136,7 @@ public class TopicPartitionWriter {
     this.conf = storage.conf();
     this.schemaFileReader = schemaFileReader;
 
+    checkStaleOffsets = connectorConfig.getBoolean(HdfsSinkConnectorConfig.CHECK_STALE_OFFSETS_CONFIG);
     topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
@@ -156,7 +157,7 @@ public class TopicPartitionWriter {
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
     offset = -1L;
-    sawStaleOffset = false;
+    sawInvalidOffset = false;
     extension = writerProvider.getExtension();
     zeroPadOffsetFormat
         = "%0" +
@@ -511,23 +512,23 @@ public class TopicPartitionWriter {
     long expectedOffset = offset + recordCounter;
     if (offset == -1) {
       offset = record.kafkaOffset();
-    } else if (record.kafkaOffset() < expectedOffset) {
+    } else if (checkStaleOffsets && record.kafkaOffset() != expectedOffset) {
       // Currently it's possible to see stale data with the wrong offset after a rebalance when you
       // rewind, which we do since we manage our own offsets. See KAFKA-2894.
-      if (!sawStaleOffset) {
+      if (!sawInvalidOffset) {
         log.info(
             "Ignoring stale out-of-order record in {}-{}. Has offset {} instead of expected offset {}",
             record.topic(), record.kafkaPartition(), record.kafkaOffset(), expectedOffset);
       }
-      sawStaleOffset = true;
+      sawInvalidOffset = true;
       return;
     }
 
-    if (sawStaleOffset) {
+    if (sawInvalidOffset) {
       log.info(
           "Recovered from stale out-of-order records in {}-{} with offset {}",
           record.topic(), record.kafkaPartition(), expectedOffset);
-      sawStaleOffset = false;
+      sawInvalidOffset = false;
     }
 
     String encodedPartition = partitioner.encodePartition(record);
