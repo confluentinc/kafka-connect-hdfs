@@ -416,6 +416,6 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   }
 
   public static void main(String[] args) {
-    //System.out.println(config.toEnrichedRst());
+    System.out.println(config.toEnrichedRst());
   }
 }
