@@ -16,6 +16,11 @@
 
 package io.confluent.connect.hdfs;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -24,11 +29,6 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
 
@@ -95,6 +95,27 @@ public class HdfsSinkConnectorTestBase {
   protected Struct createNewRecord(Schema newSchema) {
     return new Struct(newSchema)
         .put("boolean", true)
+        .put("int", 12)
+        .put("long", 12L)
+        .put("float", 12.2f)
+        .put("double", 12.2)
+        .put("string", "def");
+  }
+
+  protected Schema createSchemaWithTimeField() {
+    return SchemaBuilder.struct().name("record").version(2)
+            .field("timestamp", Schema.INT64_SCHEMA)
+            .field("int", Schema.INT32_SCHEMA)
+            .field("long", Schema.INT64_SCHEMA)
+            .field("float", Schema.FLOAT32_SCHEMA)
+            .field("double", Schema.FLOAT64_SCHEMA)
+            .field("string", SchemaBuilder.string().defaultValue("abc").build())
+            .build();
+  }
+
+  protected Struct createRecordWithTimeField(Schema schema, long timestamp) {
+    return new Struct(schema)
+        .put("timestamp", timestamp)
         .put("int", 12)
         .put("long", 12L)
         .put("float", 12.2f)
