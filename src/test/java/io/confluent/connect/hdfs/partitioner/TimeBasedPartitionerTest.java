@@ -76,6 +76,19 @@ public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
   }
 
   @Test
+  public void testGenerateFromNestedTimeField() throws Exception {
+    TimeBasedPartitioner partitioner = new TimeBasedPartitioner();
+    Map<String, Object> config = createConfig("nested.timestamp");
+    partitioner.configure(config);
+    long timestamp = new DateTime(2015, 4, 2, 1, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
+    SinkRecord sinkRecord = createSinkRecordWithNestedTimeField(timestamp);
+
+    String encodedPartition = partitioner.encodePartition(sinkRecord);
+
+    assertEquals("year=2015/month=4/day=2/hour=1/", encodedPartition);
+  }
+
+  @Test
   public void testGenerateWithEmptyTimeField() throws Exception {
     TimeBasedPartitioner partitioner = new TimeBasedPartitioner();
     Map<String, Object> config = createConfig(null);
@@ -118,6 +131,11 @@ public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
       Schema schema = createSchemaWithTimeField();
       Struct record = createRecordWithTimeField(schema, timestamp);
       return new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, null, schema, record, 0L);
+  }
+
+  private SinkRecord createSinkRecordWithNestedTimeField(long timestamp) {
+      Struct record = createRecordWithNestedTimeField(timestamp);
+      return new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, null, record.schema(), record, 0L);
   }
 
 }

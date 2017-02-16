@@ -98,27 +98,44 @@ public class TimeBasedPartitioner implements Partitioner {
 
   @Override
   public String encodePartition(SinkRecord sinkRecord) {
-    long timestamp;
-    if (timeFieldName == null || timeFieldName.equals("")) {
-        timestamp = System.currentTimeMillis();
-    } else if (sinkRecord.value() instanceof Struct) {
-        Struct struct = (Struct) sinkRecord.value();
-        Object timeFieldValue;
-        try {
-            timeFieldValue = struct.get(timeFieldName);
-        } catch (DataException e) {
-            throw new DataException(String.format("The time field named '%s' does not exist.", timeFieldName), e);
-        }
-        if (timeFieldValue instanceof Long) {
-            timestamp = (long) timeFieldValue;
-        } else {
-            throw new DataException("The value of the time field must be a Long.");
-        }
-    } else {
-        throw new DataException("sinkRecord parameter is expected to be an instance of Struct");
-    }
-    DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
-    return bucket.toString(formatter);
+      long timestamp;
+      if (timeFieldName == null || timeFieldName.equals("")) {
+          timestamp = System.currentTimeMillis();
+      } else if (sinkRecord.value() instanceof Struct) {
+          Struct struct = (Struct) sinkRecord.value();
+          timestamp = getTimestampValue(struct);
+      } else {
+          throw new DataException("sinkRecord parameter is expected to be an instance of Struct");
+      }
+      DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
+      return bucket.toString(formatter);
+  }
+
+  private long getTimestampValue(Struct record) {
+      final String[] fieldNames = timeFieldName.split("\\.");
+      int i = 0;
+      Struct tmpRecord = record;
+      Object tmpRecordObject = null;
+      while (i < fieldNames.length - 1) {
+          tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+          tmpRecord = (Struct) tmpRecordObject;
+          i++;
+      }
+      tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+      if (!(tmpRecordObject instanceof Long)) {
+          throw new DataException("The value of the time field must be a Long.");
+      }
+      return (long) tmpRecordObject;
+  }
+
+  private Object getField(Struct record, String fieldName) {
+      Object field;
+      try {
+          field = record.get(fieldName);
+      } catch (DataException e) {
+          throw new DataException(String.format("The field named '%s' does not exist.", fieldName), e);
+      }
+      return field;
   }
 
 

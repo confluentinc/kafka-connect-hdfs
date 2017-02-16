@@ -123,6 +123,14 @@ public class HdfsSinkConnectorTestBase {
         .put("string", "def");
   }
 
+  protected Struct createRecordWithNestedTimeField(long timestamp) {
+      Schema nestedChildSchema = createSchemaWithTimeField();
+      Schema nestedSchema = SchemaBuilder.struct().field("nested", nestedChildSchema);
+      Struct nestedRecord = new Struct(nestedSchema)
+              .put("nested", createRecordWithTimeField(nestedChildSchema, timestamp));
+      return nestedRecord;
+    }
+
   @Before
   public void setUp() throws Exception {
     conf = new Configuration();
