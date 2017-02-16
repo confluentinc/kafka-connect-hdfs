@@ -103,10 +103,14 @@ public class TimeBasedPartitioner implements Partitioner {
         timestamp = System.currentTimeMillis();
     } else if (sinkRecord.value() instanceof Struct) {
         Struct struct = (Struct) sinkRecord.value();
-        if (struct.get(timeFieldName) == null) {
-            throw new DataException(String.format("The time field named '%s' does not exist.", timeFieldName));
-        } else if (struct.get(timeFieldName) instanceof Long) {
-            timestamp = (long) struct.get(timeFieldName);
+        Object timeFieldValue;
+        try {
+            timeFieldValue = struct.get(timeFieldName);
+        } catch (DataException e) {
+            throw new DataException(String.format("The time field named '%s' does not exist.", timeFieldName), e);
+        }
+        if (timeFieldValue instanceof Long) {
+            timestamp = (long) timeFieldValue;
         } else {
             throw new DataException("The value of the time field must be a Long.");
         }
