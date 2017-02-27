@@ -185,9 +185,9 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     Map<String, String> props = createProps();
     HdfsSinkTask task = new HdfsSinkTask();
 
-    String key = "key";
-    Schema schema = Schema.INT32_SCHEMA;
-    int record = 12;
+    final String key = "key";
+    final Schema schema = Schema.INT32_SCHEMA;
+    final int record = 12;
     Collection<SinkRecord> sinkRecords = new ArrayList<>();
     for (TopicPartition tp: assignment) {
       for (long offset = 0; offset < 7; offset++) {
@@ -217,7 +217,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
         long size = endOffset - startOffset + 1;
         assertEquals(records.size(), size);
         for (Object avroRecord : records) {
-          assertEquals(avroRecord, 12);
+          assertEquals(avroRecord, record);
         }
       }
     }
