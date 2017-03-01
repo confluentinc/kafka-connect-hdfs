@@ -14,17 +14,17 @@
 
 package io.confluent.connect.hdfs;
 
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigException;
-
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 
 import io.confluent.connect.hdfs.partitioner.DailyPartitioner;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
@@ -71,6 +71,12 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
       "The format class to use when writing data to HDFS. ";
   public static final String FORMAT_CLASS_DEFAULT = "io.confluent.connect.hdfs.avro.AvroFormat";
   private static final String FORMAT_CLASS_DISPLAY = "Format class";
+
+  public static final String FORMAT_CLASS_COMPRESSION_CONFIG = "format.class.compression";
+  private static final String FORMAT_CLASS_COMPRESSION_DOC =
+      "The compression to use when writing data to HDFS in the avro format. Possible values are deflate or snappy.";
+  public static final String FORMAT_CLASS_COMPRESSION_DEFAULT = "";
+  private static final String FORMAT_CLASS_COMPRESSION_DISPLAY = "Format class compression";
 
   // Hive group
   public static final String HIVE_INTEGRATION_CONFIG = "hive.integration";
@@ -269,7 +275,10 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
         .define(HADOOP_HOME_CONFIG, Type.STRING, HADOOP_HOME_DEFAULT, Importance.HIGH, HADOOP_HOME_DOC, HDFS_GROUP, 3, Width.SHORT, HADOOP_HOME_DISPLAY)
         .define(TOPICS_DIR_CONFIG, Type.STRING, TOPICS_DIR_DEFAULT, Importance.HIGH, TOPICS_DIR_DOC, HDFS_GROUP, 4, Width.SHORT, TOPICS_DIR_DISPLAY)
         .define(LOGS_DIR_CONFIG, Type.STRING, LOGS_DIR_DEFAULT, Importance.HIGH, LOGS_DIR_DOC, HDFS_GROUP, 5, Width.SHORT, LOGS_DIR_DISPLAY)
-        .define(FORMAT_CLASS_CONFIG, Type.STRING, FORMAT_CLASS_DEFAULT, Importance.HIGH, FORMAT_CLASS_DOC, HDFS_GROUP, 6, Width.SHORT, FORMAT_CLASS_DISPLAY);
+        .define(FORMAT_CLASS_CONFIG, Type.STRING, FORMAT_CLASS_DEFAULT, Importance.HIGH, FORMAT_CLASS_DOC, HDFS_GROUP, 6, Width.SHORT, FORMAT_CLASS_DISPLAY)
+        .define(FORMAT_CLASS_COMPRESSION_CONFIG, Type.STRING, FORMAT_CLASS_COMPRESSION_DEFAULT, Importance.LOW, FORMAT_CLASS_COMPRESSION_DOC, HDFS_GROUP, 7,
+                Width.SHORT, FORMAT_CLASS_COMPRESSION_DISPLAY);
+
 
     // Define Hive configuration group
     config.define(HIVE_INTEGRATION_CONFIG, Type.BOOLEAN, HIVE_INTEGRATION_DEFAULT, Importance.HIGH, HIVE_INTEGRATION_DOC, HIVE_GROUP, 1, Width.SHORT, HIVE_INTEGRATION_DISPLAY,
@@ -322,11 +331,11 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   }
 
   private static class SchemaCompatibilityRecommender extends BooleanParentRecommender {
-    
+
     public SchemaCompatibilityRecommender() {
       super(HIVE_INTEGRATION_CONFIG);
     }
-      
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       boolean hiveIntegration = (Boolean) connectorConfigs.get(parentConfigName);
@@ -342,15 +351,15 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
       return true;
     }
   }
-  
+
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
-    
+
     protected String parentConfigName;
-    
+
     public BooleanParentRecommender(String parentConfigName) {
       this.parentConfigName = parentConfigName;
     }
-    
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       return new LinkedList<>();
