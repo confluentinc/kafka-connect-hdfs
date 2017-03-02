@@ -19,6 +19,7 @@ package io.confluent.connect.hdfs.avro;
 import java.io.IOException;
 
 import org.apache.avro.file.CodecFactory;
+import io.confluent.kafka.serializers.NonRecordContainer;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
@@ -82,7 +83,12 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
       public void write(SinkRecord record) throws IOException {
         log.trace("Sink record: {}", record.toString());
         Object value = avroData.fromConnectData(schema, record.value());
-        writer.append(value);
+        // AvroData wraps primitive types so their schema can be included. We need to unwrap NonRecordContainers to just
+        // their value to properly handle these types
+        if (value instanceof NonRecordContainer)
+          writer.append(((NonRecordContainer) value).getValue());
+        else
+          writer.append(value);
       }
 
       @Override
