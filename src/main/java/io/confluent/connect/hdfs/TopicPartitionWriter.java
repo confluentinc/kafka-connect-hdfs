@@ -520,10 +520,8 @@ public class TopicPartitionWriter {
 
     if (!startOffsets.containsKey(encodedPartition)) {
       startOffsets.put(encodedPartition, record.kafkaOffset());
-      offsets.put(encodedPartition, record.kafkaOffset());
-    } else {
-      offsets.put(encodedPartition, record.kafkaOffset());
     }
+    offsets.put(encodedPartition, record.kafkaOffset());
     recordCounter++;
   }
 
