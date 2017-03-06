@@ -17,15 +17,23 @@ package io.confluent.connect.hdfs.hive;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Schema;
 
-import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
 @Deprecated
 public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUtil {
 
-  public HiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    super(connectorConfig, avroData, hiveMetaStore);
+  public HiveUtil(HdfsSinkConnectorConfig connectorConfig, HiveMetaStore hiveMetaStore) {
+    super(connectorConfig, hiveMetaStore);
+    String urlKey;
+
+    urlKey = connectorConfig.getString(StorageCommonConfig.STORE_URL_CONFIG);
+    if (urlKey == null || urlKey.equals(StorageCommonConfig.STORE_URL_DEFAULT)) {
+      urlKey = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
+    }
+
+    this.url = urlKey;
   }
 
   @Override
