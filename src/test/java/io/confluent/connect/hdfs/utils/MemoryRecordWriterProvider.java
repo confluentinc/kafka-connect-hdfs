@@ -19,7 +19,6 @@ package io.confluent.connect.hdfs.utils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -36,10 +35,8 @@ public class MemoryRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
-  public RecordWriter<SinkRecord> getRecordWriter(
-      Configuration conf, final String fileName, SinkRecord record, final AvroData avroData)
-      throws IOException {
-
+  public RecordWriter<SinkRecord> getRecordWriter(Configuration conf, final String fileName, SinkRecord record,
+                                                  final AvroData avroData) {
     final Map<String, List<Object>> data = Data.getData();
 
     if (!data.containsKey(fileName)) {
@@ -48,6 +45,5 @@ public class MemoryRecordWriterProvider implements RecordWriterProvider {
 
     return new MemoryRecordWriter(fileName);
   }
-
 
 }

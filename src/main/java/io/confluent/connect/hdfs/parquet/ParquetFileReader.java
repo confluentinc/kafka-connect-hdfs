@@ -18,6 +18,7 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.hadoop.ParquetReader;
 
@@ -28,8 +29,8 @@ import java.util.Collection;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.SchemaFileReader;
 
-public class ParquetFileReader implements SchemaFileReader {
-
+public class ParquetFileReader implements SchemaFileReader,
+    io.confluent.connect.storage.format.SchemaFileReader<Configuration, Path> {
   private AvroData avroData;
 
   public ParquetFileReader(AvroData avroData) {
@@ -37,30 +38,38 @@ public class ParquetFileReader implements SchemaFileReader {
   }
 
   @Override
-  public Schema getSchema(Configuration conf, Path path) throws IOException {
+  public Schema getSchema(Configuration conf, Path path) {
     AvroReadSupport<GenericRecord> readSupport = new AvroReadSupport<>();
     ParquetReader.Builder<GenericRecord> builder = ParquetReader.builder(readSupport, path);
-    ParquetReader<GenericRecord> parquetReader = builder.withConf(conf).build();
-    GenericRecord record;
-    Schema schema = null;
-    while ((record = parquetReader.read()) != null) {
-      schema = avroData.toConnectSchema(record.getSchema());
+    try {
+      ParquetReader<GenericRecord> parquetReader = builder.withConf(conf).build();
+      GenericRecord record;
+      Schema schema = null;
+      while ((record = parquetReader.read()) != null) {
+        schema = avroData.toConnectSchema(record.getSchema());
+      }
+      parquetReader.close();
+      return schema;
+    } catch (IOException e) {
+      throw new ConnectException(e);
     }
-    parquetReader.close();
-    return schema;
   }
 
   @Override
-  public Collection<Object> readData(Configuration conf, Path path) throws IOException {
+  public Collection<Object> readData(Configuration conf, Path path) {
     Collection<Object> result = new ArrayList<>();
     AvroReadSupport<GenericRecord> readSupport = new AvroReadSupport<>();
     ParquetReader.Builder<GenericRecord> builder = ParquetReader.builder(readSupport, path);
-    ParquetReader<GenericRecord> parquetReader = builder.withConf(conf).build();
-    GenericRecord record;
-    while ((record = parquetReader.read()) != null) {
-      result.add(record);
+    try {
+      ParquetReader<GenericRecord> parquetReader = builder.withConf(conf).build();
+      GenericRecord record;
+      while ((record = parquetReader.read()) != null) {
+        result.add(record);
+      }
+      parquetReader.close();
+    } catch (IOException e) {
+      throw new ConnectException(e);
     }
-    parquetReader.close();
     return result;
   }
 }

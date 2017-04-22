@@ -450,21 +450,17 @@ public class TopicPartitionWriter {
 
   private RecordWriter<SinkRecord> getWriter(SinkRecord record, String encodedPartition)
       throws ConnectException {
-    try {
-      if (writers.containsKey(encodedPartition)) {
-        return writers.get(encodedPartition);
-      }
-      String tempFile = getTempFile(encodedPartition);
-      RecordWriter<SinkRecord> writer = writerProvider.getRecordWriter(conf, tempFile, record, avroData);
-      writers.put(encodedPartition, writer);
-      if (hiveIntegration && !hivePartitions.contains(encodedPartition)) {
-        addHivePartition(encodedPartition);
-        hivePartitions.add(encodedPartition);
-      }
-      return writer;
-    } catch (IOException e) {
-      throw new ConnectException(e);
+    if (writers.containsKey(encodedPartition)) {
+      return writers.get(encodedPartition);
     }
+    String tempFile = getTempFile(encodedPartition);
+    RecordWriter<SinkRecord> writer = writerProvider.getRecordWriter(conf, tempFile, record, avroData);
+    writers.put(encodedPartition, writer);
+    if (hiveIntegration && !hivePartitions.contains(encodedPartition)) {
+      addHivePartition(encodedPartition);
+      hivePartitions.add(encodedPartition);
+    }
+    return writer;
   }
 
   private String getTempFile(String encodedPartition) {

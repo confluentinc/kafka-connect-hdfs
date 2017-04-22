@@ -23,6 +23,7 @@ import org.apache.avro.mapred.FsInput;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.errors.ConnectException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,8 +32,8 @@ import java.util.Collection;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.SchemaFileReader;
 
-public class AvroFileReader implements SchemaFileReader {
-
+public class AvroFileReader implements SchemaFileReader,
+    io.confluent.connect.storage.format.SchemaFileReader<Configuration, Path> {
   private AvroData avroData;
 
   public AvroFileReader(AvroData avroData) {
@@ -40,25 +41,33 @@ public class AvroFileReader implements SchemaFileReader {
   }
 
   @Override
-  public Schema getSchema(Configuration conf, Path path) throws IOException {
-    SeekableInput input = new FsInput(path, conf);
-    DatumReader<Object> reader = new GenericDatumReader<>();
-    FileReader<Object> fileReader = DataFileReader.openReader(input, reader);
-    org.apache.avro.Schema schema = fileReader.getSchema();
-    fileReader.close();
-    return avroData.toConnectSchema(schema);
+  public Schema getSchema(Configuration conf, Path path) {
+    try {
+      SeekableInput input = new FsInput(path, conf);
+      DatumReader<Object> reader = new GenericDatumReader<>();
+      FileReader<Object> fileReader = DataFileReader.openReader(input, reader);
+      org.apache.avro.Schema schema = fileReader.getSchema();
+      fileReader.close();
+      return avroData.toConnectSchema(schema);
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
-  public Collection<Object> readData(Configuration conf, Path path) throws IOException {
+  public Collection<Object> readData(Configuration conf, Path path) {
     ArrayList<Object> collection = new ArrayList<>();
-    SeekableInput input = new FsInput(path, conf);
-    DatumReader<Object> reader = new GenericDatumReader<>();
-    FileReader<Object> fileReader = DataFileReader.openReader(input, reader);
-    for (Object object: fileReader) {
-      collection.add(object);
+    try {
+      SeekableInput input = new FsInput(path, conf);
+      DatumReader<Object> reader = new GenericDatumReader<>();
+      FileReader<Object> fileReader = DataFileReader.openReader(input, reader);
+      for (Object object : fileReader) {
+        collection.add(object);
+      }
+      fileReader.close();
+    } catch (IOException e) {
+      throw new ConnectException(e);
     }
-    fileReader.close();
     return collection;
   }
 }

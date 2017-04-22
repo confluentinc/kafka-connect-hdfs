@@ -52,10 +52,6 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic + "/" + partition + "/" + name;
   }
 
-  public static String hiveDirectoryName(String url, String topicsDir, String topic) {
-    return url + "/" + topicsDir + "/" + topic + "/";
-  }
-
   public static String fileName(String url, String topicsDir, String directory, String name) {
     return url + "/" + topicsDir + "/" + directory + "/" + name;
   }

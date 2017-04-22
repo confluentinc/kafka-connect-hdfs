@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.utils;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.io.IOException;
@@ -38,20 +39,20 @@ public class MemoryRecordWriter implements RecordWriter<SinkRecord> {
   }
 
   @Override
-  public void write(SinkRecord record) throws IOException {
+  public void write(SinkRecord record) {
     if (failure == Failure.writeFailure) {
       failure = Failure.noFailure;
-      throw new IOException("write failed.");
+      throw new ConnectException("write failed.");
     }
     data.get(filename).add(record);
 
   }
 
   @Override
-  public void close() throws IOException {
+  public void close() {
     if (failure == Failure.closeFailure) {
       failure = Failure.noFailure;
-      throw new IOException("close failed.");
+      throw new ConnectException("close failed.");
     }
   }
 

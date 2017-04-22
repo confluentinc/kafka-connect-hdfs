@@ -10,9 +10,12 @@
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
- **/
+ */
 
 package io.confluent.connect.hdfs.parquet;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.Format;
@@ -21,17 +24,29 @@ import io.confluent.connect.hdfs.RecordWriterProvider;
 import io.confluent.connect.hdfs.SchemaFileReader;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
+import io.confluent.connect.storage.hive.HiveFactory;
 
-public class ParquetFormat implements Format {
+public class ParquetFormat implements Format,
+    io.confluent.connect.storage.format.Format<Configuration, AvroData, Path> {
+
+  @Override
   public RecordWriterProvider getRecordWriterProvider() {
     return new ParquetRecordWriterProvider();
   }
 
+  @Override
   public SchemaFileReader getSchemaFileReader(AvroData avroData) {
     return new ParquetFileReader(avroData);
   }
 
+  @Deprecated
+  @Override
   public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    return new ParquetHiveUtil(config, avroData, hiveMetaStore);
+    return (HiveUtil) getHiveFactory().createHiveUtil(config, avroData, hiveMetaStore);
+  }
+
+  @Override
+  public HiveFactory<HdfsSinkConnectorConfig, AvroData> getHiveFactory() {
+    return new ParquetHiveFactory();
   }
 }

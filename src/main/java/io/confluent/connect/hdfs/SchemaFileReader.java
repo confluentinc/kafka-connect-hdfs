@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.util.Collection;
 
 @Deprecated
-public interface SchemaFileReader extends io.confluent.connect.storage.SchemaFileReader {
+public interface SchemaFileReader extends io.confluent.connect.storage.format.SchemaFileReader<Configuration, Path> {
   @Override
-  Schema getSchema(Configuration conf, Path path) throws IOException;
+  Schema getSchema(Configuration conf, Path path);
   @Override
-  Collection<Object> readData(Configuration conf, Path path) throws IOException;
+  Collection<Object> readData(Configuration conf, Path path);
 }

@@ -10,13 +10,15 @@
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
- **/
+ */
+
 package io.confluent.connect.hdfs.parquet;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -28,8 +30,8 @@ import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.RecordWriterProvider;
 import io.confluent.connect.hdfs.RecordWriter;
 
-public class ParquetRecordWriterProvider implements RecordWriterProvider {
-
+public class ParquetRecordWriterProvider implements RecordWriterProvider,
+    io.confluent.connect.storage.format.RecordWriterProvider<Configuration, AvroData> {
   private final static String EXTENSION = ".parquet";
 
   @Override
@@ -38,9 +40,8 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
-  public RecordWriter<SinkRecord> getRecordWriter(
-      Configuration conf, final String fileName, SinkRecord record, final AvroData avroData)
-      throws IOException {
+  public RecordWriter<SinkRecord> getRecordWriter(Configuration conf, final String fileName, SinkRecord record,
+                                                  final AvroData avroData) {
     final Schema avroSchema = avroData.fromConnectSchema(record.valueSchema());
     CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
 
@@ -48,20 +49,32 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider {
     int pageSize = 64 * 1024;
 
     Path path = new Path(fileName);
-    final ParquetWriter<GenericRecord> writer =
-        new AvroParquetWriter<>(path, avroSchema, compressionCodecName, blockSize, pageSize, true, conf);
+    try {
+      final ParquetWriter<GenericRecord> writer =
+          new AvroParquetWriter<>(path, avroSchema, compressionCodecName, blockSize, pageSize, true, conf);
 
-    return new RecordWriter<SinkRecord>() {
-      @Override
-      public void write(SinkRecord record) throws IOException {
-        Object value = avroData.fromConnectData(record.valueSchema(), record.value());
-        writer.write((GenericRecord) value);
-      }
+      return new RecordWriter<SinkRecord>() {
+        @Override
+        public void write(SinkRecord record) {
+          Object value = avroData.fromConnectData(record.valueSchema(), record.value());
+          try {
+            writer.write((GenericRecord) value);
+          } catch (IOException e) {
+            throw new ConnectException(e);
+          }
+        }
 
-      @Override
-      public void close() throws IOException {
-        writer.close();
-      }
-    };
+        @Override
+        public void close() {
+          try {
+            writer.close();
+          } catch (IOException e) {
+            throw new ConnectException(e);
+          }
+        }
+      };
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 }
