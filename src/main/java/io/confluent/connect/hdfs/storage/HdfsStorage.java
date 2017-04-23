@@ -43,6 +43,13 @@ public class HdfsStorage
   private final HdfsSinkConnectorConfig conf;
   private final String url;
 
+  // Visible for testing.
+  protected HdfsStorage(HdfsSinkConnectorConfig conf,  String url, FileSystem fs) {
+    this.conf = conf;
+    this.url = url;
+    this.fs = fs;
+  }
+
   public HdfsStorage(HdfsSinkConnectorConfig conf,  String url) throws IOException {
     this.conf = conf;
     this.url = url;

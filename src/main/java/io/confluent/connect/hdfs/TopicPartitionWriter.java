@@ -49,7 +49,11 @@ import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
 
@@ -57,7 +61,7 @@ public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
   private WAL wal;
   private Map<String, String> tempFiles;
-  private Map<String, RecordWriter<SinkRecord>> writers;
+  private Map<String, RecordWriter> writers;
   private TopicPartition tp;
   private Partitioner partitioner;
   private String url;
@@ -65,7 +69,7 @@ public class TopicPartitionWriter {
   private State state;
   private Queue<SinkRecord> buffer;
   private boolean recovered;
-  private Storage storage;
+  private HdfsStorage storage;
   private SinkTaskContext context;
   private int recordCounter;
   private int flushSize;
@@ -75,6 +79,7 @@ public class TopicPartitionWriter {
   private long nextScheduledRotate;
   private RecordWriterProvider writerProvider;
   private Configuration conf;
+  private HdfsSinkConnectorConfig connectorConfig;
   private AvroData avroData;
   private Set<String> appended;
   private long offset;
@@ -100,7 +105,7 @@ public class TopicPartitionWriter {
 
   public TopicPartitionWriter(
       TopicPartition tp,
-      Storage storage,
+      HdfsStorage storage,
       RecordWriterProvider writerProvider,
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
@@ -111,7 +116,7 @@ public class TopicPartitionWriter {
 
   public TopicPartitionWriter(
       TopicPartition tp,
-      Storage storage,
+      HdfsStorage storage,
       RecordWriterProvider writerProvider,
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
@@ -129,16 +134,17 @@ public class TopicPartitionWriter {
     this.writerProvider = writerProvider;
     this.partitioner = partitioner;
     this.url = storage.url();
-    this.conf = storage.conf();
+    this.connectorConfig = storage.conf();
+    this.conf = storage.conf().getHadoopConfiguration();
     this.schemaFileReader = schemaFileReader;
 
-    topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
+    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
     rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
     timeoutMs = connectorConfig.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG);
     compatibility = StorageSchemaCompatibility.getCompatibility(
-        connectorConfig.getString(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
+        connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG));
 
     String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
     wal = storage.wal(logsDir, tp);
@@ -159,9 +165,9 @@ public class TopicPartitionWriter {
           connectorConfig.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG) +
           "d";
 
-    hiveIntegration = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
+    hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
     if (hiveIntegration) {
-      hiveDatabase = connectorConfig.getString(HdfsSinkConnectorConfig.HIVE_DATABASE_CONFIG);
+      hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
       this.hiveMetaStore = hiveMetaStore;
       this.hive = hive;
       this.executorService = executorService;
@@ -170,7 +176,7 @@ public class TopicPartitionWriter {
     }
 
     if(rotateScheduleIntervalMs > 0) {
-      timeZone = DateTimeZone.forID(connectorConfig.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG));
+      timeZone = DateTimeZone.forID(connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG));
     }
 
     // Initialize rotation timers
@@ -266,15 +272,22 @@ public class TopicPartitionWriter {
               if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
                 String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
                 CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
-                FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
+                FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
+                    storage,
+                    new Path(topicDir),
+                    filter
+                );
                 if (fileStatusWithMaxOffset != null) {
-                  currentSchema = schemaFileReader.getSchema(conf, fileStatusWithMaxOffset.getPath());
+                  currentSchema = schemaFileReader.getSchema(
+                      connectorConfig,
+                      fileStatusWithMaxOffset.getPath()
+                  );
                 }
               }
             }
             SinkRecord record = buffer.peek();
             Schema valueSchema = record.valueSchema();
-            if (compatibility.shouldChangeSchema(valueSchema, currentSchema)) {
+            if (compatibility.shouldChangeSchema(record, null, currentSchema)) {
               currentSchema = valueSchema;
               if (hiveIntegration) {
                 createHiveTable();
@@ -286,7 +299,7 @@ public class TopicPartitionWriter {
                 break;
               }
             } else {
-              SinkRecord projectedRecord = compatibility.project(record, currentSchema);
+              SinkRecord projectedRecord = compatibility.project(record, null, currentSchema);
               writeRecord(projectedRecord);
               buffer.poll();
               if (shouldRotate(now)) {
@@ -391,7 +404,7 @@ public class TopicPartitionWriter {
     return offset;
   }
 
-  public Map<String, RecordWriter<SinkRecord>> getWriters() {
+  public Map<String, RecordWriter> getWriters() {
     return writers;
   }
 
@@ -436,13 +449,18 @@ public class TopicPartitionWriter {
     context.resume(tp);
   }
 
-  private RecordWriter<SinkRecord> getWriter(SinkRecord record, String encodedPartition)
+  private RecordWriter getWriter(SinkRecord record, String encodedPartition)
       throws ConnectException {
     if (writers.containsKey(encodedPartition)) {
       return writers.get(encodedPartition);
     }
     String tempFile = getTempFile(encodedPartition);
-    RecordWriter<SinkRecord> writer = writerProvider.getRecordWriter(conf, tempFile, record, avroData);
+    RecordWriter writer = writerProvider.getRecordWriter(
+        connectorConfig,
+        tempFile,
+        record,
+        avroData
+    );
     writers.put(encodedPartition, writer);
     if (hiveIntegration && !hivePartitions.contains(encodedPartition)) {
       addHivePartition(encodedPartition);
@@ -515,7 +533,7 @@ public class TopicPartitionWriter {
     }
 
     String encodedPartition = partitioner.encodePartition(record);
-    RecordWriter<SinkRecord> writer = getWriter(record, encodedPartition);
+    RecordWriter writer = getWriter(record, encodedPartition);
     writer.write(record);
 
     if (!startOffsets.containsKey(encodedPartition)) {
@@ -527,7 +545,7 @@ public class TopicPartitionWriter {
 
   private void closeTempFile(String encodedPartition) {
     if (writers.containsKey(encodedPartition)) {
-      RecordWriter<SinkRecord> writer = writers.get(encodedPartition);
+      RecordWriter writer = writers.get(encodedPartition);
       writer.close();
       writers.remove(encodedPartition);
     }
@@ -598,7 +616,7 @@ public class TopicPartitionWriter {
 
     String directoryName = FileUtils.directoryName(url, topicsDir, directory);
     if (!storage.exists(directoryName)) {
-      storage.mkdirs(directoryName);
+      storage.create(directoryName);
     }
     storage.commit(tempFile, committedFile);
     startOffsets.remove(encodedPartition);

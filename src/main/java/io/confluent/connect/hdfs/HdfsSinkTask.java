@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 
 public class HdfsSinkTask extends SinkTask {
@@ -51,10 +53,10 @@ public class HdfsSinkTask extends SinkTask {
     Set<TopicPartition> assignment = context.assignment();
     try {
       HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
-      boolean hiveIntegration = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
+      boolean hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
         StorageSchemaCompatibility compatibility = StorageSchemaCompatibility.getCompatibility(
-            connectorConfig.getString(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
+            connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG));
         if (compatibility == StorageSchemaCompatibility.NONE) {
           throw new ConfigException("Hive Integration requires schema compatibility to be BACKWARD, FORWARD or FULL");
         }
@@ -62,9 +64,9 @@ public class HdfsSinkTask extends SinkTask {
 
       //check that timezone it setup correctly in case of scheduled rotation
       if(connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG) > 0) {
-        String timeZoneString = connectorConfig.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
+        String timeZoneString = connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG);
         if (timeZoneString.equals("")) {
-          throw new ConfigException(HdfsSinkConnectorConfig.TIMEZONE_CONFIG,
+          throw new ConfigException(PartitionerConfig.TIMEZONE_CONFIG,
                   timeZoneString, "Timezone cannot be empty when using scheduled file rotation.");
         }
         DateTimeZone.forID(timeZoneString);

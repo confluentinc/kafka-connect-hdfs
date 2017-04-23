@@ -51,16 +51,18 @@ import io.confluent.connect.hdfs.filter.TopicCommittedFileFilter;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.storage.StorageFactory;
+import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class DataWriter {
   private static final Logger log = LoggerFactory.getLogger(DataWriter.class);
 
   private Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
-  private Storage storage;
-  private Configuration conf;
+  private HdfsStorage storage;
   private String topicsDir;
   private Format format;
   private Set<TopicPartition> assignment;
@@ -91,7 +93,7 @@ public class DataWriter {
 
       String hadoopConfDir = connectorConfig.getString(HdfsSinkConnectorConfig.HADOOP_CONF_DIR_CONFIG);
       log.info("Hadoop configuration directory {}", hadoopConfDir);
-      conf = new Configuration();
+      Configuration conf = connectorConfig.getHadoopConfiguration();
       if (!hadoopConfDir.equals("")) {
         conf.addResource(new Path(hadoopConfDir + "/core-site.xml"));
         conf.addResource(new Path(hadoopConfDir + "/hdfs-site.xml"));
@@ -159,13 +161,18 @@ public class DataWriter {
       }
 
       url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
-      topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
+      topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
       String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
 
       @SuppressWarnings("unchecked")
-      Class<? extends Storage> storageClass = (Class<? extends Storage>) Class
-          .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-      storage = StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
+      Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) connectorConfig
+          .getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
+      storage = io.confluent.connect.storage.StorageFactory.createStorage(
+          storageClass,
+          HdfsSinkConnectorConfig.class,
+          connectorConfig,
+          url
+      );
 
       createDir(topicsDir);
       createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
@@ -173,18 +180,18 @@ public class DataWriter {
 
       format = getFormat();
       writerProvider = format.getRecordWriterProvider();
-      schemaFileReader = format.getSchemaFileReader(avroData);
+      schemaFileReader = format.getSchemaFileReader();
 
       partitioner = createPartitioner(connectorConfig);
 
       assignment = new HashSet<>(context.assignment());
       offsets = new HashMap<>();
 
-      hiveIntegration = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
+      hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
-        hiveDatabase = connectorConfig.getString(HdfsSinkConnectorConfig.HIVE_DATABASE_CONFIG);
+        hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
         hiveMetaStore = new HiveMetaStore(conf, connectorConfig);
-        hive = format.getHiveUtil(connectorConfig, avroData, hiveMetaStore);
+        hive = format.getHiveUtil(connectorConfig, hiveMetaStore);
         executorService = Executors.newSingleThreadExecutor();
         hiveUpdateFutures = new LinkedList<>();
       }
@@ -192,8 +199,19 @@ public class DataWriter {
       topicPartitionWriters = new HashMap<>();
       for (TopicPartition tp: assignment) {
         TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-            tp, storage, writerProvider, partitioner, connectorConfig, context, avroData, hiveMetaStore, hive, schemaFileReader, executorService,
-            hiveUpdateFutures);
+            tp,
+            storage,
+            writerProvider,
+            partitioner,
+            connectorConfig,
+            context,
+            avroData,
+            hiveMetaStore,
+            hive,
+            schemaFileReader,
+            executorService,
+            hiveUpdateFutures
+        );
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
     } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
@@ -251,7 +269,7 @@ public class DataWriter {
         CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
         FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
         if (fileStatusWithMaxOffset != null) {
-          Schema latestSchema = schemaFileReader.getSchema(conf, fileStatusWithMaxOffset.getPath());
+          Schema latestSchema = schemaFileReader.getSchema(connectorConfig, fileStatusWithMaxOffset.getPath());
           hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
           List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, topic, (short) -1);
           FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
@@ -273,8 +291,19 @@ public class DataWriter {
     assignment = new HashSet<>(partitions);
     for (TopicPartition tp: assignment) {
       TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-          tp, storage, writerProvider, partitioner, connectorConfig, context, avroData,
-          hiveMetaStore, hive, schemaFileReader, executorService, hiveUpdateFutures);
+          tp,
+          storage,
+          writerProvider,
+          partitioner,
+          connectorConfig,
+          context,
+          avroData,
+          hiveMetaStore,
+          hive,
+          schemaFileReader,
+          executorService,
+          hiveUpdateFutures
+      );
       topicPartitionWriters.put(tp, topicPartitionWriter);
       // We need to immediately start recovery to ensure we pause consumption of messages for the
       // assigned topics while we try to recover offsets and rewind.
@@ -351,7 +380,7 @@ public class DataWriter {
     return storage;
   }
 
-  public Map<String, RecordWriter<SinkRecord>> getWriters(TopicPartition tp) {
+  public Map<String, RecordWriter> getWriters(TopicPartition tp) {
     return topicPartitionWriters.get(tp).getWriters();
   }
 
@@ -363,7 +392,7 @@ public class DataWriter {
   private void createDir(String dir) {
     String path = url + "/" + dir;
     if (!storage.exists(path)) {
-      storage.mkdirs(path);
+      storage.create(path);
     }
   }
 
@@ -388,7 +417,7 @@ public class DataWriter {
 
     @SuppressWarnings("unchecked")
     Class<? extends Partitioner> partitionerClasss = (Class<? extends Partitioner>)
-        Class.forName(config.getString(HdfsSinkConnectorConfig.PARTITIONER_CLASS_CONFIG));
+        Class.forName(config.getString(PartitionerConfig.PARTITIONER_CLASS_CONFIG));
 
     Map<String, Object> map = copyConfig(config);
     Partitioner partitioner = partitionerClasss.newInstance();
@@ -398,11 +427,20 @@ public class DataWriter {
 
   private Map<String, Object> copyConfig(HdfsSinkConnectorConfig config) {
     Map<String, Object> map = new HashMap<>();
-    map.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, config.getString(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG));
-    map.put(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG, config.getLong(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG));
-    map.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, config.getString(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG));
-    map.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, config.getString(HdfsSinkConnectorConfig.LOCALE_CONFIG));
-    map.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, config.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG));
+    map.put(
+        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG,
+        config.getString(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG)
+    );
+    map.put(
+        PartitionerConfig.PARTITION_DURATION_MS_CONFIG,
+        config.getLong(PartitionerConfig.PARTITION_DURATION_MS_CONFIG)
+    );
+    map.put(
+        PartitionerConfig.PATH_FORMAT_CONFIG,
+        config.getString(PartitionerConfig.PATH_FORMAT_CONFIG)
+    );
+    map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
+    map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
     return map;
   }
 }
