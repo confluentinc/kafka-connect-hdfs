@@ -18,7 +18,6 @@ package io.confluent.connect.hdfs.storage;
 
 import org.apache.avro.file.SeekableInput;
 import org.apache.avro.mapred.FsInput;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -32,20 +31,22 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.hdfs.wal.WAL;
 
 public class HdfsStorage
-    implements io.confluent.connect.storage.Storage<Configuration, List<FileStatus>>, Storage {
+    implements io.confluent.connect.storage.Storage<HdfsSinkConnectorConfig, List<FileStatus>>,
+    Storage {
 
   private final FileSystem fs;
-  private final Configuration conf;
+  private final HdfsSinkConnectorConfig conf;
   private final String url;
 
-  public HdfsStorage(Configuration conf,  String url) throws IOException {
-    fs = FileSystem.newInstance(URI.create(url), conf);
+  public HdfsStorage(HdfsSinkConnectorConfig conf,  String url) throws IOException {
     this.conf = conf;
     this.url = url;
+    fs = FileSystem.newInstance(URI.create(url), conf.getHadoopConfiguration());
   }
 
   public List<FileStatus> list(String path, PathFilter filter) {
@@ -117,7 +118,7 @@ public class HdfsStorage
   }
 
   @Override
-  public Configuration conf() {
+  public HdfsSinkConnectorConfig conf() {
     return conf;
   }
 
@@ -142,19 +143,23 @@ public class HdfsStorage
   }
 
   @Override
-  public SeekableInput open(String filename, Configuration conf) {
+  public SeekableInput open(String filename, HdfsSinkConnectorConfig conf) {
     try {
-      return new FsInput(new Path(filename), conf);
+      return new FsInput(new Path(filename), conf.getHadoopConfiguration());
     } catch (IOException e) {
       throw new ConnectException(e);
     }
   }
 
+  public OutputStream create(String filename, boolean overwrite) {
+    return create(filename, this.conf, overwrite);
+  }
+
   @Override
-  public OutputStream create(String filename, Configuration conf, boolean overwrite) {
+  public OutputStream create(String filename, HdfsSinkConnectorConfig conf, boolean overwrite) {
     try {
       Path path = new Path(filename);
-      return path.getFileSystem(conf).create(path);
+      return path.getFileSystem(conf.getHadoopConfiguration()).create(path);
     } catch (IOException e) {
       throw new ConnectException(e);
     }

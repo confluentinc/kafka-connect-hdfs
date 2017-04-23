@@ -16,11 +16,12 @@
 
 package io.confluent.connect.hdfs.storage;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 
 import java.util.List;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+
 @Deprecated
 public interface Storage
-    extends io.confluent.connect.storage.Storage<Configuration, List<FileStatus>> {}
+    extends io.confluent.connect.storage.Storage<HdfsSinkConnectorConfig, List<FileStatus>> {}
