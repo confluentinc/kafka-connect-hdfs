@@ -54,10 +54,4 @@ public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUti
       Partitioner partitioner
   );
 
-  @Override
-  public abstract void alterSchema(String database, String tableName, Schema schema);
-
-  public Table newTable(String database, String table) {
-    return new Table(database, hiveMetaStore.tableNameConverter(table));
-  }
 }

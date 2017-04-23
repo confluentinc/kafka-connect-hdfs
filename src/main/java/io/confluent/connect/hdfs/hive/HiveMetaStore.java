@@ -27,7 +27,4 @@ public class HiveMetaStore extends io.confluent.connect.storage.hive.HiveMetaSto
     super(conf, connectorConfig);
   }
 
-  public String tableNameConverter(String table){
-    return table == null ? table : table.replaceAll("\\.", "_");
-  }
 }
