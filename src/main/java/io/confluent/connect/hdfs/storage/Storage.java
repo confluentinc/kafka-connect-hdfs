@@ -18,9 +18,9 @@ package io.confluent.connect.hdfs.storage;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.PathFilter;
 
 import java.util.List;
 
 @Deprecated
-public interface Storage extends io.confluent.connect.storage.Storage<Configuration, PathFilter, List<FileStatus>> {}
+public interface Storage
+    extends io.confluent.connect.storage.Storage<Configuration, List<FileStatus>> {}

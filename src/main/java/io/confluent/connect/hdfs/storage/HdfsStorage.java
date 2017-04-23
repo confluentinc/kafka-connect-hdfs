@@ -33,10 +33,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import io.confluent.connect.hdfs.wal.FSWAL;
-import io.confluent.connect.storage.wal.WAL;
+import io.confluent.connect.hdfs.wal.WAL;
 
-public class HdfsStorage implements io.confluent.connect.storage.Storage<Configuration, PathFilter, List<FileStatus>>,
-    Storage {
+public class HdfsStorage
+    implements io.confluent.connect.storage.Storage<Configuration, List<FileStatus>>, Storage {
 
   private final FileSystem fs;
   private final Configuration conf;
@@ -48,8 +48,7 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<Configu
     this.url = url;
   }
 
-  @Override
-  public List<FileStatus> listStatus(String path, PathFilter filter) {
+  public List<FileStatus> list(String path, PathFilter filter) {
     try {
       return Arrays.asList(fs.listStatus(new Path(path), filter));
     } catch (IOException e) {
@@ -58,7 +57,7 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<Configu
   }
 
   @Override
-  public List<FileStatus> listStatus(String path) {
+  public List<FileStatus> list(String path) {
     try {
       return Arrays.asList(fs.listStatus(new Path(path)));
     } catch (IOException e) {
@@ -67,10 +66,12 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<Configu
   }
 
   @Override
-  public void append(String filename, Object object) {}
+  public OutputStream append(String filename) {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
-  public boolean mkdirs(String filename) {
+  public boolean create(String filename) {
     try {
       return fs.mkdirs(new Path(filename));
     } catch (IOException e) {
@@ -87,7 +88,6 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<Configu
     }
   }
 
-  @Override
   public void commit(String tempFile, String committedFile) {
     renameFile(tempFile, committedFile);
   }
@@ -112,7 +112,6 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<Configu
     }
   }
 
-  @Override
   public WAL wal(String topicsDir, TopicPartition topicPart) {
     return new FSWAL(topicsDir, topicPart, this);
   }
@@ -142,6 +141,7 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<Configu
     }
   }
 
+  @Override
   public SeekableInput open(String filename, Configuration conf) {
     try {
       return new FsInput(new Path(filename), conf);
@@ -150,6 +150,7 @@ public class HdfsStorage implements io.confluent.connect.storage.Storage<Configu
     }
   }
 
+  @Override
   public OutputStream create(String filename, Configuration conf, boolean overwrite) {
     try {
       Path path = new Path(filename);
