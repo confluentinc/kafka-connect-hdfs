@@ -44,6 +44,8 @@ import java.rmi.server.UID;
 import java.security.MessageDigest;
 import java.util.Arrays;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+
 public class WALFile {
 
   private static final Log log = LogFactory.getLog(WALFile.class);
@@ -63,14 +65,12 @@ public class WALFile {
 
   private WALFile() {}
 
-  public static Writer createWriter(Configuration conf, Writer.Option... opts) throws IOException {
+  public static Writer createWriter(HdfsSinkConnectorConfig conf, Writer.Option... opts) throws IOException {
     return new Writer(conf, opts);
   }
 
 
   public static class Writer implements Closeable, Syncable {
-
-    private Configuration conf;
     private FSDataOutputStream out;
     private DataOutputBuffer buffer = new DataOutputBuffer();
     boolean ownOutputStream = true;
@@ -170,7 +170,8 @@ public class WALFile {
     }
 
 
-    Writer(Configuration conf, Option... opts) throws IOException {
+    Writer(HdfsSinkConnectorConfig connectorConfig, Option... opts) throws IOException {
+      Configuration conf = connectorConfig.getHadoopConfiguration();
       BlockSizeOption blockSizeOption =
           Options.getOption(BlockSizeOption.class, opts);
       BufferSizeOption bufferSizeOption =
@@ -227,12 +228,12 @@ public class WALFile {
         out = streamOption.getValue();
       }
 
-      init(conf, out, ownStream);
+      init(connectorConfig, out, ownStream);
     }
 
-    void init(Configuration conf, FSDataOutputStream out, boolean ownStream)
+    void init(HdfsSinkConnectorConfig connectorConfig, FSDataOutputStream out, boolean ownStream)
         throws IOException {
-      this.conf = conf;
+      Configuration conf = connectorConfig.getHadoopConfiguration();
       this.out = out;
       this.ownOutputStream = ownStream;
       SerializationFactory serializationFactory = new SerializationFactory(conf);

@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs.wal;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
@@ -28,7 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WALFile.Reader;
 import io.confluent.connect.hdfs.wal.WALFile.Writer;
 
@@ -41,10 +41,10 @@ public class FSWAL implements WAL {
   private WALFile.Writer writer = null;
   private WALFile.Reader reader = null;
   private String logFile = null;
-  private Configuration conf = null;
-  private Storage storage = null;
+  private HdfsSinkConnectorConfig conf = null;
+  private HdfsStorage storage = null;
 
-  public FSWAL(String logsDir, TopicPartition topicPart, Storage storage)
+  public FSWAL(String logsDir, TopicPartition topicPart, HdfsStorage storage)
       throws ConnectException {
     this.storage = storage;
     this.conf = storage.conf();
@@ -105,7 +105,7 @@ public class FSWAL implements WAL {
       }
       acquireLease();
       if (reader == null) {
-        reader = new WALFile.Reader(conf, Reader.file(new Path(logFile)));
+        reader = new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(logFile)));
       }
       Map<WALEntry, WALEntry> entries = new HashMap<>();
       WALEntry key = new WALEntry();
