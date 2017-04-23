@@ -25,7 +25,8 @@ import java.util.Map;
  * incoming records.
  */
 @Deprecated
-public interface Partitioner extends io.confluent.connect.storage.partitioner.Partitioner {
+public interface Partitioner
+    extends io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> {
   @Override
   void configure(Map<String, Object> config);
   @Override

@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.hive;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Schema;
 
@@ -37,17 +38,26 @@ public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUti
   }
 
   @Override
-  public void createTable(String database, String tableName,
-                                   Schema schema, io.confluent.connect.storage.partitioner.Partitioner partitioner) {
+  public void createTable(
+      String database,
+      String tableName,
+      Schema schema,
+      io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> partitioner
+  ) {
     createTable(database, tableName, schema, (Partitioner) partitioner);
   }
 
-  public abstract void createTable(String database, String tableName, Schema schema, Partitioner partitioner);
+  public abstract void createTable(
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
+  );
 
   @Override
   public abstract void alterSchema(String database, String tableName, Schema schema);
-  
-  public Table newTable(String database, String table){
+
+  public Table newTable(String database, String table) {
     return new Table(database, hiveMetaStore.tableNameConverter(table));
   }
 }

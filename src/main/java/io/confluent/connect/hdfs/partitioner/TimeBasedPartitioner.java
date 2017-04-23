@@ -14,7 +14,10 @@
 
 package io.confluent.connect.hdfs.partitioner;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+
 @Deprecated
-public class TimeBasedPartitioner extends io.confluent.connect.storage.partitioner.TimeBasedPartitioner
+public class TimeBasedPartitioner
+    extends io.confluent.connect.storage.partitioner.TimeBasedPartitioner<FieldSchema>
     implements Partitioner {
 }

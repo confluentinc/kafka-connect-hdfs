@@ -14,6 +14,10 @@
 
 package io.confluent.connect.hdfs.partitioner;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+
 @Deprecated
-public class DailyPartitioner extends io.confluent.connect.storage.partitioner.DailyPartitioner implements Partitioner {
+public class DailyPartitioner
+    extends io.confluent.connect.storage.partitioner.DailyPartitioner<FieldSchema>
+    implements Partitioner {
 }
