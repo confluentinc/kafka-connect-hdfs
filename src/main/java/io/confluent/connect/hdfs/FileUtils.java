@@ -46,8 +46,12 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic + "/" + partition;
   }
 
-  public static String fileName(String url, String topicsDir, TopicPartition topicPart,
-                                String name) {
+  public static String fileName(
+      String url,
+      String topicsDir,
+      TopicPartition topicPart,
+      String name
+  ) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
     return url + "/" + topicsDir + "/" + topic + "/" + partition + "/" + name;
@@ -61,16 +65,27 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + directory;
   }
 
-  public static String tempFileName(String url, String topicsDir, String directory,
-                                    String extension) {
+  public static String tempFileName(
+      String url,
+      String topicsDir,
+      String directory,
+      String extension
+  ) {
     UUID id = UUID.randomUUID();
     String name = id.toString() + "_" + "tmp" + extension;
     return fileName(url, topicsDir, directory, name);
   }
 
-  public static String committedFileName(String url, String topicsDir, String directory,
-                                         TopicPartition topicPart, long startOffset, long endOffset,
-                                         String extension, String zeroPadFormat) {
+  public static String committedFileName(
+      String url,
+      String topicsDir,
+      String directory,
+      TopicPartition topicPart,
+      long startOffset,
+      long endOffset,
+      String extension,
+      String zeroPadFormat
+  ) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
     StringBuilder sb = new StringBuilder();
@@ -95,7 +110,7 @@ public class FileUtils {
       return new ArrayList<>();
     }
     ArrayList<FileStatus> result = new ArrayList<>();
-    List<FileStatus> statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.list(path.toString());
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         result.addAll(traverseImpl(storage, status.getPath(), filter));
@@ -120,7 +135,7 @@ public class FileUtils {
     }
     long maxOffset = -1L;
     FileStatus fileStatusWithMaxOffset = null;
-    List<FileStatus> statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.list(path.toString());
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         FileStatus fileStatus = fileStatusWithMaxOffset(storage, status.getPath(), filter);
@@ -156,12 +171,12 @@ public class FileUtils {
   }
 
   private static ArrayList<FileStatus> getDirectoriesImpl(Storage storage, Path path) {
-    List<FileStatus> statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.list(path.toString());
     ArrayList<FileStatus> result = new ArrayList<>();
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         int count = 0;
-        List<FileStatus> fileStatuses = storage.listStatus(status.getPath().toString());
+        List<FileStatus> fileStatuses = storage.list(status.getPath().toString());
         for (FileStatus fileStatus : fileStatuses) {
           if (fileStatus.isDirectory()) {
             result.addAll(getDirectoriesImpl(storage, fileStatus.getPath()));
