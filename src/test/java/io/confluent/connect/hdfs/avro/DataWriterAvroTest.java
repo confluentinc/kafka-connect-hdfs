@@ -31,9 +31,9 @@ import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.storage.StorageFactory;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.storage.hive.HiveConfig;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -70,10 +70,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testRecovery() throws Exception {
     fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
 
-    @SuppressWarnings("unchecked")
-    Class<? extends Storage> storageClass = (Class<? extends Storage>)
-        Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-    Storage storage = StorageFactory.createStorage(storageClass, conf, url);
+    HdfsStorage storage = new HdfsStorage(conf, url);
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
 
@@ -261,7 +258,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testProjectBackWard() throws Exception {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
-    props.put(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
+    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -301,7 +298,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testProjectForward() throws Exception {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
-    props.put(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "FORWARD");
+    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "FORWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -322,7 +319,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   @Test
   public void testProjectNoVersion() throws Exception {
     Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
+    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);

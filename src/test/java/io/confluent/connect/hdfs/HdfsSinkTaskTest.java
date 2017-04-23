@@ -34,7 +34,6 @@ import io.confluent.connect.hdfs.avro.AvroFileReader;
 import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.storage.StorageFactory;
 import io.confluent.connect.storage.wal.WAL;
-import io.confluent.kafka.serializers.NonRecordContainer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

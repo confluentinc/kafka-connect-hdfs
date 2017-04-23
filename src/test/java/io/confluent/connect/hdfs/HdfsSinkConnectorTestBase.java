@@ -29,6 +29,7 @@ import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.storage.StorageSinkTestBase;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
 public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
 
@@ -99,7 +100,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
 
   protected void configureConnector() {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
-    topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
+    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
     int schemaCacheSize = connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG);
     avroData = new AvroData(schemaCacheSize);
