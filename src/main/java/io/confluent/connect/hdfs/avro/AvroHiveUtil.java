@@ -28,6 +28,7 @@ import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
 
@@ -37,9 +38,14 @@ public class AvroHiveUtil extends HiveUtil {
   private static final String AVRO_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat";
   private static final String AVRO_OUTPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat";
   private static final String AVRO_SCHEMA_LITERAL = "avro.schema.literal";
+  private final AvroData avroData;
+  private final String topicsDir;
 
-  public AvroHiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    super(connectorConfig, avroData, hiveMetaStore);
+  public AvroHiveUtil(HdfsSinkConnectorConfig conf, AvroData avroData, HiveMetaStore
+      hiveMetaStore) {
+    super(conf, hiveMetaStore);
+    this.avroData = avroData;
+    this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
   }
 
   @Override

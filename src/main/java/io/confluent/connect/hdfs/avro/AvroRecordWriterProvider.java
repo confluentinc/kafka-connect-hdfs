@@ -14,14 +14,12 @@
 
 package io.confluent.connect.hdfs.avro;
 
-import io.confluent.kafka.serializers.NonRecordContainer;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.io.DatumWriter;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -30,13 +28,20 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.RecordWriter;
 import io.confluent.connect.hdfs.RecordWriterProvider;
+import io.confluent.kafka.serializers.NonRecordContainer;
 
 public class AvroRecordWriterProvider implements RecordWriterProvider,
-    io.confluent.connect.storage.format.RecordWriterProvider<Configuration, AvroData> {
+    io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(AvroRecordWriterProvider.class);
   private final static String EXTENSION = ".avro";
+  private final AvroData avroData;
+
+  AvroRecordWriterProvider(AvroData avroData) {
+    this.avroData = avroData;
+  }
 
   @Override
   public String getExtension() {
@@ -44,37 +49,56 @@ public class AvroRecordWriterProvider implements RecordWriterProvider,
   }
 
   @Override
-  public RecordWriter<SinkRecord> getRecordWriter(Configuration conf, final String fileName,
-                                                  SinkRecord record, final AvroData avroData) {
-    DatumWriter<Object> datumWriter = new GenericDatumWriter<>();
-    final DataFileWriter<Object> writer = new DataFileWriter<>(datumWriter);
-    Path path = new Path(fileName);
+  public RecordWriter getRecordWriter(
+      HdfsSinkConnectorConfig conf,
+      final String fileName,
+      SinkRecord record,
+      final AvroData avroData
+  ) {
+    return getRecordWriter(conf, fileName);
+  }
 
-    final Schema schema = record.valueSchema();
-    try {
-      final FSDataOutputStream out = path.getFileSystem(conf).create(path);
-      org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
-      writer.create(avroSchema, out);
-    } catch (IOException e) {
-      throw new DataException(e);
-    }
+  @Override
+  public RecordWriter getRecordWriter(
+      final HdfsSinkConnectorConfig conf,
+      final String filename
+  ) {
+    return new RecordWriter() {
+      final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
+      final Path path = new Path(filename);
+      Schema schema = null;
 
-    return new RecordWriter<SinkRecord>() {
       @Override
       public void write(SinkRecord record) {
-        log.trace("Sink record: {}", record.toString());
-        Object value = avroData.fromConnectData(schema, record.value());
-        try {
-          // AvroData wraps primitive types so their schema can be included. We need to unwrap NonRecordContainers to just
-          // their value to properly handle these types
-          if (value instanceof NonRecordContainer)
-            writer.append(((NonRecordContainer) value).getValue());
-          else
-            writer.append(value);
-        } catch (IOException e) {
-          throw new DataException(e);
+        if (schema == null) {
+          schema = record.valueSchema();
+          try {
+            log.info("Opening record writer for: {}", filename);
+            final FSDataOutputStream out = path.getFileSystem(conf.getHadoopConfiguration())
+                .create(path);
+            org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+            writer.create(avroSchema, out);
+          } catch (IOException e) {
+            throw new ConnectException(e);
+          }
+
+          log.trace("Sink record: {}", record.toString());
+          Object value = avroData.fromConnectData(schema, record.value());
+          try {
+            // AvroData wraps primitive types so their schema can be included. We need to unwrap NonRecordContainers to just
+            // their value to properly handle these types
+            if (value instanceof NonRecordContainer)
+              writer.append(((NonRecordContainer) value).getValue());
+            else
+              writer.append(value);
+          } catch (IOException e) {
+            throw new DataException(e);
+          }
         }
       }
+
+      @Override
+      public void commit() {}
 
       @Override
       public void close() {

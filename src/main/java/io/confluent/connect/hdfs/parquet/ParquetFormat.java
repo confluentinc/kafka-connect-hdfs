@@ -24,29 +24,40 @@ import io.confluent.connect.hdfs.RecordWriterProvider;
 import io.confluent.connect.hdfs.SchemaFileReader;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.hive.HiveFactory;
 
 public class ParquetFormat implements Format,
-    io.confluent.connect.storage.format.Format<Configuration, AvroData, Path> {
+    io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
+  private final AvroData avroData;
 
-  @Override
-  public RecordWriterProvider getRecordWriterProvider() {
-    return new ParquetRecordWriterProvider();
+  public ParquetFormat(HdfsStorage storage) {
+    this.avroData = new AvroData(
+        storage.conf().getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
+    );
   }
 
   @Override
-  public SchemaFileReader getSchemaFileReader(AvroData avroData) {
+  public RecordWriterProvider getRecordWriterProvider() {
+    return new ParquetRecordWriterProvider(avroData);
+  }
+
+  @Override
+  public SchemaFileReader getSchemaFileReader() {
     return new ParquetFileReader(avroData);
   }
 
   @Deprecated
   @Override
-  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    return (HiveUtil) getHiveFactory().createHiveUtil(config, avroData, hiveMetaStore);
+  public HiveUtil getHiveUtil(
+      HdfsSinkConnectorConfig config,
+      HiveMetaStore hiveMetaStore
+  ) {
+    return (HiveUtil) getHiveFactory().createHiveUtil(config, hiveMetaStore);
   }
 
   @Override
-  public HiveFactory<HdfsSinkConnectorConfig, AvroData> getHiveFactory() {
+  public HiveFactory getHiveFactory() {
     return new ParquetHiveFactory();
   }
 }

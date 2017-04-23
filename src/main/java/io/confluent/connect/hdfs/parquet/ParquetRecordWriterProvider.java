@@ -14,26 +14,33 @@
 
 package io.confluent.connect.hdfs.parquet;
 
-import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.RecordWriterProvider;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.RecordWriter;
+import io.confluent.connect.hdfs.RecordWriterProvider;
 
 public class ParquetRecordWriterProvider implements RecordWriterProvider,
-    io.confluent.connect.storage.format.RecordWriterProvider<Configuration, AvroData> {
+    io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
+  private static final Logger log = LoggerFactory.getLogger(ParquetRecordWriterProvider.class);
   private final static String EXTENSION = ".parquet";
+  private final AvroData avroData;
+
+  ParquetRecordWriterProvider(AvroData avroData) {
+    this.avroData = avroData;
+  }
 
   @Override
   public String getExtension() {
@@ -41,41 +48,71 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider,
   }
 
   @Override
-  public RecordWriter<SinkRecord> getRecordWriter(Configuration conf, final String fileName, SinkRecord record,
-                                                  final AvroData avroData) {
-    final Schema avroSchema = avroData.fromConnectSchema(record.valueSchema());
-    CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
+  public RecordWriter getRecordWriter(
+      HdfsSinkConnectorConfig conf,
+      final String filename,
+      SinkRecord record,
+      final AvroData avroData
+  ) {
+    return getRecordWriter(conf, filename);
+  }
 
-    int blockSize = 256 * 1024 * 1024;
-    int pageSize = 64 * 1024;
+  @Override
+  public RecordWriter getRecordWriter(
+      final HdfsSinkConnectorConfig conf,
+      final String filename
+  ) {
+    return new RecordWriter() {
+      final CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
+      final int blockSize = 256 * 1024 * 1024;
+      final int pageSize = 64 * 1024;
+      final Path path = new Path(filename);
+      Schema schema = null;
+      ParquetWriter<GenericRecord> writer = null;
 
-    Path path = new Path(fileName);
-    try {
-      final ParquetWriter<GenericRecord> writer =
-          new AvroParquetWriter<>(path, avroSchema, compressionCodecName, blockSize, pageSize, true, conf);
-
-      return new RecordWriter<SinkRecord>() {
-        @Override
-        public void write(SinkRecord record) {
-          Object value = avroData.fromConnectData(record.valueSchema(), record.value());
+      @Override
+      public void write(SinkRecord record) {
+        if (schema == null) {
+          schema = record.valueSchema();
           try {
-            writer.write((GenericRecord) value);
+            log.info("Opening record writer for: {}", filename);
+            org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+            writer = new AvroParquetWriter<>(
+                path,
+                avroSchema,
+                compressionCodecName,
+                blockSize,
+                pageSize,
+                true,
+                conf.getHadoopConfiguration()
+            );
           } catch (IOException e) {
-            throw new DataException(e);
+            throw new ConnectException(e);
           }
         }
 
-        @Override
-        public void close() {
+        log.trace("Sink record: {}", record.toString());
+        Object value = avroData.fromConnectData(record.valueSchema(), record.value());
+        try {
+          writer.write((GenericRecord) value);
+        } catch (IOException e) {
+          throw new ConnectException(e);
+        }
+      }
+
+      @Override
+      public void commit() {}
+
+      @Override
+      public void close() {
+        if (writer != null) {
           try {
             writer.close();
-          } catch (IOException e) {
-            throw new DataException(e);
+          } catch(IOException e){
+            throw new ConnectException(e);
           }
         }
-      };
-    } catch (IOException e) {
-      throw new ConnectException(e);
-    }
+      }
+    };
   }
 }

@@ -14,26 +14,13 @@
 
 package io.confluent.connect.hdfs;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.kafka.common.config.AbstractConfig;
 
-import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
-import io.confluent.connect.storage.hive.HiveFactory;
 
 @Deprecated
 public interface Format
-    extends io.confluent.connect.storage.format.Format<Configuration, AvroData, Path> {
-  @Override
-  RecordWriterProvider getRecordWriterProvider();
-
-  @Override
-  SchemaFileReader getSchemaFileReader(AvroData avroData);
-
-  HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore);
-
-  @Override
-  HiveFactory<? extends AbstractConfig, AvroData> getHiveFactory();
+    extends io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
+  HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, HiveMetaStore hiveMetaStore);
 }

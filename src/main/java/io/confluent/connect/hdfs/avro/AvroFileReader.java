@@ -28,12 +28,14 @@ import org.apache.kafka.connect.errors.DataException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.SchemaFileReader;
 
 public class AvroFileReader implements SchemaFileReader,
-    io.confluent.connect.storage.format.SchemaFileReader<Configuration, Path> {
+    io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path> {
   private AvroData avroData;
 
   public AvroFileReader(AvroData avroData) {
@@ -41,9 +43,9 @@ public class AvroFileReader implements SchemaFileReader,
   }
 
   @Override
-  public Schema getSchema(Configuration conf, Path path) {
+  public Schema getSchema(HdfsSinkConnectorConfig conf, Path path) {
     try {
-      SeekableInput input = new FsInput(path, conf);
+      SeekableInput input = new FsInput(path, conf.getHadoopConfiguration());
       DatumReader<Object> reader = new GenericDatumReader<>();
       FileReader<Object> fileReader = DataFileReader.openReader(input, reader);
       org.apache.avro.Schema schema = fileReader.getSchema();
@@ -54,11 +56,10 @@ public class AvroFileReader implements SchemaFileReader,
     }
   }
 
-  @Override
-  public Collection<Object> readData(Configuration conf, Path path) {
+  public Collection<Object> readData(HdfsSinkConnectorConfig conf, Path path) {
     ArrayList<Object> collection = new ArrayList<>();
     try {
-      SeekableInput input = new FsInput(path, conf);
+      SeekableInput input = new FsInput(path, conf.getHadoopConfiguration());
       DatumReader<Object> reader = new GenericDatumReader<>();
       FileReader<Object> fileReader = DataFileReader.openReader(input, reader);
       for (Object object : fileReader) {
@@ -70,4 +71,22 @@ public class AvroFileReader implements SchemaFileReader,
     }
     return collection;
   }
+
+  public boolean hasNext() {
+    throw new UnsupportedOperationException();
+  }
+
+  public Object next() {
+    throw new UnsupportedOperationException();
+  }
+
+  public void remove() {
+    throw new UnsupportedOperationException();
+  }
+
+  public Iterator<Object> iterator() {
+    throw new UnsupportedOperationException();
+  }
+
+  public void close() {}
 }

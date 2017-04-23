@@ -14,17 +14,18 @@
 
 package io.confluent.connect.hdfs;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import io.confluent.connect.avro.AvroData;
 
 @Deprecated
 public interface RecordWriterProvider
-    extends io.confluent.connect.storage.format.RecordWriterProvider<Configuration, AvroData> {
-  @Override
-  String getExtension();
-
-  @Override
-  RecordWriter<SinkRecord> getRecordWriter(Configuration conf, String fileName, SinkRecord record, AvroData avroData);
+    extends io.confluent.connect.storage.format.RecordWriterProvider
+    <HdfsSinkConnectorConfig> {
+  RecordWriter getRecordWriter(
+      HdfsSinkConnectorConfig conf,
+      String fileName,
+      SinkRecord record,
+      final AvroData avroData
+  );
 }
