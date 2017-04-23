@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
@@ -37,7 +38,6 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   // HDFS Group
-
   // This config is deprecated and will be removed in future releases. Use store.url instead.
   public static final String HDFS_URL_CONFIG = "hdfs.url";
   public static final String HDFS_URL_DOC =
@@ -96,13 +96,13 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final long KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT = 60000 * 60;
   private static final String KERBEROS_TICKET_RENEW_PERIOD_MS_DISPLAY = "Kerberos Ticket Renew Period (ms)";
 
-  // Internal group
   // Need to just set the default
   public static final String STORAGE_CLASS_DEFAULT = "io.confluent.connect.hdfs.storage.HdfsStorage";
 
   private static final ConfigDef.Recommender hdfsAuthenticationKerberosDependentsRecommender = new BooleanParentRecommender(HDFS_AUTHENTICATION_KERBEROS_CONFIG);
 
   private final String name;
+  private final Configuration hadoopConfig;
 
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
@@ -255,6 +255,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     hiveConfig = new HiveConfig(originalsStrings());
     partitionerConfig = new PartitionerConfig(originalsStrings());
     this.name = parseName(originalsStrings());
+    this.hadoopConfig = new Configuration();
     addToGlobal(hiveConfig);
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
@@ -279,6 +280,10 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   public String getName() {
     return name;
+  }
+
+  public Configuration getHadoopConfiguration() {
+    return hadoopConfig;
   }
 
   public Map<String, ?> plainValues() {
