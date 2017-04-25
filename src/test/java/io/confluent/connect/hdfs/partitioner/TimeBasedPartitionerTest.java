@@ -24,16 +24,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorTestBase;
+
 import static org.junit.Assert.assertEquals;
 
-public class TimeBasedPartitionerTest {
+public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
   private static final String timeZoneString = "America/Los_Angeles";
   private static final DateTimeZone DATE_TIME_ZONE = DateTimeZone.forID(timeZoneString);
-  private BiHourlyPartitioner partitioner = new BiHourlyPartitioner();
 
   @Test
   public void testGeneratePartitionedPath() throws Exception {
-    partitioner.configure(null);
+    setUp();
+    BiHourlyPartitioner partitioner = new BiHourlyPartitioner();
+    partitioner.configure(parsedConfig);
     String pathFormat = partitioner.getPathFormat();
     long partitionDurationMs = TimeUnit.HOURS.toMillis(2);
     long timestamp = new DateTime(2015, 1, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
@@ -60,7 +63,7 @@ public class TimeBasedPartitionerTest {
 
     @Override
     public void configure(Map<String, Object> config) {
-      init(partitionDurationMs, pathFormat, Locale.FRENCH, DATE_TIME_ZONE, true);
+      init(partitionDurationMs, pathFormat, Locale.FRENCH, DATE_TIME_ZONE, config);
     }
 
     public String getPathFormat() {
