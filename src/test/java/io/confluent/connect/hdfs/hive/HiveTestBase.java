@@ -15,12 +15,11 @@
 package io.confluent.connect.hdfs.hive;
 
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.Map;
 
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
+import io.confluent.connect.storage.hive.HiveConfig;
 
 public class HiveTestBase extends TestWithMiniDFSCluster {
 
@@ -28,10 +27,17 @@ public class HiveTestBase extends TestWithMiniDFSCluster {
   protected HiveMetaStore hiveMetaStore;
   protected HiveExec hiveExec;
 
-  @Before
+  @Override
+  protected Map<String, String> createProps() {
+    Map<String, String> props = super.createProps();
+    props.put(HiveConfig.HIVE_CONF_DIR_CONFIG, "hive_conf");
+    return props;
+  }
+
+  //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     super.setUp();
-    hiveDatabase = connectorConfig.getString(HdfsSinkConnectorConfig.HIVE_DATABASE_CONFIG);
+    hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
     hiveMetaStore = new HiveMetaStore(conf, connectorConfig);
     hiveExec = new HiveExec(connectorConfig);
     cleanHive();
@@ -41,13 +47,6 @@ public class HiveTestBase extends TestWithMiniDFSCluster {
   public void tearDown() throws Exception {
     cleanHive();
     super.tearDown();
-  }
-
-  @Override
-  protected Map<String, String> createProps() {
-    Map<String, String> props = super.createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_CONF_DIR_CONFIG, "hive_conf");
-    return props;
   }
 
   private void cleanHive() {
