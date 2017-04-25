@@ -14,16 +14,15 @@
 
 package io.confluent.connect.hdfs.wal;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.Test;
 
-import io.confluent.connect.storage.StorageFactory;
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.wal.WAL;
 
 import static org.junit.Assert.assertFalse;
@@ -31,6 +30,7 @@ import static org.junit.Assert.assertTrue;
 
 public class WALTest extends TestWithMiniDFSCluster {
   private static final String ZERO_PAD_FMT = "%010d";
+  private HdfsStorage storage;
 
   private boolean closed;
   private static final String extension = ".avro";
@@ -40,24 +40,34 @@ public class WALTest extends TestWithMiniDFSCluster {
     fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
 
     @SuppressWarnings("unchecked")
-    Class<? extends Storage> storageClass = (Class<? extends Storage>)
-        Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-    Storage storage = StorageFactory.createStorage(storageClass, Configuration.class, conf, url);
-
+    Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) connectorConfig
+        .getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
+    storage = io.confluent.connect.storage.StorageFactory.createStorage(
+        storageClass,
+        HdfsSinkConnectorConfig.class,
+        connectorConfig,
+        url
+    );
     final WAL wal1 = storage.wal(topicsDir, TOPIC_PARTITION);
     final WAL wal2 = storage.wal(topicsDir, TOPIC_PARTITION);
 
     String directory = TOPIC + "/" + String.valueOf(PARTITION);
     final String tempfile = FileUtils.tempFileName(url, topicsDir, directory, extension);
-    final String commitedFile = FileUtils.committedFileName(url, topicsDir, directory,
-                                                            TOPIC_PARTITION, 0, 10, extension,
-                                                            ZERO_PAD_FMT);
-
+    final String committedFile = FileUtils.committedFileName(
+        url,
+        topicsDir,
+        directory,
+        TOPIC_PARTITION,
+        0,
+        10,
+        extension,
+        ZERO_PAD_FMT
+    );
     fs.createNewFile(new Path(tempfile));
 
     wal1.acquireLease();
     wal1.append(WAL.beginMarker, "");
-    wal1.append(tempfile, commitedFile);
+    wal1.append(tempfile, committedFile);
     wal1.append(WAL.endMarker, "");
 
     Thread thread = new Thread(new Runnable() {
@@ -80,7 +90,7 @@ public class WALTest extends TestWithMiniDFSCluster {
     wal2.apply();
     wal2.close();
 
-    assertTrue(fs.exists(new Path(commitedFile)));
+    assertTrue(fs.exists(new Path(committedFile)));
     assertFalse(fs.exists(new Path(tempfile)));
     storage.close();
   }

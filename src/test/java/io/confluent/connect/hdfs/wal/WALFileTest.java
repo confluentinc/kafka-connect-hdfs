@@ -26,6 +26,7 @@ import java.util.Map;
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -33,18 +34,18 @@ import static org.junit.Assert.assertNull;
 public class WALFileTest extends TestWithMiniDFSCluster {
 
   @Test
-  public void testeAppend() throws Exception {
+  public void testAppend() throws Exception {
     Map<String, String> props = createProps();
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
-    String topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
+    String topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     String topic = "topic";
     int partition = 0;
     TopicPartition topicPart = new TopicPartition(topic, partition);
 
     Path file = new Path(FileUtils.logFileName(url, topicsDir, topicPart));
 
-    WALFile.Writer writer = WALFile.createWriter(conf, WALFile.Writer.file(file));
+    WALFile.Writer writer = WALFile.createWriter(connectorConfig, WALFile.Writer.file(file));
 
     WALEntry key1 = new WALEntry("key1");
     WALEntry val1 = new WALEntry("val1");
@@ -58,7 +59,11 @@ public class WALFileTest extends TestWithMiniDFSCluster {
 
     verify2Values(file);
 
-    writer = WALFile.createWriter(conf, WALFile.Writer.file(file), WALFile.Writer.appendIfExists(true));
+    writer = WALFile.createWriter(
+        connectorConfig,
+        WALFile.Writer.file(file),
+        WALFile.Writer.appendIfExists(true)
+    );
 
     WALEntry key3 = new WALEntry("key3");
     WALEntry val3 = new WALEntry("val3");
