@@ -70,7 +70,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testRecovery() throws Exception {
     fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
 
-    HdfsStorage storage = new HdfsStorage(conf, url);
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
 

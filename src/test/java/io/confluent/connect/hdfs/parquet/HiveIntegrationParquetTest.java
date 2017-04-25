@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -38,23 +39,31 @@ import io.confluent.connect.hdfs.hive.HiveTestUtils;
 import io.confluent.connect.hdfs.partitioner.DailyPartitioner;
 import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
 import io.confluent.connect.hdfs.partitioner.TimeUtils;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.junit.Assert.assertEquals;
 
 public class HiveIntegrationParquetTest extends HiveTestBase {
+  private Map<String, String> localProps = new HashMap<>();
+
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
     props.put(HdfsSinkConnectorConfig.SHUTDOWN_TIMEOUT_CONFIG, "10000");
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, ParquetFormat.class.getName());
+    props.putAll(localProps);
     return props;
+  }
+
+  //@Before should be omitted in order to be able to add properties per test.
+  public void setUp() throws Exception {
+    super.setUp();
   }
 
   @Test
   public void testSyncWithHiveParquet() throws Exception {
-    Map<String, String> props = createProps();
-    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
-
+    setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_PARTITION);
 
@@ -64,9 +73,8 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     hdfsWriter.close();
     hdfsWriter.stop();
 
-    props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(createProps());
 
     hdfsWriter = new DataWriter(config, context, avroData);
     hdfsWriter.syncWithHive();
@@ -101,11 +109,10 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationParquet() throws Exception {
-    Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    setUp();
 
-    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_PARTITION);
 
     List<SinkRecord> sinkRecords = createSinkRecords(7);
@@ -138,13 +145,11 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationFieldPartitionerParquet() throws Exception {
-    Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    props.put(HdfsSinkConnectorConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
-    props.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
-
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
-    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
+    localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
+    setUp();
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 3);
@@ -167,7 +172,9 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
-    String partitionFieldName = config.getString(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG);
+    String partitionFieldName = connectorConfig.getString(
+        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
+    );
     String directory1 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(16);
     String directory2 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(17);
     String directory3 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(18);
@@ -206,14 +213,10 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationTimeBasedPartitionerParquet() throws Exception {
-    Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    props.put(HdfsSinkConnectorConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
-    props.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
-    props.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, "en");
-
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
-    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
+    setUp();
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 3);
