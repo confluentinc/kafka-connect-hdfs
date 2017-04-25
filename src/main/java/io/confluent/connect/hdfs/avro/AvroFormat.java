@@ -46,6 +46,12 @@ public class AvroFormat implements Format,
     return new AvroFileReader(avroData);
   }
 
+  @Override
+  public SchemaFileReader getSchemaFileReader(AvroData avroData) {
+    // Argument is ignored.
+    return getSchemaFileReader();
+  }
+
   @Deprecated
   @Override
   public HiveUtil getHiveUtil(

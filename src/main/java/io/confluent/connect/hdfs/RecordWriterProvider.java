@@ -20,12 +20,17 @@ import io.confluent.connect.avro.AvroData;
 
 @Deprecated
 public interface RecordWriterProvider
-    extends io.confluent.connect.storage.format.RecordWriterProvider
-    <HdfsSinkConnectorConfig> {
+    extends io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
   RecordWriter getRecordWriter(
       HdfsSinkConnectorConfig conf,
       String fileName,
       SinkRecord record,
       final AvroData avroData
+  );
+
+  @Override
+  RecordWriter getRecordWriter(
+      HdfsSinkConnectorConfig conf,
+      String fileName
   );
 }

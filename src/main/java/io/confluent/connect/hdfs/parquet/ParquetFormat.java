@@ -49,6 +49,13 @@ public class ParquetFormat implements Format,
 
   @Deprecated
   @Override
+  public SchemaFileReader getSchemaFileReader(AvroData avroData) {
+    // Argument is ignored.
+    return getSchemaFileReader();
+  }
+
+  @Deprecated
+  @Override
   public HiveUtil getHiveUtil(
       HdfsSinkConnectorConfig config,
       HiveMetaStore hiveMetaStore
