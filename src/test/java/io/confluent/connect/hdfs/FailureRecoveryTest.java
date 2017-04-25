@@ -29,6 +29,7 @@ import io.confluent.connect.hdfs.utils.Data;
 import io.confluent.connect.hdfs.utils.MemoryFormat;
 import io.confluent.connect.hdfs.utils.MemoryRecordWriter;
 import io.confluent.connect.hdfs.utils.MemoryStorage;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
 import static org.junit.Assert.assertEquals;
 
@@ -36,23 +37,21 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
   private static final String ZERO_PAD_FMT = "%010d";
   private static final String extension = "";
 
-  @Before
-  public void setUp() throws Exception {
-    super.setUp();
-  }
-
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
-    props.put(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG, MemoryStorage.class.getName());
+    props.put(StorageCommonConfig.STORAGE_CLASS_CONFIG, MemoryStorage.class.getName());
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, MemoryFormat.class.getName());
     return props;
   }
 
+  public void setUp() throws Exception {
+    super.setUp();
+  }
+
   @Test
   public void testCommitFailure() throws Exception {
-    Map<String, String> props = createProps();
-    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+    setUp();
 
     String key = "key";
     Schema schema = createSchema();
@@ -93,8 +92,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
   @Test
   public void testWriterFailureMultiPartitions() throws Exception {
-    Map<String, String> props = createProps();
-    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+    setUp();
 
     String key = "key";
     Schema schema = createSchema();
@@ -121,7 +119,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     }
 
     String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    Map<String, RecordWriter<SinkRecord>> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
+    Map<String, RecordWriter> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
     MemoryRecordWriter writer = (MemoryRecordWriter) writers.get(encodedPartition);
     writer.setFailure(MemoryRecordWriter.Failure.writeFailure);
     hdfsWriter.write(sinkRecords);
@@ -190,7 +188,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     }
 
     String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    Map<String, RecordWriter<SinkRecord>> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
+    Map<String, RecordWriter> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
     MemoryRecordWriter writer = (MemoryRecordWriter) writers.get(encodedPartition);
 
     writer.setFailure(MemoryRecordWriter.Failure.writeFailure);

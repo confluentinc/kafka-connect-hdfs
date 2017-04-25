@@ -26,15 +26,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.avro.AvroFormat;
 import io.confluent.connect.storage.StorageSinkTestBase;
 import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
 
-  protected Configuration conf;
   protected HdfsSinkConnectorConfig connectorConfig;
+  protected Map<String, Object> parsedConfig;
+  protected Configuration conf;
   protected String topicsDir;
   protected String logsDir;
   protected AvroData avroData;
@@ -44,9 +49,32 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
 
   @Override
   protected Map<String, String> createProps() {
-    Map<String, String> props = new HashMap<>();
+    url = "memory://";
+    Map<String, String> props = super.createProps();
     props.put(HdfsSinkConnectorConfig.HDFS_URL_CONFIG, url);
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "3");
+    props.put(
+        StorageCommonConfig.STORAGE_CLASS_CONFIG,
+        "io.confluent.connect.s3.storage.S3Storage"
+    );
+    props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
+    props.put(
+        PartitionerConfig.PARTITIONER_CLASS_CONFIG,
+        PartitionerConfig.PARTITIONER_CLASS_DEFAULT.getName()
+    );
+    props.put(
+        PartitionerConfig.SCHEMA_GENERATOR_CLASS_CONFIG,
+        DefaultSchemaGenerator.class.getName()
+    );
+    props.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
+    props.put(
+        PartitionerConfig.PARTITION_DURATION_MS_CONFIG,
+        String.valueOf(TimeUnit.HOURS.toMillis(1))
+    );
+    props.put(PartitionerConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH/");
+    props.put(PartitionerConfig.LOCALE_CONFIG, "en");
+    props.put(PartitionerConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
+
     return props;
   }
 
@@ -84,25 +112,20 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
   //@Before
   @Override
   public void setUp() throws Exception {
-    conf = new Configuration();
-    url = "memory://";
     super.setUp();
-    // Configure immediately in setup for common case of just using this default. Subclasses can
-    // re-call this safely.
-    configureConnector();
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    parsedConfig = new HashMap<>(connectorConfig.plainValues());
+    conf = connectorConfig.getHadoopConfiguration();
+    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
+    avroData = new AvroData(
+        connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
+    );
   }
 
   @After
   @Override
   public void tearDown() throws Exception {
     super.tearDown();
-  }
-
-  protected void configureConnector() {
-    connectorConfig = new HdfsSinkConnectorConfig(properties);
-    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
-    logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
-    int schemaCacheSize = connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG);
-    avroData = new AvroData(schemaCacheSize);
   }
 }

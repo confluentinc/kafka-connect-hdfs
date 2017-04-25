@@ -28,19 +28,20 @@ import org.apache.kafka.connect.data.SchemaProjector;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -55,17 +56,25 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
   protected String extension;
   // The default based on default configuration of 10
   protected String zeroPadFormat = "%010d";
+  private Map<String, String> localProps = new HashMap<>();
 
-  @Before
+  @Override
+  protected Map<String, String> createProps() {
+    Map<String, String> props = super.createProps();
+    url = "hdfs://" + cluster.getNameNode().getClientNamenodeAddress();
+    // Override configs using url here
+    localProps.put(HdfsSinkConnectorConfig.HDFS_URL_CONFIG, url);
+    localProps.put(StorageCommonConfig.STORE_URL_CONFIG, url);
+    props.putAll(localProps);
+    return props;
+  }
+
+  //@Before
   public void setUp() throws Exception {
-    super.setUp();
-    conf = new Configuration();
     cluster = createDFSCluster(conf);
     cluster.waitActive();
-    url = "hdfs://" + cluster.getNameNode().getClientNamenodeAddress();
     fs = cluster.getFileSystem();
-    Map<String, String> props = createProps();
-    connectorConfig = new HdfsSinkConnectorConfig(props);
+    super.setUp();
   }
 
   @After
@@ -87,13 +96,6 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     cluster = builder.build();
     cluster.waitActive();
     return cluster;
-  }
-
-  @Override
-  protected Map<String, String> createProps() {
-    Map<String, String> props = super.createProps();
-    props.put(HdfsSinkConnectorConfig.HDFS_URL_CONFIG, url);
-    return props;
   }
 
   /**
@@ -266,7 +268,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
         String filename = FileUtils.committedFileName(url, topicsDir, getDirectory(tp.topic(), tp.partition()), tp,
                                                       startOffset, endOffset, extension, zeroPadFormat);
         Path path = new Path(filename);
-        Collection<Object> records = schemaFileReader.readData(conf, path);
+        Collection<Object> records = schemaFileReader.readData(connectorConfig, path);
 
         long size = endOffset - startOffset + 1;
         assertEquals(size, records.size());
