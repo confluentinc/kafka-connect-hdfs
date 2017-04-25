@@ -22,7 +22,7 @@ import java.util.Map;
 
 import io.confluent.connect.hdfs.RecordWriter;
 
-public class MemoryRecordWriter implements RecordWriter<SinkRecord> {
+public class MemoryRecordWriter implements RecordWriter {
   private String filename;
   private static final Map<String, List<Object>> data = Data.getData();
   private Failure failure = Failure.noFailure;
@@ -46,6 +46,9 @@ public class MemoryRecordWriter implements RecordWriter<SinkRecord> {
     data.get(filename).add(record);
 
   }
+
+  @Override
+  public void commit() {}
 
   @Override
   public void close() {

@@ -29,10 +29,10 @@ import io.confluent.connect.hdfs.wal.WAL;
 public class MemoryWAL implements WAL {
 
   private String logFile;
-  private Storage storage;
+  private MemoryStorage storage;
   private static Map<String, List<Object>> data = Data.getData();
 
-  public MemoryWAL(String topicsDir, TopicPartition topicPart, Storage storage)
+  public MemoryWAL(String topicsDir, TopicPartition topicPart, MemoryStorage storage)
       throws ConnectException {
     this.storage = storage;
     String url = storage.url();

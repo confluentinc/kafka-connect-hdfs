@@ -30,13 +30,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
 
-public class MemoryStorage implements Storage {
+public class MemoryStorage extends HdfsStorage {
 
   private static final Map<String, List<Object>> data = Data.getData();
-  private Configuration conf;
+  private HdfsSinkConnectorConfig conf;
   private String url;
   private Failure failure = Failure.noFailure;
 
@@ -51,13 +52,14 @@ public class MemoryStorage implements Storage {
     closeFailure
   }
 
-  public MemoryStorage(Configuration conf,  String url) {
+  public MemoryStorage(HdfsSinkConnectorConfig conf, String url) {
+    super(conf, url, null);
     this.conf = conf;
     this.url = url;
   }
 
   @Override
-  public List<FileStatus> listStatus(String path) {
+  public List<FileStatus> list(String path) {
     List<FileStatus> result = new ArrayList<>();
     for (String key: data.keySet()) {
       if (key.startsWith(path)) {
@@ -68,8 +70,7 @@ public class MemoryStorage implements Storage {
     return result;
   }
 
-  @Override
-  public List<FileStatus> listStatus(String path, PathFilter filter) {
+  public List<FileStatus> list(String path, PathFilter filter) {
     if (failure == Failure.listStatusFailure) {
       failure = Failure.noFailure;
       throw new ConnectException("listStatus failed.");
@@ -84,7 +85,6 @@ public class MemoryStorage implements Storage {
     return result;
   }
 
-  @Override
   public void append(String filename, Object object) {
     if (failure == Failure.appendFailure) {
       failure = Failure.noFailure;
@@ -97,7 +97,7 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public boolean mkdirs(String filename) {
+  public boolean create(String filename) {
     if (failure == Failure.mkdirsFailure) {
       failure = Failure.noFailure;
       throw new ConnectException("mkdirs failed.");
@@ -154,7 +154,7 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public Configuration conf() {
+  public HdfsSinkConnectorConfig conf() {
     return conf;
   }
 
@@ -168,12 +168,12 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public SeekableInput open(String filename, Configuration conf) {
+  public SeekableInput open(String filename, HdfsSinkConnectorConfig conf) {
     return null;
   }
 
   @Override
-  public OutputStream create(String filename, Configuration conf, boolean overwrite) {
+  public OutputStream create(String filename, HdfsSinkConnectorConfig conf, boolean overwrite) {
     return null;
   }
 }

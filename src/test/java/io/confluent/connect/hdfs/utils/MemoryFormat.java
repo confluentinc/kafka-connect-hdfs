@@ -24,17 +24,23 @@ public class MemoryFormat implements Format {
   }
 
   @Override
-  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
+  public SchemaFileReader getSchemaFileReader() {
     return null;
   }
 
   @Override
-  public HiveFactory<? extends AbstractConfig, AvroData> getHiveFactory() {
-    return new HiveFactory<HdfsSinkConnectorConfig, AvroData>() {
+  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, HiveMetaStore hiveMetaStore) {
+    return null;
+  }
+
+  @Override
+  public HiveFactory getHiveFactory() {
+    return new HiveFactory() {
       @Override
-      public io.confluent.connect.storage.hive.HiveUtil createHiveUtil(HdfsSinkConnectorConfig abstractConfig,
-                                                                       AvroData avroData,
-                                                                       io.confluent.connect.storage.hive.HiveMetaStore hiveMetaStore) {
+      public io.confluent.connect.storage.hive.HiveUtil createHiveUtil(
+          AbstractConfig abstractConfig,
+          io.confluent.connect.storage.hive.HiveMetaStore hiveMetaStore
+      ) {
         return null;
       }
     };

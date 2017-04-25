@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.RecordWriter;
 import io.confluent.connect.hdfs.RecordWriterProvider;
 
@@ -35,15 +36,27 @@ public class MemoryRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
-  public RecordWriter<SinkRecord> getRecordWriter(Configuration conf, final String fileName, SinkRecord record,
-                                                  final AvroData avroData) {
+  public RecordWriter getRecordWriter(
+      HdfsSinkConnectorConfig conf,
+      final String filename,
+      SinkRecord record,
+      final AvroData avroData
+  ) {
+    return getRecordWriter(conf, filename);
+  }
+
+  @Override
+  public RecordWriter getRecordWriter(
+      HdfsSinkConnectorConfig conf,
+      final String filename
+  ) {
     final Map<String, List<Object>> data = Data.getData();
 
-    if (!data.containsKey(fileName)) {
-      data.put(fileName, new LinkedList<>());
+    if (!data.containsKey(filename)) {
+      data.put(filename, new LinkedList<>());
     }
 
-    return new MemoryRecordWriter(fileName);
+    return new MemoryRecordWriter(filename);
   }
 
 }
