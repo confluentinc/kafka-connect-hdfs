@@ -287,7 +287,8 @@ public class TopicPartitionWriter {
             }
             SinkRecord record = buffer.peek();
             Schema valueSchema = record.valueSchema();
-            if (compatibility.shouldChangeSchema(record, null, currentSchema)) {
+            if ((recordCounter <= 0 && currentSchema == null && valueSchema != null)
+                || compatibility.shouldChangeSchema(record, null, currentSchema)) {
               currentSchema = valueSchema;
               if (hiveIntegration) {
                 createHiveTable();
