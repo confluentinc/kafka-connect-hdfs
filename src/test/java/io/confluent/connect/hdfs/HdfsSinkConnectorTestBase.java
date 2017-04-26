@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.avro.AvroFormat;
+import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.storage.StorageSinkTestBase;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator;
@@ -60,7 +61,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
     props.put(
         PartitionerConfig.PARTITIONER_CLASS_CONFIG,
-        PartitionerConfig.PARTITIONER_CLASS_DEFAULT.getName()
+        DefaultPartitioner.class.getName()
     );
     props.put(
         PartitionerConfig.SCHEMA_GENERATOR_CLASS_CONFIG,
