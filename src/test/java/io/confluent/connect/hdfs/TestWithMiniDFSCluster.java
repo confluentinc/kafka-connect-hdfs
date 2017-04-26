@@ -71,7 +71,8 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   //@Before
   public void setUp() throws Exception {
-    cluster = createDFSCluster(conf);
+    Configuration localConf = new Configuration();
+    cluster = createDFSCluster(localConf);
     cluster.waitActive();
     fs = cluster.getFileSystem();
     super.setUp();

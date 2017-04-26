@@ -49,13 +49,13 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
 
   @Override
   protected Map<String, String> createProps() {
-    url = "memory://";
     Map<String, String> props = super.createProps();
+    url = "memory://";
     props.put(HdfsSinkConnectorConfig.HDFS_URL_CONFIG, url);
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "3");
     props.put(
         StorageCommonConfig.STORAGE_CLASS_CONFIG,
-        "io.confluent.connect.s3.storage.S3Storage"
+        "io.confluent.connect.hdfs.storage.HdfsStorage"
     );
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
     props.put(
