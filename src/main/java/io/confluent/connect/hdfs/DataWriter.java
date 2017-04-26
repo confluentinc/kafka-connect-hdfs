@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashMap;
@@ -55,6 +56,7 @@ import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class DataWriter {
@@ -178,11 +180,11 @@ public class DataWriter {
       createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
       createDir(logsDir);
 
-      format = getFormat();
+      format = newFormat();
       writerProvider = format.getRecordWriterProvider();
       schemaFileReader = format.getSchemaFileReader();
 
-      partitioner = createPartitioner(connectorConfig);
+      partitioner = newPartitioner(connectorConfig);
 
       assignment = new HashSet<>(context.assignment());
       offsets = new HashMap<>();
@@ -214,7 +216,8 @@ public class DataWriter {
         );
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
-    } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+    } catch (ClassNotFoundException | IllegalAccessException | InstantiationException |
+        InvocationTargetException | NoSuchMethodException e) {
       throw new ConnectException("Reflection exception: ", e);
     } catch (IOException e) {
       throw new ConnectException(e);
@@ -397,8 +400,23 @@ public class DataWriter {
   }
 
   @SuppressWarnings("unchecked")
-  private Format getFormat() throws ClassNotFoundException, IllegalAccessException, InstantiationException{
-    return  ((Class<Format>) Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG))).newInstance();
+  private Format newFormat() throws ClassNotFoundException, IllegalAccessException,
+      InstantiationException, InvocationTargetException, NoSuchMethodException {
+    Class<Format> formatClass =
+        (Class<Format>) connectorConfig.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+    return formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
+  }
+
+  private Partitioner newPartitioner(HdfsSinkConnectorConfig config)
+      throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+
+    @SuppressWarnings("unchecked")
+    Class<? extends Partitioner> partitionerClass =
+        (Class<? extends Partitioner>) config.getClass(PartitionerConfig.PARTITIONER_CLASS_CONFIG);
+
+    Partitioner partitioner = partitionerClass.newInstance();
+    partitioner.configure(new HashMap<>(config.plainValues()));
+    return partitioner;
   }
 
   private String getPartitionValue(String path) {
