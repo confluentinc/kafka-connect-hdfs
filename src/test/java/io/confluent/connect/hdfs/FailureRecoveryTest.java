@@ -45,10 +45,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     return props;
   }
 
-  public void setUp() throws Exception {
-    super.setUp();
-  }
-
   @Test
   public void testCommitFailure() throws Exception {
     setUp();
@@ -167,9 +163,8 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
   @Test
   public void testWriterFailure() throws Exception {
-    Map<String, String> props = createProps();
-
-    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+    setUp();
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
 
     String key = "key";
     Schema schema = createSchema();

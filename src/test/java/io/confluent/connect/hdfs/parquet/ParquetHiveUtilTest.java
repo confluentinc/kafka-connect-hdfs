@@ -63,7 +63,7 @@ public class ParquetHiveUtilTest extends HiveTestBase {
   public void testCreateTable() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
@@ -106,7 +106,7 @@ public class ParquetHiveUtilTest extends HiveTestBase {
   public void testAlterSchema() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 

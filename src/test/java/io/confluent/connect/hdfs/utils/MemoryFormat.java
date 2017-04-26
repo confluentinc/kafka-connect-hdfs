@@ -9,9 +9,17 @@ import io.confluent.connect.hdfs.RecordWriterProvider;
 import io.confluent.connect.hdfs.SchemaFileReader;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.hive.HiveFactory;
 
 public class MemoryFormat implements Format {
+  private final AvroData avroData;
+
+  public MemoryFormat(HdfsStorage storage) {
+    this.avroData = new AvroData(
+        storage.conf().getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
+    );
+  }
 
   @Override
   public RecordWriterProvider getRecordWriterProvider() {

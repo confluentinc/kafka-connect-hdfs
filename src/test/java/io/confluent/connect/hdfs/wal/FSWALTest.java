@@ -29,6 +29,7 @@ import static org.junit.Assert.assertTrue;
 public class FSWALTest extends TestWithMiniDFSCluster {
   @Test
   public void testTruncate() throws Exception {
+    setUp();
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);
     TopicPartition tp = new TopicPartition("mytopic", 123);
     FSWAL wal = new FSWAL("/logs", tp, storage);

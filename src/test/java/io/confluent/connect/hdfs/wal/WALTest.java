@@ -37,6 +37,7 @@ public class WALTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testWALMultiClient() throws Exception {
+    setUp();
     fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
 
     @SuppressWarnings("unchecked")

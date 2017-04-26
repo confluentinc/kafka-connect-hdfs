@@ -25,12 +25,24 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorTestBase;
+import io.confluent.connect.storage.hive.schema.TimeBasedSchemaGenerator;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.junit.Assert.assertEquals;
 
 public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
   private static final String timeZoneString = "America/Los_Angeles";
   private static final DateTimeZone DATE_TIME_ZONE = DateTimeZone.forID(timeZoneString);
+
+  @Override
+  protected Map<String, String> createProps() {
+    Map<String, String> props = super.createProps();
+    props.put(
+        PartitionerConfig.SCHEMA_GENERATOR_CLASS_CONFIG,
+        TimeBasedSchemaGenerator.class.getName()
+    );
+    return props;
+  }
 
   @Test
   public void testGeneratePartitionedPath() throws Exception {

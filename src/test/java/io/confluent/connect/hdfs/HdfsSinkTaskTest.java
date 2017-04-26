@@ -48,13 +48,12 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskStart() throws Exception {
+    setUp();
     createCommittedFiles();
-
-    Map<String, String> props = createProps();
     HdfsSinkTask task = new HdfsSinkTask();
 
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
 
     Map<TopicPartition, Long> offsets = context.offsets();
     assertEquals(offsets.size(), 2);
@@ -68,11 +67,11 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskStartNoCommittedFiles() throws Exception {
-    Map<String, String> props = createProps();
+    setUp();
     HdfsSinkTask task = new HdfsSinkTask();
 
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
 
     // Even without any files in HDFS, we expect an explicit request to start from the beginning of the topic (which
     // either exists at offset 0, or offset 0 will be out of range and the consumer will reset to the smallest offset).
@@ -88,6 +87,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskStartWithRecovery() throws Exception {
+    setUp();
     Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
     List<String> list1 = new ArrayList<>();
     list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
@@ -120,7 +120,6 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       }
     }
 
-    setUp();
     createWALs(tempfiles, committedFiles);
     HdfsSinkTask task = new HdfsSinkTask();
 
@@ -139,7 +138,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskPut() throws Exception {
-    Map<String, String> props = createProps();
+    setUp();
     HdfsSinkTask task = new HdfsSinkTask();
 
     String key = "key";
@@ -154,7 +153,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       }
     }
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
     task.put(sinkRecords);
     task.stop();
 
@@ -182,7 +181,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskPutPrimitive() throws Exception {
-    Map<String, String> props = createProps();
+    setUp();
     HdfsSinkTask task = new HdfsSinkTask();
 
     final String key = "key";
@@ -197,11 +196,10 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       }
     }
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
     task.put(sinkRecords);
     task.stop();
 
-    AvroData avroData = task.getAvroData();
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {-1, 2, 5};
 
@@ -241,9 +239,8 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   private void createWALs(Map<TopicPartition, List<String>> tempfiles,
                           Map<TopicPartition, List<String>> committedFiles) throws Exception {
     @SuppressWarnings("unchecked")
-    Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) Class.forName(
-        connectorConfig.getString(StorageCommonConfig.STORAGE_CLASS_CONFIG)
-    );
+    Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>)
+        connectorConfig.getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
     HdfsStorage storage = StorageFactory.createStorage(
         storageClass,
         HdfsSinkConnectorConfig.class,

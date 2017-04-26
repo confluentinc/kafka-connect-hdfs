@@ -53,6 +53,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     Map<String, String> props = super.createProps();
     url = "memory://";
     props.put(HdfsSinkConnectorConfig.HDFS_URL_CONFIG, url);
+    props.put(StorageCommonConfig.STORE_URL_CONFIG, url);
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "3");
     props.put(
         StorageCommonConfig.STORAGE_CLASS_CONFIG,

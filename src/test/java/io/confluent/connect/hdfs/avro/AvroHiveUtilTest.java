@@ -22,7 +22,6 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -60,7 +59,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
   public void testCreateTable() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
@@ -103,7 +102,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
   public void testAlterSchema() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 

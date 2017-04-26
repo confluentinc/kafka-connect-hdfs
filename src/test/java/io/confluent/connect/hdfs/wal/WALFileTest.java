@@ -35,8 +35,8 @@ public class WALFileTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testAppend() throws Exception {
-    Map<String, String> props = createProps();
-    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+    setUp();
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
 
     String topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     String topic = "topic";
