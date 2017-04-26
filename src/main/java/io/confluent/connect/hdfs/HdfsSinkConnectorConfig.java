@@ -20,6 +20,7 @@ import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
+import org.apache.kafka.common.config.ConfigException;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -102,7 +103,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final ConfigDef.Recommender hdfsAuthenticationKerberosDependentsRecommender = new BooleanParentRecommender(HDFS_AUTHENTICATION_KERBEROS_CONFIG);
 
   private final String name;
-  private final Configuration hadoopConfig;
+  private Configuration hadoopConfig;
 
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
@@ -282,8 +283,22 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return name;
   }
 
+  @Override
+  public Object get(String key) {
+    ComposableConfig config = propertyToConfig.get(key);
+    if (config == null) {
+      throw new ConfigException(String.format("Unknown configuration '%s'", key));
+    }
+    return config == this ? super.get(key) : config.get(key);
+  }
+
   public Configuration getHadoopConfiguration() {
     return hadoopConfig;
+  }
+
+  // Visible for testing.
+  public void setHadoopConfiguration(Configuration conf) {
+    hadoopConfig = conf;
   }
 
   public Map<String, ?> plainValues() {
