@@ -81,19 +81,19 @@ public class AvroRecordWriterProvider implements RecordWriterProvider,
           } catch (IOException e) {
             throw new ConnectException(e);
           }
+        }
 
-          log.trace("Sink record: {}", record.toString());
-          Object value = avroData.fromConnectData(schema, record.value());
-          try {
-            // AvroData wraps primitive types so their schema can be included. We need to unwrap NonRecordContainers to just
-            // their value to properly handle these types
-            if (value instanceof NonRecordContainer)
-              writer.append(((NonRecordContainer) value).getValue());
-            else
-              writer.append(value);
-          } catch (IOException e) {
-            throw new DataException(e);
-          }
+        log.trace("Sink record: {}", record.toString());
+        Object value = avroData.fromConnectData(schema, record.value());
+        try {
+          // AvroData wraps primitive types so their schema can be included. We need to unwrap NonRecordContainers to just
+          // their value to properly handle these types
+          if (value instanceof NonRecordContainer)
+            writer.append(((NonRecordContainer) value).getValue());
+          else
+            writer.append(value);
+        } catch (IOException e) {
+          throw new DataException(e);
         }
       }
 
