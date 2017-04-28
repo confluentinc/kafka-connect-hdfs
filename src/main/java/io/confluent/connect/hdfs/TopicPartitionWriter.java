@@ -429,7 +429,8 @@ public class TopicPartitionWriter {
 
   private void readOffset() throws ConnectException {
     try {
-      String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
+      String partitionedPath = partitioner.generatePartitionedPath(tp.topic(), "");
+      String path = FileUtils.topicDirectory(url, topicsDir, partitionedPath);
       CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
       FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(path), filter);
       if (fileStatusWithMaxOffset != null) {
