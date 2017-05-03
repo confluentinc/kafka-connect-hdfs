@@ -16,7 +16,6 @@
 
 package io.confluent.connect.hdfs.avro;
 
-import io.confluent.kafka.serializers.NonRecordContainer;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.DatumWriter;
@@ -33,11 +32,12 @@ import java.io.IOException;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.RecordWriter;
 import io.confluent.connect.hdfs.RecordWriterProvider;
+import io.confluent.kafka.serializers.NonRecordContainer;
 
 public class AvroRecordWriterProvider implements RecordWriterProvider {
 
   private static final Logger log = LoggerFactory.getLogger(AvroRecordWriterProvider.class);
-  private final static String EXTENSION = ".avro";
+  private static final String EXTENSION = ".avro";
 
   @Override
   public String getExtension() {
@@ -45,8 +45,10 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
-  public RecordWriter<SinkRecord> getRecordWriter(Configuration conf, final String fileName,
-                                                        SinkRecord record, final AvroData avroData)
+  public RecordWriter<SinkRecord> getRecordWriter(
+      Configuration conf, final String fileName,
+      SinkRecord record, final AvroData avroData
+  )
       throws IOException {
     DatumWriter<Object> datumWriter = new GenericDatumWriter<>();
     final DataFileWriter<Object> writer = new DataFileWriter<>(datumWriter);
@@ -57,17 +59,19 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
     org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
     writer.create(avroSchema, out);
 
-    return new RecordWriter<SinkRecord>(){
+    return new RecordWriter<SinkRecord>() {
       @Override
       public void write(SinkRecord record) throws IOException {
         log.trace("Sink record: {}", record.toString());
         Object value = avroData.fromConnectData(schema, record.value());
-        // AvroData wraps primitive types so their schema can be included. We need to unwrap NonRecordContainers to just
+        // AvroData wraps primitive types so their schema can be included. We need to unwrap
+        // NonRecordContainers to just
         // their value to properly handle these types
-        if (value instanceof NonRecordContainer)
+        if (value instanceof NonRecordContainer) {
           writer.append(((NonRecordContainer) value).getValue());
-        else
+        } else {
           writer.append(value);
+        }
       }
 
       @Override

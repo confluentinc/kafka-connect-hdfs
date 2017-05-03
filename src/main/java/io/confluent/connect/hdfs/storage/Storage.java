@@ -26,15 +26,26 @@ import java.io.IOException;
 import io.confluent.connect.hdfs.wal.WAL;
 
 public interface Storage {
+
   boolean exists(String filename) throws IOException;
+
   boolean mkdirs(String filename) throws IOException;
+
   void append(String filename, Object object) throws IOException;
+
   void delete(String filename) throws IOException;
+
   void commit(String tempFile, String committedFile) throws IOException;
+
   void close() throws IOException;
+
   WAL wal(String topicsDir, TopicPartition topicPart);
+
   FileStatus[] listStatus(String path, PathFilter filter) throws IOException;
+
   FileStatus[] listStatus(String path) throws IOException;
+
   String url();
+
   Configuration conf();
 }

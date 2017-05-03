@@ -33,6 +33,7 @@ import io.confluent.connect.hdfs.filter.CommittedFileFilter;
 import io.confluent.connect.hdfs.storage.Storage;
 
 public class FileUtils {
+
   private static final Logger log = LoggerFactory.getLogger(FileUtils.class);
 
   public static String logFileName(String url, String logsDir, TopicPartition topicPart) {
@@ -45,35 +46,41 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic + "/" + partition;
   }
 
-  public static String fileName(String url, String topicsDir, TopicPartition topicPart,
-                                String name) {
+  public static String directoryName(String url, String topicsDir, String directory) {
+    return url + "/" + topicsDir + "/" + directory;
+  }
+
+  public static String fileName(
+      String url, String topicsDir, TopicPartition topicPart,
+      String name
+  ) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
     return url + "/" + topicsDir + "/" + topic + "/" + partition + "/" + name;
-  }
-
-  public static String hiveDirectoryName(String url, String topicsDir, String topic) {
-    return url + "/" + topicsDir + "/" + topic + "/";
   }
 
   public static String fileName(String url, String topicsDir, String directory, String name) {
     return url + "/" + topicsDir + "/" + directory + "/" + name;
   }
 
-  public static String directoryName(String url, String topicsDir, String directory) {
-    return url + "/" + topicsDir + "/" + directory;
+  public static String hiveDirectoryName(String url, String topicsDir, String topic) {
+    return url + "/" + topicsDir + "/" + topic + "/";
   }
 
-  public static String tempFileName(String url, String topicsDir, String directory,
-                                    String extension) {
+  public static String tempFileName(
+      String url, String topicsDir, String directory,
+      String extension
+  ) {
     UUID id = UUID.randomUUID();
     String name = id.toString() + "_" + "tmp" + extension;
     return fileName(url, topicsDir, directory, name);
   }
 
-  public static String committedFileName(String url, String topicsDir, String directory,
-                                         TopicPartition topicPart, long startOffset, long endOffset,
-                                         String extension, String zeroPadFormat) {
+  public static String committedFileName(
+      String url, String topicsDir, String directory,
+      TopicPartition topicPart, long startOffset, long endOffset,
+      String extension, String zeroPadFormat
+  ) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
     StringBuilder sb = new StringBuilder();
@@ -112,14 +119,38 @@ public class FileUtils {
     return result;
   }
 
+  private static ArrayList<FileStatus> traverseImpl(FileSystem fs, Path path) throws IOException {
+    if (!fs.exists(path)) {
+      return new ArrayList<>();
+    }
+    ArrayList<FileStatus> result = new ArrayList<>();
+    FileStatus[] statuses = fs.listStatus(path);
+    for (FileStatus status : statuses) {
+      if (status.isDirectory()) {
+        result.addAll(traverseImpl(fs, status.getPath()));
+      } else {
+        result.add(status);
+      }
+    }
+    return result;
+  }
+
   public static FileStatus[] traverse(Storage storage, Path path, PathFilter filter)
       throws IOException {
     ArrayList<FileStatus> result = traverseImpl(storage, path, filter);
     return result.toArray(new FileStatus[result.size()]);
   }
 
-  public static FileStatus fileStatusWithMaxOffset(Storage storage, Path path,
-                                                   CommittedFileFilter filter) throws IOException {
+  public static FileStatus[] traverse(FileSystem fs, Path path) throws IOException {
+    ArrayList<FileStatus> result = traverseImpl(fs, path);
+    return result.toArray(new FileStatus[result.size()]);
+  }
+
+  public static FileStatus fileStatusWithMaxOffset(
+      Storage storage,
+      Path path,
+      CommittedFileFilter filter
+  ) throws IOException {
     if (!storage.exists(path.toString())) {
       return null;
     }
@@ -185,27 +216,6 @@ public class FileUtils {
 
   public static FileStatus[] getDirectories(Storage storage, Path path) throws IOException {
     ArrayList<FileStatus> result = getDirectoriesImpl(storage, path);
-    return result.toArray(new FileStatus[result.size()]);
-  }
-
-  private static ArrayList<FileStatus> traverseImpl(FileSystem fs, Path path) throws IOException {
-    if (!fs.exists(path)) {
-      return new ArrayList<>();
-    }
-    ArrayList<FileStatus> result = new ArrayList<>();
-    FileStatus[] statuses = fs.listStatus(path);
-    for (FileStatus status : statuses) {
-      if (status.isDirectory()) {
-        result.addAll(traverseImpl(fs, status.getPath()));
-      } else {
-        result.add(status);
-      }
-    }
-    return result;
-  }
-
-  public static FileStatus[] traverse(FileSystem fs, Path path) throws IOException {
-    ArrayList<FileStatus> result = traverseImpl(fs, path);
     return result.toArray(new FileStatus[result.size()]);
   }
 }

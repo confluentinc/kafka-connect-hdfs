@@ -25,8 +25,12 @@ import java.util.Map;
  * incoming records.
  */
 public interface Partitioner {
+
   void configure(Map<String, Object> config);
+
   String encodePartition(SinkRecord sinkRecord);
+
   String generatePartitionedPath(String topic, String encodedPartition);
+
   List<FieldSchema> partitionFields();
 }

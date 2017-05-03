@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Collection;
 
 public interface SchemaFileReader {
+
   Schema getSchema(Configuration conf, Path path) throws IOException;
+
   Collection<Object> readData(Configuration conf, Path path) throws IOException;
 }

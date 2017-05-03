@@ -24,14 +24,17 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.experimental.categories.Category;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import io.confluent.common.utils.IntegrationTest;
 import io.confluent.connect.avro.AvroData;
 
+@Category(IntegrationTest.class)
 public class HdfsSinkConnectorTestBase {
 
   protected Configuration conf;

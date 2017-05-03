@@ -55,6 +55,7 @@ import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.hdfs.storage.StorageFactory;
 
 public class DataWriter {
+
   private static final Logger log = LoggerFactory.getLogger(DataWriter.class);
 
   private Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
@@ -80,7 +81,11 @@ public class DataWriter {
   private Thread ticketRenewThread;
   private volatile boolean isRunning;
 
-  public DataWriter(HdfsSinkConnectorConfig connectorConfig, SinkTaskContext context, AvroData avroData) {
+  public DataWriter(
+      HdfsSinkConnectorConfig connectorConfig,
+      SinkTaskContext context,
+      AvroData avroData
+  ) {
     try {
       String hadoopHome = connectorConfig.getString(HdfsSinkConnectorConfig.HADOOP_HOME_CONFIG);
       System.setProperty("hadoop.home.dir", hadoopHome);
@@ -89,7 +94,8 @@ public class DataWriter {
       this.avroData = avroData;
       this.context = context;
 
-      String hadoopConfDir = connectorConfig.getString(HdfsSinkConnectorConfig.HADOOP_CONF_DIR_CONFIG);
+      String hadoopConfDir =
+          connectorConfig.getString(HdfsSinkConnectorConfig.HADOOP_CONF_DIR_CONFIG);
       log.info("Hadoop configuration directory {}", hadoopConfDir);
       conf = new Configuration();
       if (!hadoopConfDir.equals("")) {
@@ -97,15 +103,22 @@ public class DataWriter {
         conf.addResource(new Path(hadoopConfDir + "/hdfs-site.xml"));
       }
 
-      boolean secureHadoop = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HDFS_AUTHENTICATION_KERBEROS_CONFIG);
+      boolean secureHadoop =
+          connectorConfig.getBoolean(HdfsSinkConnectorConfig.HDFS_AUTHENTICATION_KERBEROS_CONFIG);
       if (secureHadoop) {
-        SecurityUtil.setAuthenticationMethod(UserGroupInformation.AuthenticationMethod.KERBEROS, conf);
-        String principalConfig = connectorConfig.getString(HdfsSinkConnectorConfig.CONNECT_HDFS_PRINCIPAL_CONFIG);
-        String keytab = connectorConfig.getString(HdfsSinkConnectorConfig.CONNECT_HDFS_KEYTAB_CONFIG);
+        SecurityUtil.setAuthenticationMethod(
+            UserGroupInformation.AuthenticationMethod.KERBEROS,
+            conf
+        );
+        String principalConfig =
+            connectorConfig.getString(HdfsSinkConnectorConfig.CONNECT_HDFS_PRINCIPAL_CONFIG);
+        String keytab =
+            connectorConfig.getString(HdfsSinkConnectorConfig.CONNECT_HDFS_KEYTAB_CONFIG);
 
         if (principalConfig == null || keytab == null) {
           throw new ConfigException(
-              "Hadoop is using Kerboros for authentication, you need to provide both a connect principal and "
+              "Hadoop is using Kerboros for authentication, you need to provide both a connect "
+              + "principal and "
               + "the path to the keytab of the principal.");
         }
 
@@ -113,10 +126,12 @@ public class DataWriter {
         conf.set("hadoop.security.authorization", "true");
         String hostname = InetAddress.getLocalHost().getCanonicalHostName();
         // replace the _HOST specified in the principal config to the actual host
-        String principal = SecurityUtil.getServerPrincipal(principalConfig, hostname);
-        String namenodePrincipalConfig = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_NAMENODE_PRINCIPAL_CONFIG);
+        final String principal = SecurityUtil.getServerPrincipal(principalConfig, hostname);
+        String namenodePrincipalConfig =
+            connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_NAMENODE_PRINCIPAL_CONFIG);
 
-        String namenodePrincipal = SecurityUtil.getServerPrincipal(namenodePrincipalConfig, hostname);
+        String namenodePrincipal =
+            SecurityUtil.getServerPrincipal(namenodePrincipalConfig, hostname);
         // namenode principal is needed for multi-node hadoop cluster
         if (conf.get("dfs.namenode.kerberos.principal") == null) {
           conf.set("dfs.namenode.kerberos.principal", namenodePrincipal);
@@ -128,7 +143,8 @@ public class DataWriter {
         final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
         log.info("Login as: " + ugi.getUserName());
 
-        final long renewPeriod = connectorConfig.getLong(HdfsSinkConnectorConfig.KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG);
+        final long renewPeriod =
+            connectorConfig.getLong(HdfsSinkConnectorConfig.KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG);
 
         isRunning = true;
         ticketRenewThread = new Thread(new Runnable() {
@@ -160,11 +176,11 @@ public class DataWriter {
 
       url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
       topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
-      String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
+      final String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
 
       @SuppressWarnings("unchecked")
       Class<? extends Storage> storageClass = (Class<? extends Storage>) Class
-              .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
+          .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
       storage = StorageFactory.createStorage(storageClass, conf, url);
 
       createDir(topicsDir);
@@ -190,10 +206,21 @@ public class DataWriter {
       }
 
       topicPartitionWriters = new HashMap<>();
-      for (TopicPartition tp: assignment) {
+      for (TopicPartition tp : assignment) {
         TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-            tp, storage, writerProvider, partitioner, connectorConfig, context, avroData, hiveMetaStore, hive, schemaFileReader, executorService,
-            hiveUpdateFutures);
+            tp,
+            storage,
+            writerProvider,
+            partitioner,
+            connectorConfig,
+            context,
+            avroData,
+            hiveMetaStore,
+            hive,
+            schemaFileReader,
+            executorService,
+            hiveUpdateFutures
+        );
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
     } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
@@ -204,7 +231,7 @@ public class DataWriter {
   }
 
   public void write(Collection<SinkRecord> records) {
-    for (SinkRecord record: records) {
+    for (SinkRecord record : records) {
       String topic = record.topic();
       int partition = record.kafkaPartition();
       TopicPartition tp = new TopicPartition(topic, partition);
@@ -230,7 +257,7 @@ public class DataWriter {
       }
     }
 
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : assignment) {
       topicPartitionWriters.get(tp).write();
     }
   }
@@ -241,15 +268,16 @@ public class DataWriter {
 
   public void syncWithHive() throws ConnectException {
     Set<String> topics = new HashSet<>();
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : assignment) {
       topics.add(tp.topic());
     }
 
     try {
-      for (String topic: topics) {
+      for (String topic : topics) {
         String topicDir = FileUtils.topicDirectory(url, topicsDir, topic);
         CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
-        FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
+        FileStatus fileStatusWithMaxOffset =
+            FileUtils.fileStatusWithMaxOffset(storage, new Path(topicDir), filter);
         if (fileStatusWithMaxOffset != null) {
           Schema latestSchema = schemaFileReader.getSchema(conf, fileStatusWithMaxOffset.getPath());
           hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
@@ -271,10 +299,11 @@ public class DataWriter {
 
   public void open(Collection<TopicPartition> partitions) {
     assignment = new HashSet<>(partitions);
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : assignment) {
       TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
           tp, storage, writerProvider, partitioner, connectorConfig, context, avroData,
-          hiveMetaStore, hive, schemaFileReader, executorService, hiveUpdateFutures);
+          hiveMetaStore, hive, schemaFileReader, executorService, hiveUpdateFutures
+      );
       topicPartitionWriters.put(tp, topicPartitionWriter);
       // We need to immediately start recovery to ensure we pause consumption of messages for the
       // assigned topics while we try to recover offsets and rewind.
@@ -291,7 +320,7 @@ public class DataWriter {
     // data may have continued to be processed and we'd have to restart from the recovery stage,
     // make sure we apply the WAL, and only reuse the temp file if the starting offset is still
     // valid. For now, we prefer the simpler solution that may result in a bit of wasted effort.
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : assignment) {
       try {
         topicPartitionWriters.get(tp).close();
       } catch (ConnectException e) {
@@ -308,7 +337,8 @@ public class DataWriter {
       try {
         log.info("Shutting down Hive executor service.");
         executorService.shutdown();
-        long shutDownTimeout = connectorConfig.getLong(HdfsSinkConnectorConfig.SHUTDOWN_TIMEOUT_CONFIG);
+        long shutDownTimeout =
+            connectorConfig.getLong(HdfsSinkConnectorConfig.SHUTDOWN_TIMEOUT_CONFIG);
         log.info("Awaiting termination.");
         terminated = executorService.awaitTermination(shutDownTimeout, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
@@ -340,7 +370,7 @@ public class DataWriter {
   }
 
   public Map<TopicPartition, Long> getCommittedOffsets() {
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : assignment) {
       offsets.put(tp, topicPartitionWriters.get(tp).offset());
     }
     return offsets;
@@ -371,13 +401,16 @@ public class DataWriter {
   }
 
   @SuppressWarnings("unchecked")
-  private Format getFormat() throws ClassNotFoundException, IllegalAccessException, InstantiationException{
-    return  ((Class<Format>) Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG))).newInstance();
+  private Format getFormat()
+      throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+    return ((Class<Format>) Class.forName(
+        connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG))
+    ).newInstance();
   }
 
   private String getPartitionValue(String path) {
     String[] parts = path.split("/");
-    StringBuilder sb =  new StringBuilder();
+    StringBuilder sb = new StringBuilder();
     sb.append("/");
     for (int i = 3; i < parts.length; ++i) {
       sb.append(parts[i]);
@@ -401,11 +434,26 @@ public class DataWriter {
 
   private Map<String, Object> copyConfig(HdfsSinkConnectorConfig config) {
     Map<String, Object> map = new HashMap<>();
-    map.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, config.getString(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG));
-    map.put(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG, config.getLong(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG));
-    map.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, config.getString(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG));
-    map.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, config.getString(HdfsSinkConnectorConfig.LOCALE_CONFIG));
-    map.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, config.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG));
+    map.put(
+        HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG,
+        config.getString(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG)
+    );
+    map.put(
+        HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG,
+        config.getLong(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG)
+    );
+    map.put(
+        HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG,
+        config.getString(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG)
+    );
+    map.put(
+        HdfsSinkConnectorConfig.LOCALE_CONFIG,
+        config.getString(HdfsSinkConnectorConfig.LOCALE_CONFIG)
+    );
+    map.put(
+        HdfsSinkConnectorConfig.TIMEZONE_CONFIG,
+        config.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG)
+    );
     return map;
   }
 }
