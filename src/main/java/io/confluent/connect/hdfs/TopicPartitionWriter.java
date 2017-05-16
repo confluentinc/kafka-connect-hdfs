@@ -511,7 +511,7 @@ public class TopicPartitionWriter {
     long expectedOffset = offset + recordCounter;
     if (offset == -1) {
       offset = record.kafkaOffset();
-    } else if (record.kafkaOffset() != expectedOffset) {
+    } else if (record.kafkaOffset() < expectedOffset) {
       // Currently it's possible to see stale data with the wrong offset after a rebalance when you
       // rewind, which we do since we manage our own offsets. See KAFKA-2894.
       if (!sawInvalidOffset) {
