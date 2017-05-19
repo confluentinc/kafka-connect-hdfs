@@ -16,6 +16,9 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import java.io.IOException;
+
+import org.apache.avro.file.CodecFactory;
 import io.confluent.kafka.serializers.NonRecordContainer;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -28,9 +31,8 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.RecordWriter;
 import io.confluent.connect.hdfs.RecordWriterProvider;
 
@@ -38,6 +40,12 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
 
   private static final Logger log = LoggerFactory.getLogger(AvroRecordWriterProvider.class);
   private final static String EXTENSION = ".avro";
+
+  private HdfsSinkConnectorConfig connectorConfig;
+
+  public AvroRecordWriterProvider(HdfsSinkConnectorConfig connectorConfig) {
+      this.connectorConfig = connectorConfig;
+  }
 
   @Override
   public String getExtension() {
@@ -50,6 +58,19 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
       throws IOException {
     DatumWriter<Object> datumWriter = new GenericDatumWriter<>();
     final DataFileWriter<Object> writer = new DataFileWriter<>(datumWriter);
+
+    final String formatClassCompression = connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_COMPRESSION_CONFIG);
+    switch (formatClassCompression) {
+        case "deflate":
+            writer.setCodec(CodecFactory.deflateCodec(5));
+            break;
+        case "snappy":
+            writer.setCodec(CodecFactory.snappyCodec());
+            break;
+        default:
+            break;
+    }
+
     Path path = new Path(fileName);
 
     final Schema schema = record.valueSchema();

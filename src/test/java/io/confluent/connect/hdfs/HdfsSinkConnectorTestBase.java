@@ -16,6 +16,12 @@
 
 package io.confluent.connect.hdfs;
 
+import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -24,11 +30,6 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
 
@@ -129,6 +130,16 @@ public class HdfsSinkConnectorTestBase {
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
     int schemaCacheSize = connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG);
     avroData = new AvroData(schemaCacheSize);
+  }
+
+  @SuppressWarnings("unchecked")
+  protected Format getFormat() throws ClassNotFoundException, IllegalAccessException, InstantiationException,
+  NoSuchMethodException, SecurityException, IllegalArgumentException, InvocationTargetException{
+    final String className = connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+    if (className.equals("io.confluent.connect.hdfs.avro.AvroFormat")) {
+        return (Format) Class.forName(className).getConstructor(HdfsSinkConnectorConfig.class).newInstance(new Object[] {connectorConfig});
+    }
+    return  ((Class<Format>) Class.forName(className)).newInstance();
   }
 
   protected static class MockSinkTaskContext implements SinkTaskContext {

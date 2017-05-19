@@ -24,15 +24,24 @@ import io.confluent.connect.hdfs.hive.HiveUtil;
 
 public class AvroFormat implements Format {
 
-  public RecordWriterProvider getRecordWriterProvider() {
-    return new AvroRecordWriterProvider();
+  HdfsSinkConnectorConfig connectorConfig;
+
+  public AvroFormat(HdfsSinkConnectorConfig connectorConfig) {
+      this.connectorConfig = connectorConfig;
   }
 
-  public SchemaFileReader getSchemaFileReader(AvroData avroData) {
+  @Override
+public RecordWriterProvider getRecordWriterProvider() {
+    return new AvroRecordWriterProvider(connectorConfig);
+  }
+
+  @Override
+public SchemaFileReader getSchemaFileReader(AvroData avroData) {
     return new AvroFileReader(avroData);
   }
 
-  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
+  @Override
+public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
     return new AvroHiveUtil(config, avroData, hiveMetaStore);
   }
 }

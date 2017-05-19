@@ -14,21 +14,8 @@
 
 package io.confluent.connect.hdfs;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.security.SecurityUtil;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigException;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashMap;
@@ -44,6 +31,21 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.SecurityUtil;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.filter.CommittedFileFilter;
@@ -95,6 +97,17 @@ public class DataWriter {
       if (!hadoopConfDir.equals("")) {
         conf.addResource(new Path(hadoopConfDir + "/core-site.xml"));
         conf.addResource(new Path(hadoopConfDir + "/hdfs-site.xml"));
+      }
+
+      final String formatClass = connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+      final String formatClassCompression = connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_COMPRESSION_CONFIG);
+      if (StringUtils.isNotEmpty(formatClassCompression)) {
+          if (!formatClass.equals("io.confluent.connect.hdfs.avro.AvroFormat")) {
+              throw new ConfigException("Compression is only supported for format class: io.confluent.connect.hdfs.avro.AvroFormat.");
+          }
+          if (!formatClassCompression.equals("deflate") && !formatClassCompression.equals("snappy")) {
+              throw new ConfigException("Format class compression value must be either deflate or snappy.");
+          }
       }
 
       boolean secureHadoop = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HDFS_AUTHENTICATION_KERBEROS_CONFIG);
@@ -196,7 +209,7 @@ public class DataWriter {
             hiveUpdateFutures);
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
-    } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+    } catch (ClassNotFoundException | IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException e) {
       throw new ConnectException("Reflection exception: ", e);
     } catch (IOException e) {
       throw new ConnectException(e);
@@ -371,8 +384,13 @@ public class DataWriter {
   }
 
   @SuppressWarnings("unchecked")
-  private Format getFormat() throws ClassNotFoundException, IllegalAccessException, InstantiationException{
-    return  ((Class<Format>) Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG))).newInstance();
+  private Format getFormat() throws ClassNotFoundException, IllegalAccessException, InstantiationException,
+  NoSuchMethodException, SecurityException, IllegalArgumentException, InvocationTargetException{
+    final String className = connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+    if (className.equals("io.confluent.connect.hdfs.avro.AvroFormat")) {
+        return (Format) Class.forName(className).getConstructor(HdfsSinkConnectorConfig.class).newInstance(new Object[] {connectorConfig});
+    }
+    return  ((Class<Format>) Class.forName(className)).newInstance();
   }
 
   private String getPartitionValue(String path) {

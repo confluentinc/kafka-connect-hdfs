@@ -14,11 +14,19 @@
 
 package io.confluent.connect.hdfs.avro;
 
-import io.confluent.connect.hdfs.DataWriter;
-import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.SchemaFileReader;
-import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -29,70 +37,83 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Test;
 
+import io.confluent.connect.hdfs.DataWriter;
+import io.confluent.connect.hdfs.FileUtils;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.SchemaFileReader;
+import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.hdfs.storage.StorageFactory;
 import io.confluent.connect.hdfs.wal.WAL;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
   private static final String extension = ".avro";
   private static final String ZERO_PAD_FMT = "%010d";
   private SchemaFileReader schemaFileReader = new AvroFileReader(avroData);
-  
+
   @Test
   public void testWriteRecord() throws Exception {
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    Partitioner partitioner = hdfsWriter.getPartitioner();
-    hdfsWriter.recover(TOPIC_PARTITION);
+      testWriteRecordBase(connectorConfig);
+  }
 
-    String key = "key";
-    Schema schema = createSchema();
-    Struct record = createRecord(schema);
+  @Test
+  public void testWriteDeflateCompressedRecord() throws Exception {
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_COMPRESSION_CONFIG, "deflate");
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+    testWriteRecordBase(connectorConfig);
+  }
 
-    Collection<SinkRecord> sinkRecords = new ArrayList<>();
-    for (long offset = 0; offset < 7; offset++) {
-      SinkRecord sinkRecord =
-          new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset);
+  @Test
+  public void testWriteSnappyCompressedRecord() throws Exception {
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_COMPRESSION_CONFIG, "snappy");
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+    testWriteRecordBase(connectorConfig);
+  }
 
-      sinkRecords.add(sinkRecord);
-    }
-    hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
-    hdfsWriter.stop();
+  private void testWriteRecordBase(HdfsSinkConnectorConfig connectorConfigParam) throws IOException {
+      DataWriter hdfsWriter = new DataWriter(connectorConfigParam, context, avroData);
+      Partitioner partitioner = hdfsWriter.getPartitioner();
+      hdfsWriter.recover(TOPIC_PARTITION);
 
-    String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition);
+      String key = "key";
+      Schema schema = createSchema();
+      Struct record = createRecord(schema);
 
-    // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
-    long[] validOffsets = {-1, 2, 5};
-    for (int i = 1; i < validOffsets.length; i++) {
-      long startOffset = validOffsets[i - 1] + 1;
-      long endOffset = validOffsets[i];
-      Path path =
-          new Path(FileUtils
-                       .committedFileName(url, topicsDir, directory, TOPIC_PARTITION, startOffset,
-                                          endOffset, extension, ZERO_PAD_FMT));
-      Collection<Object> records = schemaFileReader.readData(conf, path);
-      long size = endOffset - startOffset + 1;
-      assertEquals(size, records.size());
-      for (Object avroRecord : records) {
-        assertEquals(avroData.fromConnectData(schema, record), avroRecord);
+      Collection<SinkRecord> sinkRecords = new ArrayList<>();
+      for (long offset = 0; offset < 7; offset++) {
+        SinkRecord sinkRecord =
+            new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset);
+
+        sinkRecords.add(sinkRecord);
       }
-    }
+      hdfsWriter.write(sinkRecords);
+      hdfsWriter.close(assignment);
+      hdfsWriter.stop();
+
+      String encodedPartition = "partition=" + String.valueOf(PARTITION);
+      String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition);
+
+      // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
+      long[] validOffsets = {-1, 2, 5};
+      for (int i = 1; i < validOffsets.length; i++) {
+        long startOffset = validOffsets[i - 1] + 1;
+        long endOffset = validOffsets[i];
+        Path path =
+            new Path(FileUtils
+                         .committedFileName(url, topicsDir, directory, TOPIC_PARTITION, startOffset,
+                                            endOffset, extension, ZERO_PAD_FMT));
+        Collection<Object> records = schemaFileReader.readData(conf, path);
+        long size = endOffset - startOffset + 1;
+        assertEquals(size, records.size());
+        for (Object avroRecord : records) {
+          assertEquals(avroData.fromConnectData(schema, record), avroRecord);
+        }
+      }
   }
 
   @Test

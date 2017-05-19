@@ -14,13 +14,8 @@
 
 package io.confluent.connect.hdfs.avro;
 
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.Path;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +26,14 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Path;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.Before;
+import org.junit.Test;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.Format;
@@ -48,9 +51,6 @@ import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.hdfs.storage.StorageFactory;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   // The default based on default configuration of 10
   private static final String ZERO_PAD_FMT = "%010d";
@@ -60,12 +60,11 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   private Storage storage;
   private static String extension;
 
-  @Before
+  @Override
+@Before
   public void setUp() throws Exception {
     super.setUp();
-
-    @SuppressWarnings("unchecked")
-    Format format = ((Class<Format>) Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG))).newInstance();
+    Format format = getFormat();
     writerProvider = format.getRecordWriterProvider();
     schemaFileReader = format.getSchemaFileReader(avroData);
     extension = writerProvider.getExtension();
