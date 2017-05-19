@@ -14,21 +14,23 @@
 
 package io.confluent.connect.hdfs.partitioner;
 
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.apache.kafka.common.config.ConfigException;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
+import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 
@@ -37,6 +39,7 @@ public class TimeBasedPartitioner implements Partitioner {
   // Duration of a partition in milliseconds.
   private long partitionDurationMs;
   private DateTimeFormatter formatter;
+  private String timeFieldName;
   protected List<FieldSchema> partitionFields = new ArrayList<>();
   private static String patternString = "'year'=Y{1,5}/('month'=M{1,5}/)?('day'=d{1,3}/)?('hour'=H{1,3}/)?('minute'=m{1,3}/)?";
   private static Pattern pattern = Pattern.compile(patternString);
@@ -86,6 +89,8 @@ public class TimeBasedPartitioner implements Partitioner {
     String hiveIntString = (String) config.get(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
     boolean hiveIntegration = hiveIntString != null && hiveIntString.toLowerCase().equals("true");
 
+    timeFieldName = (String) config.get(HdfsSinkConnectorConfig.PARTITION_TIME_FIELD_NAME_CONFIG);
+
     Locale locale = new Locale(localeString);
     DateTimeZone timeZone = DateTimeZone.forID(timeZoneString);
     init(partitionDurationMs, pathFormat, locale, timeZone, hiveIntegration);
@@ -93,9 +98,44 @@ public class TimeBasedPartitioner implements Partitioner {
 
   @Override
   public String encodePartition(SinkRecord sinkRecord) {
-    long timestamp = System.currentTimeMillis();
-    DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
-    return bucket.toString(formatter);
+      long timestamp;
+      if (timeFieldName == null || timeFieldName.equals("")) {
+          timestamp = System.currentTimeMillis();
+      } else if (sinkRecord.value() instanceof Struct) {
+          Struct struct = (Struct) sinkRecord.value();
+          timestamp = getTimestampValue(struct);
+      } else {
+          throw new DataException("sinkRecord parameter is expected to be an instance of Struct");
+      }
+      DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
+      return bucket.toString(formatter);
+  }
+
+  private long getTimestampValue(Struct record) {
+      final String[] fieldNames = timeFieldName.split("\\.");
+      int i = 0;
+      Struct tmpRecord = record;
+      Object tmpRecordObject = null;
+      while (i < fieldNames.length - 1) {
+          tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+          tmpRecord = (Struct) tmpRecordObject;
+          i++;
+      }
+      tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+      if (!(tmpRecordObject instanceof Long)) {
+          throw new DataException("The value of the time field must be a Long.");
+      }
+      return (long) tmpRecordObject;
+  }
+
+  private Object getField(Struct record, String fieldName) {
+      Object field;
+      try {
+          field = record.get(fieldName);
+      } catch (DataException e) {
+          throw new DataException(String.format("The field named '%s' does not exist.", fieldName), e);
+      }
+      return field;
   }
 
 
