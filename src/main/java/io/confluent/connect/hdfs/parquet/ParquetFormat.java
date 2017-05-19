@@ -23,6 +23,7 @@ import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 
 public class ParquetFormat implements Format {
+
   public RecordWriterProvider getRecordWriterProvider() {
     return new ParquetRecordWriterProvider();
   }
@@ -31,7 +32,11 @@ public class ParquetFormat implements Format {
     return new ParquetFileReader(avroData);
   }
 
-  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
+  public HiveUtil getHiveUtil(
+      HdfsSinkConnectorConfig config,
+      AvroData avroData,
+      HiveMetaStore hiveMetaStore
+  ) {
     return new ParquetHiveUtil(config, avroData, hiveMetaStore);
   }
 }

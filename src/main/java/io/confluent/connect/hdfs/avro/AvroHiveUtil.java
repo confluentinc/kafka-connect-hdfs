@@ -25,22 +25,28 @@ import java.util.List;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.FileUtils;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveSchemaConverter;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 
 public class AvroHiveUtil extends HiveUtil {
 
   private static final String avroSerde = "org.apache.hadoop.hive.serde2.avro.AvroSerDe";
-  private static final String avroInputFormat = "org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat";
-  private static final String avroOutputFormat = "org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat";
+  private static final String avroInputFormat =
+      "org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat";
+  private static final String avroOutputFormat =
+      "org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat";
   private static final String AVRO_SCHEMA_LITERAL = "avro.schema.literal";
 
 
-  public AvroHiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
+  public AvroHiveUtil(
+      HdfsSinkConnectorConfig connectorConfig,
+      AvroData avroData,
+      HiveMetaStore hiveMetaStore
+  ) {
     super(connectorConfig, avroData, hiveMetaStore);
   }
 
@@ -52,13 +58,19 @@ public class AvroHiveUtil extends HiveUtil {
   }
 
   @Override
-  public void alterSchema(String database, String tableName, Schema schema) throws HiveMetaStoreException {
+  public void alterSchema(String database, String tableName, Schema schema)
+      throws HiveMetaStoreException {
     Table table = hiveMetaStore.getTable(database, tableName);
     table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
     hiveMetaStore.alterTable(table);
   }
 
-  private Table constructAvroTable(String database, String tableName, Schema schema, Partitioner partitioner)
+  private Table constructAvroTable(
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
+  )
       throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);

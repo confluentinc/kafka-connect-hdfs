@@ -29,18 +29,27 @@ public abstract class HiveUtil {
   protected final HiveMetaStore hiveMetaStore;
 
 
-  public HiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
+  public HiveUtil(
+      HdfsSinkConnectorConfig connectorConfig,
+      AvroData avroData,
+      HiveMetaStore hiveMetaStore
+  ) {
     this.url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
     this.topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
     this.avroData = avroData;
     this.hiveMetaStore = hiveMetaStore;
   }
 
-  public abstract void createTable(String database, String tableName, Schema schema, Partitioner partitioner);
+  public abstract void createTable(
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
+  );
 
   public abstract void alterSchema(String database, String tableName, Schema schema);
-  
-  public Table newTable(String database, String table){
+
+  public Table newTable(String database, String table) {
     return new Table(database, hiveMetaStore.tableNameConverter(table));
   }
 }

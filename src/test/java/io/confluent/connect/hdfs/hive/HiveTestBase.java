@@ -16,12 +16,15 @@ package io.confluent.connect.hdfs.hive;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.experimental.categories.Category;
 
 import java.util.Map;
 
+import io.confluent.common.utils.IntegrationTest;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 
+@Category(IntegrationTest.class)
 public class HiveTestBase extends TestWithMiniDFSCluster {
 
   protected String hiveDatabase;

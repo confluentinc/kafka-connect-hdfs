@@ -32,7 +32,11 @@ public class AvroFormat implements Format {
     return new AvroFileReader(avroData);
   }
 
-  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
+  public HiveUtil getHiveUtil(
+      HdfsSinkConnectorConfig config,
+      AvroData avroData,
+      HiveMetaStore hiveMetaStore
+  ) {
     return new AvroHiveUtil(config, avroData, hiveMetaStore);
   }
 }

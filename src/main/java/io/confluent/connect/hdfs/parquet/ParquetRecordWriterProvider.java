@@ -11,6 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  **/
+
 package io.confluent.connect.hdfs.parquet;
 
 import org.apache.avro.Schema;
@@ -25,12 +26,12 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import java.io.IOException;
 
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.RecordWriterProvider;
 import io.confluent.connect.hdfs.RecordWriter;
+import io.confluent.connect.hdfs.RecordWriterProvider;
 
 public class ParquetRecordWriterProvider implements RecordWriterProvider {
 
-  private final static String EXTENSION = ".parquet";
+  private static final String EXTENSION = ".parquet";
 
   @Override
   public String getExtension() {
@@ -39,7 +40,8 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider {
 
   @Override
   public RecordWriter<SinkRecord> getRecordWriter(
-      Configuration conf, final String fileName, SinkRecord record, final AvroData avroData)
+      Configuration conf, final String fileName, SinkRecord record, final AvroData avroData
+  )
       throws IOException {
     final Schema avroSchema = avroData.fromConnectSchema(record.valueSchema());
     CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
@@ -49,7 +51,15 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider {
 
     Path path = new Path(fileName);
     final ParquetWriter<GenericRecord> writer =
-        new AvroParquetWriter<>(path, avroSchema, compressionCodecName, blockSize, pageSize, true, conf);
+        new AvroParquetWriter<>(
+            path,
+            avroSchema,
+            compressionCodecName,
+            blockSize,
+            pageSize,
+            true,
+            conf
+        );
 
     return new RecordWriter<SinkRecord>() {
       @Override

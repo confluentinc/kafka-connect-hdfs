@@ -32,13 +32,19 @@ public class DailyPartitioner extends TimeBasedPartitioner {
   public void configure(Map<String, Object> config) {
     String localeString = (String) config.get(HdfsSinkConnectorConfig.LOCALE_CONFIG);
     if (localeString.equals("")) {
-      throw new ConfigException(HdfsSinkConnectorConfig.LOCALE_CONFIG,
-                                localeString, "Locale cannot be empty.");
+      throw new ConfigException(
+          HdfsSinkConnectorConfig.LOCALE_CONFIG,
+          localeString,
+          "Locale cannot be empty."
+      );
     }
     String timeZoneString = (String) config.get(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
     if (timeZoneString.equals("")) {
-      throw new ConfigException(HdfsSinkConnectorConfig.TIMEZONE_CONFIG,
-                                timeZoneString, "Timezone cannot be empty.");
+      throw new ConfigException(
+          HdfsSinkConnectorConfig.TIMEZONE_CONFIG,
+          timeZoneString,
+          "Timezone cannot be empty."
+      );
     }
     String hiveIntString = (String) config.get(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
     boolean hiveIntegration = hiveIntString != null && hiveIntString.toLowerCase().equals("true");

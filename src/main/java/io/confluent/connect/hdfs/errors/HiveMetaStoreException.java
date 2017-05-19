@@ -14,7 +14,7 @@
 
 package io.confluent.connect.hdfs.errors;
 
-public class HiveMetaStoreException extends RuntimeException{
+public class HiveMetaStoreException extends RuntimeException {
 
   public HiveMetaStoreException(String s) {
     super(s);

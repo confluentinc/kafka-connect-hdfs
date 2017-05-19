@@ -27,21 +27,26 @@ import java.util.List;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.FileUtils;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveSchemaConverter;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
 
 public class ParquetHiveUtil extends HiveUtil {
 
-  public ParquetHiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
+  public ParquetHiveUtil(
+      HdfsSinkConnectorConfig connectorConfig,
+      AvroData avroData,
+      HiveMetaStore hiveMetaStore
+  ) {
     super(connectorConfig, avroData, hiveMetaStore);
   }
 
   @Override
-  public void createTable(String database, String tableName, Schema schema, Partitioner partitioner) throws HiveMetaStoreException {
+  public void createTable(String database, String tableName, Schema schema, Partitioner partitioner)
+      throws HiveMetaStoreException {
     Table table = constructParquetTable(database, tableName, schema, partitioner);
     hiveMetaStore.createTable(table);
   }
@@ -54,7 +59,12 @@ public class ParquetHiveUtil extends HiveUtil {
     hiveMetaStore.alterTable(table);
   }
 
-  private Table constructParquetTable(String database, String tableName, Schema schema, Partitioner partitioner) throws HiveMetaStoreException {
+  private Table constructParquetTable(
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
+  ) throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");

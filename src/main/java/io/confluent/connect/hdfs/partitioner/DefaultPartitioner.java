@@ -25,11 +25,17 @@ import java.util.Map;
 public class DefaultPartitioner implements Partitioner {
 
   private static final String partitionField = "partition";
-  private final List<FieldSchema> partitionFields =  new ArrayList<>();;
+  private final List<FieldSchema> partitionFields = new ArrayList<>();
 
   @Override
   public void configure(Map<String, Object> config) {
-    partitionFields.add(new FieldSchema(partitionField, TypeInfoFactory.stringTypeInfo.toString(), ""));
+    partitionFields.add(
+        new FieldSchema(
+            partitionField,
+            TypeInfoFactory.stringTypeInfo.toString(),
+            ""
+        )
+    );
   }
 
   @Override

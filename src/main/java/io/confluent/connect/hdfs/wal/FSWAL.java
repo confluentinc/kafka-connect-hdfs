@@ -36,6 +36,7 @@ public class FSWAL implements WAL {
   private static final Logger log = LoggerFactory.getLogger(FSWAL.class);
   private static final String leaseException =
       "org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException";
+  private static final long MAX_SLEEP_INTERVAL_MS = 16000L;
 
   private WALFile.Writer writer = null;
   private WALFile.Reader reader = null;
@@ -66,12 +67,12 @@ public class FSWAL implements WAL {
 
   public void acquireLease() throws ConnectException {
     long sleepIntervalMs = 1000L;
-    long MAX_SLEEP_INTERVAL_MS = 16000L;
     while (sleepIntervalMs < MAX_SLEEP_INTERVAL_MS) {
       try {
         if (writer == null) {
-          writer = WALFile.createWriter(conf, Writer.file(new Path(logFile)),
-                                        Writer.appendIfExists(true));
+          writer = WALFile.createWriter(
+              conf, Writer.file(new Path(logFile)), Writer.appendIfExists(true)
+          );
           log.info("Successfully acquired lease for {}", logFile);
         }
         break;
@@ -114,7 +115,7 @@ public class FSWAL implements WAL {
         if (keyName.equals(beginMarker)) {
           entries.clear();
         } else if (keyName.equals(endMarker)) {
-          for (Map.Entry<WALEntry, WALEntry> entry: entries.entrySet()) {
+          for (Map.Entry<WALEntry, WALEntry> entry : entries.entrySet()) {
             String tempFile = entry.getKey().getName();
             String committedFile = entry.getValue().getName();
             if (!storage.exists(committedFile)) {
