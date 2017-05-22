@@ -197,6 +197,8 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     config.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH/");
     config.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, "en");
     config.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
+    config.put(HdfsSinkConnectorConfig.PARTITION_TIME_FIELD_NAME_CONFIG, "");
+
     return config;
   }
 

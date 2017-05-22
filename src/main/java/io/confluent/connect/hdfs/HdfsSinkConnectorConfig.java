@@ -190,6 +190,12 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   public static final String PARTITION_FIELD_NAME_DEFAULT = "";
   public static final String PARTITION_FIELD_NAME_DISPLAY = "Partition Field Name";
 
+  public static final String PARTITION_TIME_FIELD_NAME_CONFIG = "partition.time.field.name";
+  private static final String PARTITION_TIME_FIELD_NAME_DOC =
+          "The timestamp field name of SinkRecord when TimeBasedPartitioner is used, "
+          + "current time will be used on empty";
+  public static final String PARTITION_TIME_FIELD_NAME_DISPLAY = "Partition Time Field Name";
+
   public static final String PARTITION_DURATION_MS_CONFIG = "partition.duration.ms";
   private static final String PARTITION_DURATION_MS_DOC =
       "The duration of a partition milliseconds used by ``TimeBasedPartitioner``. "
@@ -305,7 +311,7 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
         .define(RETRY_BACKOFF_CONFIG, Type.LONG, RETRY_BACKOFF_DEFAULT, Importance.LOW, RETRY_BACKOFF_DOC, CONNECTOR_GROUP, 4, Width.SHORT, RETRY_BACKOFF_DISPLAY)
         .define(SHUTDOWN_TIMEOUT_CONFIG, Type.LONG, SHUTDOWN_TIMEOUT_DEFAULT, Importance.MEDIUM, SHUTDOWN_TIMEOUT_DOC, CONNECTOR_GROUP, 5, Width.SHORT, SHUTDOWN_TIMEOUT_DISPLAY)
         .define(PARTITIONER_CLASS_CONFIG, Type.STRING, PARTITIONER_CLASS_DEFAULT, Importance.HIGH, PARTITIONER_CLASS_DOC, CONNECTOR_GROUP, 6, Width.LONG, PARTITIONER_CLASS_DISPLAY,
-                Arrays.asList(PARTITION_FIELD_NAME_CONFIG, PARTITION_DURATION_MS_CONFIG, PATH_FORMAT_CONFIG, LOCALE_CONFIG, TIMEZONE_CONFIG))
+                Arrays.asList(PARTITION_FIELD_NAME_CONFIG, PARTITION_DURATION_MS_CONFIG, PATH_FORMAT_CONFIG, LOCALE_CONFIG, TIMEZONE_CONFIG, PARTITION_TIME_FIELD_NAME_CONFIG))
         .define(PARTITION_FIELD_NAME_CONFIG, Type.STRING, PARTITION_FIELD_NAME_DEFAULT, Importance.MEDIUM, PARTITION_FIELD_NAME_DOC, CONNECTOR_GROUP, 7, Width.MEDIUM,
                 PARTITION_FIELD_NAME_DISPLAY, partitionerClassDependentsRecommender)
         .define(PARTITION_DURATION_MS_CONFIG, Type.LONG, PARTITION_DURATION_MS_DEFAULT, Importance.MEDIUM, PARTITION_DURATION_MS_DOC, CONNECTOR_GROUP, 8, Width.SHORT,
@@ -314,19 +320,21 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
                 partitionerClassDependentsRecommender)
         .define(LOCALE_CONFIG, Type.STRING, LOCALE_DEFAULT, Importance.MEDIUM, LOCALE_DOC, CONNECTOR_GROUP, 10, Width.MEDIUM, LOCALE_DISPLAY, partitionerClassDependentsRecommender)
         .define(TIMEZONE_CONFIG, Type.STRING, TIMEZONE_DEFAULT, Importance.MEDIUM, TIMEZONE_DOC, CONNECTOR_GROUP, 11, Width.MEDIUM, TIMEZONE_DISPLAY, partitionerClassDependentsRecommender)
+        .define(PARTITION_TIME_FIELD_NAME_CONFIG, Type.STRING, Importance.MEDIUM, PARTITION_TIME_FIELD_NAME_DOC,
+                CONNECTOR_GROUP, 12, Width.MEDIUM, PARTITION_TIME_FIELD_NAME_DISPLAY, partitionerClassDependentsRecommender)
         .define(FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, Type.INT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DEFAULT, ConfigDef.Range.atLeast(0), Importance.LOW, FILENAME_OFFSET_ZERO_PAD_WIDTH_DOC,
-                CONNECTOR_GROUP, 12, Width.SHORT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY);
+                CONNECTOR_GROUP, 13, Width.SHORT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY);
 
     // Define Internal configuration group
     config.define(STORAGE_CLASS_CONFIG, Type.STRING, STORAGE_CLASS_DEFAULT, Importance.LOW, STORAGE_CLASS_DOC, INTERNAL_GROUP, 1, Width.MEDIUM, STORAGE_CLASS_DISPLAY);
   }
 
   private static class SchemaCompatibilityRecommender extends BooleanParentRecommender {
-    
+
     public SchemaCompatibilityRecommender() {
       super(HIVE_INTEGRATION_CONFIG);
     }
-      
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       boolean hiveIntegration = (Boolean) connectorConfigs.get(parentConfigName);
@@ -342,15 +350,15 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
       return true;
     }
   }
-  
+
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
-    
+
     protected String parentConfigName;
-    
+
     public BooleanParentRecommender(String parentConfigName) {
       this.parentConfigName = parentConfigName;
     }
-    
+
     @Override
     public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
       return new LinkedList<>();
@@ -385,7 +393,7 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
           if (classNameEquals(partitionerName, DailyPartitioner.class) || classNameEquals(partitionerName, HourlyPartitioner.class)) {
             return name.equals(LOCALE_CONFIG) || name.equals(TIMEZONE_CONFIG);
           } else {
-            return name.equals(PARTITION_DURATION_MS_CONFIG) || name.equals(PATH_FORMAT_CONFIG) || name.equals(LOCALE_CONFIG) || name.equals(TIMEZONE_CONFIG);
+            return name.equals(PARTITION_TIME_FIELD_NAME_CONFIG) || name.equals(PARTITION_DURATION_MS_CONFIG) || name.equals(PATH_FORMAT_CONFIG) || name.equals(LOCALE_CONFIG) || name.equals(TIMEZONE_CONFIG);
           }
         } else {
           throw new ConfigException("Not a valid partitioner class: " + partitionerName);

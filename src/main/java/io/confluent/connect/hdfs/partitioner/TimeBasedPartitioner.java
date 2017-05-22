@@ -17,7 +17,10 @@ package io.confluent.connect.hdfs.partitioner;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.data.Struct;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -37,6 +40,7 @@ public class TimeBasedPartitioner implements Partitioner {
   // Duration of a partition in milliseconds.
   private long partitionDurationMs;
   private DateTimeFormatter formatter;
+  private String timeFieldName = "";
   protected List<FieldSchema> partitionFields = new ArrayList<>();
   private static String patternString = "'year'=Y{1,5}/('month'=M{1,5}/)?('day'=d{1,3}/)?('hour'=H{1,3}/)?('minute'=m{1,3}/)?";
   private static Pattern pattern = Pattern.compile(patternString);
@@ -86,6 +90,8 @@ public class TimeBasedPartitioner implements Partitioner {
     String hiveIntString = (String) config.get(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
     boolean hiveIntegration = hiveIntString != null && hiveIntString.toLowerCase().equals("true");
 
+    timeFieldName = (String) config.get(HdfsSinkConnectorConfig.PARTITION_TIME_FIELD_NAME_CONFIG);
+
     Locale locale = new Locale(localeString);
     DateTimeZone timeZone = DateTimeZone.forID(timeZoneString);
     init(partitionDurationMs, pathFormat, locale, timeZone, hiveIntegration);
@@ -93,7 +99,18 @@ public class TimeBasedPartitioner implements Partitioner {
 
   @Override
   public String encodePartition(SinkRecord sinkRecord) {
-    long timestamp = System.currentTimeMillis();
+    long timestamp;
+    if (timeFieldName.equals("")) {
+      timestamp = System.currentTimeMillis();
+    } else {
+      try {
+        Struct struct = (Struct) sinkRecord.value();
+        timestamp = (long) struct.get(timeFieldName);
+      } catch (ClassCastException | DataException e) {
+        throw new ConnectException("Failed to get time field:", e);
+      }
+    }
+
     DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
     return bucket.toString(formatter);
   }

@@ -102,6 +102,27 @@ public class HdfsSinkConnectorTestBase {
         .put("string", "def");
   }
 
+  protected Schema createSchemaWithTimeField() {
+    return SchemaBuilder.struct().name("record").version(2)
+            .field("timestamp", Schema.INT64_SCHEMA)
+            .field("int", Schema.INT32_SCHEMA)
+            .field("long", Schema.INT64_SCHEMA)
+            .field("float", Schema.FLOAT32_SCHEMA)
+            .field("double", Schema.FLOAT64_SCHEMA)
+            .field("string", SchemaBuilder.string().defaultValue("abc").build())
+            .build();
+  }
+
+  protected Struct createRecordWithTimeField(Schema schema, long timestamp) {
+    return new Struct(schema)
+        .put("timestamp", timestamp)
+        .put("int", 12)
+        .put("long", 12L)
+        .put("float", 12.2f)
+        .put("double", 12.2)
+        .put("string", "def");
+  }
+
   @Before
   public void setUp() throws Exception {
     conf = new Configuration();
