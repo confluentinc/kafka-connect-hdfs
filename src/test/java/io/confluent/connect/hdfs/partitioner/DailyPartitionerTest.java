@@ -53,7 +53,7 @@ public class DailyPartitionerTest extends TestWithMiniDFSCluster {
     long timestamp = new DateTime(2014, 2, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
     String path = partitioner.generatePartitionedPath("topic", encodedPartition);
-    assertEquals("topic/year=2014/month=02/day=01/", path);
+    assertEquals("topic/year=2014/month=02/day=01", path);
   }
 
 }

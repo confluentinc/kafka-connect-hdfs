@@ -54,7 +54,7 @@ public class HourlyPartitionerTest extends TestWithMiniDFSCluster {
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat,
                                                         timeZoneString, timestamp);
     String path = partitioner.generatePartitionedPath("topic", encodedPartition);
-    assertEquals("topic/year=2015/month=02/day=01/hour=03/", path);
+    assertEquals("topic/year=2015/month=02/day=01/hour=03", path);
   }
 
 }
