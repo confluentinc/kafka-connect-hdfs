@@ -267,7 +267,10 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
         expectedResult.add(part);
       }
     }
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * FROM " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
     for (int i = 0; i < rows.length; ++i) {

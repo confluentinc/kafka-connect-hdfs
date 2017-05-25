@@ -89,7 +89,10 @@ public class ParquetHiveUtilTest extends HiveTestBase {
     assertEquals(1, partitionCols.size());
     assertEquals("partition", partitionCols.get(0).getName());
 
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * from " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * from " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
@@ -132,7 +135,10 @@ public class ParquetHiveUtilTest extends HiveTestBase {
 
     hive.alterSchema(hiveDatabase, TOPIC, newSchema);
 
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * from " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * from " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
