@@ -18,7 +18,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.IllegalWorkerStateException;
@@ -71,6 +70,7 @@ public class TopicPartitionWriter {
   private SinkTaskContext context;
   private int recordCounter;
   private int flushSize;
+  private boolean checkStaleOffsets;
   private long rotateIntervalMs;
   private long lastRotate;
   private long rotateScheduleIntervalMs;
@@ -136,6 +136,7 @@ public class TopicPartitionWriter {
     this.conf = storage.conf();
     this.schemaFileReader = schemaFileReader;
 
+    checkStaleOffsets = connectorConfig.getBoolean(HdfsSinkConnectorConfig.CHECK_STALE_OFFSETS_CONFIG);
     topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
@@ -511,7 +512,7 @@ public class TopicPartitionWriter {
     long expectedOffset = offset + recordCounter;
     if (offset == -1) {
       offset = record.kafkaOffset();
-    } else if (record.kafkaOffset() != expectedOffset) {
+    } else if (checkStaleOffsets && record.kafkaOffset() != expectedOffset) {
       // Currently it's possible to see stale data with the wrong offset after a rebalance when you
       // rewind, which we do since we manage our own offsets. See KAFKA-2894.
       if (!sawInvalidOffset) {

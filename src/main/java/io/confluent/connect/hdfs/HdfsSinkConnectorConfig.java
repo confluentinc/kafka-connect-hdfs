@@ -226,6 +226,12 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
   public static final int FILENAME_OFFSET_ZERO_PAD_WIDTH_DEFAULT = 10;
   private static final String FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY = "Filename Offset Zero Pad Width";
 
+  public static final String CHECK_STALE_OFFSETS_CONFIG = "check.stale.offsets";
+  private static final String CHECK_STALE_OFFSETS_DOC =
+          "If enabled, the connector will check against invalid stale offsets.";
+  public static final boolean CHECK_STALE_OFFSETS_DEFAULT = true;
+  private static final String CHECK_STALE_OFFSETS_DISPLAY = "Check Stale Offsets";
+
   // Schema group
   public static final String SCHEMA_COMPATIBILITY_CONFIG = "schema.compatibility";
   private static final String SCHEMA_COMPATIBILITY_DOC =
@@ -315,7 +321,8 @@ public class HdfsSinkConnectorConfig extends AbstractConfig {
         .define(LOCALE_CONFIG, Type.STRING, LOCALE_DEFAULT, Importance.MEDIUM, LOCALE_DOC, CONNECTOR_GROUP, 10, Width.MEDIUM, LOCALE_DISPLAY, partitionerClassDependentsRecommender)
         .define(TIMEZONE_CONFIG, Type.STRING, TIMEZONE_DEFAULT, Importance.MEDIUM, TIMEZONE_DOC, CONNECTOR_GROUP, 11, Width.MEDIUM, TIMEZONE_DISPLAY, partitionerClassDependentsRecommender)
         .define(FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, Type.INT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DEFAULT, ConfigDef.Range.atLeast(0), Importance.LOW, FILENAME_OFFSET_ZERO_PAD_WIDTH_DOC,
-                CONNECTOR_GROUP, 12, Width.SHORT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY);
+                CONNECTOR_GROUP, 12, Width.SHORT, FILENAME_OFFSET_ZERO_PAD_WIDTH_DISPLAY)
+        .define(CHECK_STALE_OFFSETS_CONFIG, Type.BOOLEAN, CHECK_STALE_OFFSETS_DEFAULT, Importance.LOW, CHECK_STALE_OFFSETS_DOC, CONNECTOR_GROUP, 13, Width.SHORT, CHECK_STALE_OFFSETS_DISPLAY);
 
     // Define Internal configuration group
     config.define(STORAGE_CLASS_CONFIG, Type.STRING, STORAGE_CLASS_DEFAULT, Importance.LOW, STORAGE_CLASS_DOC, INTERNAL_GROUP, 1, Width.MEDIUM, STORAGE_CLASS_DISPLAY);
