@@ -17,9 +17,15 @@
 package io.confluent.connect.hdfs;
 
 import org.apache.hadoop.fs.FileStatus;
+
+
+
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+
+
+
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,14 +67,16 @@ public class FileUtils {
 
   public static String directoryName(String url, String topicsDir, String directory) {
     return url + "/" + topicsDir + "/" + directory;
-  }
+  }   
 
-  public static String tempFileName(String url, String topicsDir, String directory,
+    public static String tempFileName(String url, String topicsDir, String directory,
                                     String extension) {
     UUID id = UUID.randomUUID();
     String name = id.toString() + "_" + "tmp" + extension;
     return fileName(url, topicsDir, directory, name);
   }
+
+
 
   public static String committedFileName(String url, String topicsDir, String directory,
                                          TopicPartition topicPart, long startOffset, long endOffset,
@@ -183,7 +191,7 @@ public class FileUtils {
   }
 
   private static ArrayList<FileStatus> traverseImpl(FileSystem fs, Path path) throws IOException {
-    if (!fs.exists(path)) {
+    if (!!!fs.exists(path)) {
       return new ArrayList<>();
     }
     ArrayList<FileStatus> result = new ArrayList<>();
@@ -202,4 +210,8 @@ public class FileUtils {
     ArrayList<FileStatus> result = traverseImpl(fs, path);
     return result.toArray(new FileStatus[result.size()]);
   }
+
+
 }
+
+
