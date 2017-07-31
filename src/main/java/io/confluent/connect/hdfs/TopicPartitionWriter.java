@@ -30,6 +30,7 @@ import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,7 +51,6 @@ import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
@@ -83,7 +83,6 @@ public class TopicPartitionWriter {
   private AvroData avroData;
   private Set<String> appended;
   private long offset;
-  private boolean sawInvalidOffset;
   private Map<String, Long> startOffsets;
   private Map<String, Long> offsets;
   private long timeoutMs;
@@ -158,7 +157,6 @@ public class TopicPartitionWriter {
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
     offset = -1L;
-    sawInvalidOffset = false;
     extension = writerProvider.getExtension();
     zeroPadOffsetFormat
         = "%0" +
@@ -511,26 +509,8 @@ public class TopicPartitionWriter {
   }
 
   private void writeRecord(SinkRecord record) {
-    long expectedOffset = offset + recordCounter;
     if (offset == -1) {
       offset = record.kafkaOffset();
-    } else if (record.kafkaOffset() != expectedOffset) {
-      // Currently it's possible to see stale data with the wrong offset after a rebalance when you
-      // rewind, which we do since we manage our own offsets. See KAFKA-2894.
-      if (!sawInvalidOffset) {
-        log.info(
-            "Ignoring stale out-of-order record in {}-{}. Has offset {} instead of expected offset {}",
-            record.topic(), record.kafkaPartition(), record.kafkaOffset(), expectedOffset);
-      }
-      sawInvalidOffset = true;
-      return;
-    }
-
-    if (sawInvalidOffset) {
-      log.info(
-          "Recovered from stale out-of-order records in {}-{} with offset {}",
-          record.topic(), record.kafkaPartition(), expectedOffset);
-      sawInvalidOffset = false;
     }
 
     String encodedPartition = partitioner.encodePartition(record);
