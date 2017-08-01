@@ -38,6 +38,11 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
   private static final String ZERO_PAD_FMT = "%010d";
   private static final String extension = "";
 
+  @Before
+  public void setUp() throws Exception {
+    super.setUp();
+  }
+
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
@@ -48,8 +53,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
   @Test
   public void testCommitFailure() throws Exception {
-    setUp();
-
     String key = "key";
     Schema schema = createSchema();
     Struct record = createRecord(schema);
@@ -89,8 +92,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
   @Test
   public void testWriterFailureMultiPartitions() throws Exception {
-    setUp();
-
     String key = "key";
     Schema schema = createSchema();
     Struct record = createRecord(schema);
@@ -164,7 +165,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
   @Test
   public void testWriterFailure() throws Exception {
-    setUp();
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
 
     String key = "key";
