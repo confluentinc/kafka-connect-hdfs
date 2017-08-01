@@ -23,7 +23,6 @@ import org.apache.kafka.connect.data.Schema;
 
 import java.util.List;
 
-import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
