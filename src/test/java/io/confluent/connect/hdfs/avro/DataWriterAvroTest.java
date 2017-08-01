@@ -45,7 +45,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   @Before
   public void setUp() throws Exception {
     super.setUp();
-    schemaFileReader = new AvroFileReader(avroData);
+    dataFileReader = new AvroDataFileReader();
     extension = ".avro";
   }
 

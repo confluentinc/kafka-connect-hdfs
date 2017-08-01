@@ -14,18 +14,14 @@
 
 package io.confluent.connect.hdfs;
 
-import org.apache.hadoop.fs.Path;
-
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 
+// NOTE: DO NOT add or modify this class as it is maintained for compatibility
 @Deprecated
-public interface Format
-    extends io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
+public interface Format {
   RecordWriterProvider getRecordWriterProvider();
   SchemaFileReader getSchemaFileReader(AvroData avroData);
-  @Override
-  SchemaFileReader getSchemaFileReader();
   HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, HiveMetaStore hiveMetaStore);
 }

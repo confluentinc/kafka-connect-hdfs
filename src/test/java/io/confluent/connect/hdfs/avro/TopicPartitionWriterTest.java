@@ -24,7 +24,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,7 +52,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
-  private RecordWriterProvider writerProvider;
+  private RecordWriterProvider writerProvider = null;
+  private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+      newWriterProvider;
   private HdfsStorage storage;
   private Map<String, String> localProps = new HashMap<>();
 
@@ -78,13 +79,16 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         url
     );
     @SuppressWarnings("unchecked")
-    Class<Format> formatClass = (Class<Format>) connectorConfig.getClass(
+    Class<io.confluent.connect.storage.format.Format> formatClass
+        = (Class<io.confluent.connect.storage.format.Format>) connectorConfig.getClass(
         HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG
     );
-    Format format = formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
-    writerProvider = format.getRecordWriterProvider();
-    schemaFileReader = format.getSchemaFileReader(avroData);
-    extension = writerProvider.getExtension();
+    io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> format
+        = formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
+    writerProvider = null;
+    newWriterProvider = format.getRecordWriterProvider();
+    dataFileReader = new AvroDataFileReader();
+    extension = newWriterProvider.getExtension();
     createTopicDir(url, topicsDir, TOPIC);
     createLogsDir(url, logsDir);
   }
@@ -99,6 +103,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         TOPIC_PARTITION,
         storage,
         writerProvider,
+        newWriterProvider,
         partitioner,
         connectorConfig,
         context,
@@ -144,6 +149,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         TOPIC_PARTITION,
         storage,
         writerProvider,
+        newWriterProvider,
         partitioner,
         connectorConfig,
         context,
@@ -194,6 +200,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         TOPIC_PARTITION,
         storage,
         writerProvider,
+        newWriterProvider,
         partitioner,
         connectorConfig,
         context,
@@ -256,7 +263,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     for (FileStatus status : statuses) {
       Path filePath = status.getPath();
       assertTrue(expectedFiles.contains(status.getPath()));
-      Collection<Object> avroRecords = schemaFileReader.readData(connectorConfig, filePath);
+      Collection<Object> avroRecords = dataFileReader.readData(connectorConfig.getHadoopConfiguration(), filePath);
       assertEquals(expectedSize, avroRecords.size());
       for (Object avroRecord : avroRecords) {
         assertEquals(avroData.fromConnectData(schema, records.get(index++)), avroRecord);

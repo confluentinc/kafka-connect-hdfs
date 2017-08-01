@@ -1,43 +1,27 @@
 package io.confluent.connect.hdfs.utils;
 
+import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.config.AbstractConfig;
 
-import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.Format;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriterProvider;
-import io.confluent.connect.hdfs.SchemaFileReader;
-import io.confluent.connect.hdfs.hive.HiveMetaStore;
-import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.hive.HiveFactory;
 
-public class MemoryFormat implements Format {
-  private final AvroData avroData;
+public class MemoryFormat
+    implements io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
 
+  // DO NOT change this signature, it is required for instantiation via reflection
   public MemoryFormat(HdfsStorage storage) {
-    this.avroData = new AvroData(
-        storage.conf().getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
-    );
   }
 
   @Override
-  public RecordWriterProvider getRecordWriterProvider() {
+  public io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> getRecordWriterProvider() {
     return new MemoryRecordWriterProvider();
   }
 
   @Override
-  public SchemaFileReader getSchemaFileReader(AvroData avroData) {
-    return null;
-  }
-
-  @Override
-  public SchemaFileReader getSchemaFileReader() {
-    return null;
-  }
-
-  @Override
-  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, HiveMetaStore hiveMetaStore) {
+  public io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
+  getSchemaFileReader() {
     return null;
   }
 

@@ -32,8 +32,8 @@ import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.RecordWriter;
 import io.confluent.connect.hdfs.RecordWriterProvider;
 
-public class ParquetRecordWriterProvider implements RecordWriterProvider,
-    io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
+public class ParquetRecordWriterProvider
+    implements io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(ParquetRecordWriterProvider.class);
   private final static String EXTENSION = ".parquet";
   private final AvroData avroData;
@@ -48,21 +48,11 @@ public class ParquetRecordWriterProvider implements RecordWriterProvider,
   }
 
   @Override
-  public RecordWriter getRecordWriter(
-      HdfsSinkConnectorConfig conf,
-      final String filename,
-      SinkRecord record,
-      final AvroData avroData
-  ) {
-    return getRecordWriter(conf, filename);
-  }
-
-  @Override
-  public RecordWriter getRecordWriter(
+  public io.confluent.connect.storage.format.RecordWriter getRecordWriter(
       final HdfsSinkConnectorConfig conf,
       final String filename
   ) {
-    return new RecordWriter() {
+    return new io.confluent.connect.storage.format.RecordWriter() {
       final CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
       final int blockSize = 256 * 1024 * 1024;
       final int pageSize = 64 * 1024;

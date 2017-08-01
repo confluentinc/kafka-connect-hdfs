@@ -22,7 +22,7 @@ import java.util.Map;
 
 import io.confluent.connect.hdfs.RecordWriter;
 
-public class MemoryRecordWriter implements RecordWriter {
+public class MemoryRecordWriter implements io.confluent.connect.storage.format.RecordWriter {
   private String filename;
   private static final Map<String, List<Object>> data = Data.getData();
   private Failure failure = Failure.noFailure;

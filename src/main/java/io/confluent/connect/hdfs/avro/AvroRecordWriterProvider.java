@@ -29,12 +29,10 @@ import java.io.IOException;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriter;
-import io.confluent.connect.hdfs.RecordWriterProvider;
 import io.confluent.kafka.serializers.NonRecordContainer;
 
-public class AvroRecordWriterProvider implements RecordWriterProvider,
-    io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
+public class AvroRecordWriterProvider
+    implements io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(AvroRecordWriterProvider.class);
   private final static String EXTENSION = ".avro";
   private final AvroData avroData;
@@ -49,21 +47,11 @@ public class AvroRecordWriterProvider implements RecordWriterProvider,
   }
 
   @Override
-  public RecordWriter getRecordWriter(
-      HdfsSinkConnectorConfig conf,
-      final String fileName,
-      SinkRecord record,
-      final AvroData avroData
-  ) {
-    return getRecordWriter(conf, fileName);
-  }
-
-  @Override
-  public RecordWriter getRecordWriter(
+  public io.confluent.connect.storage.format.RecordWriter getRecordWriter(
       final HdfsSinkConnectorConfig conf,
       final String filename
   ) {
-    return new RecordWriter() {
+    return new io.confluent.connect.storage.format.RecordWriter() {
       final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
       final Path path = new Path(filename);
       Schema schema = null;

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.avro.AvroDataFileReader;
 import io.confluent.connect.hdfs.avro.AvroFileReader;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageFactory;
@@ -44,7 +45,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   private static final String DIRECTORY2 = TOPIC + "/" + "partition=" + String.valueOf(PARTITION2);
   private static final String extension = ".avro";
   private static final String ZERO_PAD_FMT = "%010d";
-  private final SchemaFileReader schemaFileReader = new AvroFileReader(avroData);
+  private final DataFileReader schemaFileReader = new AvroDataFileReader();
 
   @Test
   public void testSinkTaskStart() throws Exception {
@@ -169,7 +170,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                                                          startOffset, endOffset, extension,
                                                          ZERO_PAD_FMT));
-        Collection<Object> records = schemaFileReader.readData(connectorConfig, path);
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
         long size = endOffset - startOffset + 1;
         assertEquals(records.size(), size);
         for (Object avroRecord : records) {
@@ -211,7 +212,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                 startOffset, endOffset, extension,
                 ZERO_PAD_FMT));
-        Collection<Object> records = schemaFileReader.readData(connectorConfig, path);
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
         long size = endOffset - startOffset + 1;
         assertEquals(records.size(), size);
         for (Object avroRecord : records) {

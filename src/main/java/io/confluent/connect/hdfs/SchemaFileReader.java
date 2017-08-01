@@ -14,12 +14,18 @@
 
 package io.confluent.connect.hdfs;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.kafka.connect.data.Schema;
 
+import java.io.IOException;
 import java.util.Collection;
 
+// NOTE: DO NOT add or modify this class as it is maintained for compatibility
 @Deprecated
-public interface SchemaFileReader
-    extends io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path> {
-  Collection<Object> readData(HdfsSinkConnectorConfig conf, Path path);
+public interface SchemaFileReader {
+  Schema getSchema(Configuration conf, Path path) throws IOException;
+  // NOTE: This method is no longer used and was only previously used in tests. It is safe to
+  // provide a dummy implementation.
+  Collection<Object> readData(Configuration conf, Path path) throws IOException;
 }

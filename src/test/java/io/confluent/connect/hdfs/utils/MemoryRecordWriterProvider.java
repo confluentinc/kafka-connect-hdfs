@@ -16,19 +16,14 @@
 
 package io.confluent.connect.hdfs.utils;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.kafka.connect.sink.SinkRecord;
-
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriter;
-import io.confluent.connect.hdfs.RecordWriterProvider;
 
-public class MemoryRecordWriterProvider implements RecordWriterProvider {
+public class MemoryRecordWriterProvider
+    implements io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
 
   @Override
   public String getExtension() {
@@ -36,17 +31,7 @@ public class MemoryRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
-  public RecordWriter getRecordWriter(
-      HdfsSinkConnectorConfig conf,
-      final String filename,
-      SinkRecord record,
-      final AvroData avroData
-  ) {
-    return getRecordWriter(conf, filename);
-  }
-
-  @Override
-  public RecordWriter getRecordWriter(
+  public io.confluent.connect.storage.format.RecordWriter getRecordWriter(
       HdfsSinkConnectorConfig conf,
       final String filename
   ) {

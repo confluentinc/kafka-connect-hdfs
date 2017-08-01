@@ -51,7 +51,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   protected MiniDFSCluster cluster;
   protected FileSystem fs;
-  protected SchemaFileReader schemaFileReader;
+  protected DataFileReader dataFileReader;
   protected Partitioner partitioner;
   protected String extension;
   // The default based on default configuration of 10
@@ -269,7 +269,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
         String filename = FileUtils.committedFileName(url, topicsDir, getDirectory(tp.topic(), tp.partition()), tp,
                                                       startOffset, endOffset, extension, zeroPadFormat);
         Path path = new Path(filename);
-        Collection<Object> records = schemaFileReader.readData(connectorConfig, path);
+        Collection<Object> records = dataFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
 
         long size = endOffset - startOffset + 1;
         assertEquals(size, records.size());

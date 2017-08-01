@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -61,7 +60,7 @@ public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
   private WAL wal;
   private Map<String, String> tempFiles;
-  private Map<String, RecordWriter> writers;
+  private Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
   private TopicPartition tp;
   private Partitioner partitioner;
   private String url;
@@ -77,8 +76,14 @@ public class TopicPartitionWriter {
   private long lastRotate;
   private long rotateScheduleIntervalMs;
   private long nextScheduledRotate;
+  // This is one case where we cannot simply wrap the old or new RecordWriterProvider with the
+  // other because they have incompatible requirements for some methods -- one requires the Hadoop
+  // config + extra parameters, the other requires the ConnectorConfig and doesn't get the other
+  // extra parameters. Instead, we have to (optionally) store one of each and use whichever one is
+  // non-null.
   private RecordWriterProvider writerProvider;
-  private Configuration conf;
+  private final io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+      newWriterProvider;
   private HdfsSinkConnectorConfig connectorConfig;
   private AvroData avroData;
   private Set<String> appended;
@@ -96,7 +101,8 @@ public class TopicPartitionWriter {
   private final boolean hiveIntegration;
   private String hiveDatabase;
   private HiveMetaStore hiveMetaStore;
-  private SchemaFileReader schemaFileReader;
+  private io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
+      schemaFileReader;
   private HiveUtil hive;
   private ExecutorService executorService;
   private Queue<Future<Void>> hiveUpdateFutures;
@@ -106,24 +112,41 @@ public class TopicPartitionWriter {
       TopicPartition tp,
       HdfsStorage storage,
       RecordWriterProvider writerProvider,
+      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> newWriterProvider,
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
       AvroData avroData) {
-    this(tp, storage, writerProvider, partitioner, connectorConfig, context, avroData, null, null, null, null, null);
+    this(
+        tp,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
   }
 
   public TopicPartitionWriter(
       TopicPartition tp,
       HdfsStorage storage,
       RecordWriterProvider writerProvider,
+      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> newWriterProvider,
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
       AvroData avroData,
       HiveMetaStore hiveMetaStore,
       HiveUtil hive,
-      SchemaFileReader schemaFileReader,
+      io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
+          schemaFileReader,
       ExecutorService executorService,
       Queue<Future<Void>> hiveUpdateFutures) {
     this.tp = tp;
@@ -131,10 +154,10 @@ public class TopicPartitionWriter {
     this.avroData = avroData;
     this.storage = storage;
     this.writerProvider = writerProvider;
+    this.newWriterProvider = newWriterProvider;
     this.partitioner = partitioner;
     this.url = storage.url();
     this.connectorConfig = storage.conf();
-    this.conf = storage.conf().getHadoopConfiguration();
     this.schemaFileReader = schemaFileReader;
 
     topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
@@ -157,7 +180,14 @@ public class TopicPartitionWriter {
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
     offset = -1L;
-    extension = writerProvider.getExtension();
+    if (writerProvider != null) {
+      extension = writerProvider.getExtension();
+    } else if (newWriterProvider != null) {
+      extension = newWriterProvider.getExtension();
+    } else {
+      throw new ConnectException("Invalid state: either old or new RecordWriterProvider must be"
+                                 + " provided");
+    }
     zeroPadOffsetFormat
         = "%0" +
           connectorConfig.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG) +
@@ -403,7 +433,7 @@ public class TopicPartitionWriter {
     return offset;
   }
 
-  public Map<String, RecordWriter> getWriters() {
+  Map<String, io.confluent.connect.storage.format.RecordWriter> getWriters() {
     return writers;
   }
 
@@ -448,18 +478,36 @@ public class TopicPartitionWriter {
     context.resume(tp);
   }
 
-  private RecordWriter getWriter(SinkRecord record, String encodedPartition)
-      throws ConnectException {
+  private io.confluent.connect.storage.format.RecordWriter getWriter(
+      SinkRecord record,
+      String encodedPartition
+  ) throws ConnectException {
     if (writers.containsKey(encodedPartition)) {
       return writers.get(encodedPartition);
     }
     String tempFile = getTempFile(encodedPartition);
-    RecordWriter writer = writerProvider.getRecordWriter(
-        connectorConfig,
-        tempFile,
-        record,
-        avroData
-    );
+
+    final io.confluent.connect.storage.format.RecordWriter writer;
+    try {
+      if (writerProvider != null) {
+        writer = new OldRecordWriterWrapper(
+            writerProvider.getRecordWriter(
+                connectorConfig.getHadoopConfiguration(),
+                tempFile,
+                record,
+                avroData
+            )
+        );
+      } else if (newWriterProvider != null) {
+        writer = newWriterProvider.getRecordWriter(connectorConfig, tempFile);
+      } else {
+        throw new ConnectException("Invalid state: either old or new RecordWriterProvider must be"
+                                   + " provided");
+      }
+    } catch (IOException e) {
+      throw new ConnectException("Couldn't create RecordWriter", e);
+    }
+
     writers.put(encodedPartition, writer);
     if (hiveIntegration && !hivePartitions.contains(encodedPartition)) {
       addHivePartition(encodedPartition);
@@ -514,7 +562,7 @@ public class TopicPartitionWriter {
     }
 
     String encodedPartition = partitioner.encodePartition(record);
-    RecordWriter writer = getWriter(record, encodedPartition);
+    io.confluent.connect.storage.format.RecordWriter writer = getWriter(record, encodedPartition);
     writer.write(record);
 
     if (!startOffsets.containsKey(encodedPartition)) {
@@ -526,7 +574,7 @@ public class TopicPartitionWriter {
 
   private void closeTempFile(String encodedPartition) {
     if (writers.containsKey(encodedPartition)) {
-      RecordWriter writer = writers.get(encodedPartition);
+      io.confluent.connect.storage.format.RecordWriter writer = writers.get(encodedPartition);
       writer.close();
       writers.remove(encodedPartition);
     }

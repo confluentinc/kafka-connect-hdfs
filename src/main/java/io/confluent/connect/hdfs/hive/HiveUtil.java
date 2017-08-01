@@ -22,6 +22,7 @@ import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 
+// NOTE: DO NOT add or modify this class as it is maintained for compatibility
 @Deprecated
 public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUtil {
 

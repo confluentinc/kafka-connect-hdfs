@@ -30,6 +30,7 @@ import io.confluent.connect.hdfs.utils.MemoryFormat;
 import io.confluent.connect.hdfs.utils.MemoryRecordWriter;
 import io.confluent.connect.hdfs.utils.MemoryStorage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.format.*;
 
 import static org.junit.Assert.assertEquals;
 
@@ -115,7 +116,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     }
 
     String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    Map<String, RecordWriter> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
+    Map<String, io.confluent.connect.storage.format.RecordWriter> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
     MemoryRecordWriter writer = (MemoryRecordWriter) writers.get(encodedPartition);
     writer.setFailure(MemoryRecordWriter.Failure.writeFailure);
     hdfsWriter.write(sinkRecords);
@@ -183,7 +184,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     }
 
     String encodedPartition = "partition=" + String.valueOf(PARTITION);
-    Map<String, RecordWriter> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
+    Map<String, io.confluent.connect.storage.format.RecordWriter> writers = hdfsWriter.getWriters(TOPIC_PARTITION);
     MemoryRecordWriter writer = (MemoryRecordWriter) writers.get(encodedPartition);
 
     writer.setFailure(MemoryRecordWriter.Failure.writeFailure);

@@ -17,19 +17,17 @@ package io.confluent.connect.hdfs.avro;
 import org.apache.hadoop.fs.Path;
 
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.Format;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriterProvider;
-import io.confluent.connect.hdfs.SchemaFileReader;
-import io.confluent.connect.hdfs.hive.HiveMetaStore;
-import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.format.RecordWriterProvider;
+import io.confluent.connect.storage.format.SchemaFileReader;
 import io.confluent.connect.storage.hive.HiveFactory;
 
-public class AvroFormat implements Format,
-    io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
+public class AvroFormat
+    implements io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
   private final AvroData avroData;
 
+  // DO NOT change this signature, it is required for instantiation via reflection
   public AvroFormat(HdfsStorage storage) {
     this.avroData = new AvroData(
         storage.conf().getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
@@ -37,28 +35,13 @@ public class AvroFormat implements Format,
   }
 
   @Override
-  public RecordWriterProvider getRecordWriterProvider() {
+  public RecordWriterProvider<HdfsSinkConnectorConfig> getRecordWriterProvider() {
     return new AvroRecordWriterProvider(avroData);
   }
 
   @Override
-  public SchemaFileReader getSchemaFileReader() {
+  public SchemaFileReader<HdfsSinkConnectorConfig, Path> getSchemaFileReader() {
     return new AvroFileReader(avroData);
-  }
-
-  @Override
-  public SchemaFileReader getSchemaFileReader(AvroData avroData) {
-    // Argument is ignored.
-    return getSchemaFileReader();
-  }
-
-  @Deprecated
-  @Override
-  public HiveUtil getHiveUtil(
-      HdfsSinkConnectorConfig config,
-      HiveMetaStore hiveMetaStore
-  ) {
-    return (HiveUtil) getHiveFactory().createHiveUtil(config, hiveMetaStore);
   }
 
   @Override

@@ -34,8 +34,8 @@ import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.SchemaFileReader;
 
-public class AvroFileReader implements SchemaFileReader,
-    io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path> {
+public class AvroFileReader
+    implements io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path> {
   private AvroData avroData;
 
   public AvroFileReader(AvroData avroData) {
@@ -54,22 +54,6 @@ public class AvroFileReader implements SchemaFileReader,
     } catch (IOException e) {
       throw new DataException(e);
     }
-  }
-
-  public Collection<Object> readData(HdfsSinkConnectorConfig conf, Path path) {
-    ArrayList<Object> collection = new ArrayList<>();
-    try {
-      SeekableInput input = new FsInput(path, conf.getHadoopConfiguration());
-      DatumReader<Object> reader = new GenericDatumReader<>();
-      FileReader<Object> fileReader = DataFileReader.openReader(input, reader);
-      for (Object object : fileReader) {
-        collection.add(object);
-      }
-      fileReader.close();
-    } catch (IOException e) {
-      throw new DataException(e);
-    }
-    return collection;
   }
 
   public boolean hasNext() {
