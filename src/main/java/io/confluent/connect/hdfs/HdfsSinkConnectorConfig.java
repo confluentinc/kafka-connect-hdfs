@@ -296,11 +296,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return hadoopConfig;
   }
 
-  // Visible for testing.
-  public void setHadoopConfiguration(Configuration conf) {
-    hadoopConfig = conf;
-  }
-
   public Map<String, ?> plainValues() {
     Map<String, Object> map = new HashMap<>();
     for (AbstractConfig config : allConfigs) {
