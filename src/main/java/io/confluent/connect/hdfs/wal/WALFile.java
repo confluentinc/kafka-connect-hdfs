@@ -23,6 +23,8 @@ import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.Syncable;
@@ -39,6 +41,7 @@ import org.apache.hadoop.util.Time;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.rmi.server.UID;
 import java.security.MessageDigest;
@@ -63,7 +66,8 @@ public class WALFile {
 
   private WALFile() {}
 
-  public static Writer createWriter(Configuration conf, Writer.Option... opts) throws IOException {
+  public static Writer
+  createWriter(Configuration conf, Writer.Option... opts) throws IOException {
     return new Writer(conf, opts);
   }
 
@@ -208,20 +212,29 @@ public class WALFile {
         long blockSize = blockSizeOption == null ? fs.getDefaultBlockSize(p) :
                          blockSizeOption.getValue();
 
-        if (appendIfExistsOption != null && appendIfExistsOption.getValue()
-            && fs.exists(p)) {
-          // Read the file and verify header details
-          try (WALFile.Reader reader =
-                   new WALFile.Reader(conf, WALFile.Reader.file(p), new Reader.OnlyHeaderOption())){
-            if (reader.getVersion() != VERSION[3]) {
-              throw new VersionMismatchException(VERSION[3], reader.getVersion());
+        try {
+          out = fs.create(p, false, bufferSize, replication, blockSize);
+        } catch (FileAlreadyExistsException e) {
+          if (appendIfExistsOption != null && appendIfExistsOption.getValue() && fs.exists(p)) {
+            out = fs.append(p, bufferSize);
+            // Read the file and verify header details
+            try (WALFile.Reader reader = new WALFile.Reader(conf, WALFile.Reader.file(p), new Reader.OnlyHeaderOption())) {
+              if (reader.getVersion() != VERSION[3]) {
+                throw new VersionMismatchException(VERSION[3], reader.getVersion());
+              }
+              sync = reader.getSync();
+              this.appendMode = true;
+            } catch (EOFException eof) {
+              FileStatus status = fs.getFileStatus(p);
+              if (status.getLen() == 0) {
+                this.appendMode = false;
+              } else {
+                throw eof;
+              }
             }
-            sync = reader.getSync();
+          } else {
+            out = fs.create(p, true, bufferSize, replication, blockSize);
           }
-          out = fs.append(p, bufferSize);
-          this.appendMode = true;
-        } else {
-          out = fs.create(p, true, bufferSize, replication, blockSize);
         }
       } else {
         out = streamOption.getValue();
@@ -229,6 +242,7 @@ public class WALFile {
 
       init(conf, out, ownStream);
     }
+
 
     void init(Configuration conf, FSDataOutputStream out, boolean ownStream)
         throws IOException {

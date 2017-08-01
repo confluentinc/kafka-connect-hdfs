@@ -16,34 +16,51 @@
 
 package io.confluent.connect.hdfs.wal;
 
+import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.Test;
 
+import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.storage.Storage;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class FSWALTest extends TestWithMiniDFSCluster {
+
   @Test
   public void testTruncate() throws Exception {
     Storage storage = new HdfsStorage(conf, url);
     TopicPartition tp = new TopicPartition("mytopic", 123);
-    FSWAL wal = new FSWAL("/logs", tp, storage);
+    WAL wal = new FSWAL("/logs", tp, storage);
+
     wal.append("a", "b");
-    assertTrue("WAL file should exist after append",
-            storage.exists("/logs/mytopic/123/log"));
+    assertTrue("WAL file should exist after append", storage.exists("/logs/mytopic/123/log"));
+
     wal.truncate();
-    assertFalse("WAL file should not exist after truncate",
-            storage.exists("/logs/mytopic/123/log"));
-    assertTrue("Rotated WAL file should exist after truncate",
-            storage.exists("/logs/mytopic/123/log.1"));
+    assertFalse("WAL file should not exist after truncate", storage.exists("/logs/mytopic/123/log"));
+    assertTrue("Rotated WAL file should exist after truncate", storage.exists("/logs/mytopic/123/log.1"));
+
     wal.append("c", "d");
-    assertTrue("WAL file should be recreated after truncate + append",
-            storage.exists("/logs/mytopic/123/log"));
-    assertTrue("Rotated WAL file should exist after truncate + append",
-            storage.exists("/logs/mytopic/123/log.1"));
+    assertTrue("WAL file should be recreated after truncate + append", storage.exists("/logs/mytopic/123/log"));
+    assertTrue("Rotated WAL file should exist after truncate + append", storage.exists("/logs/mytopic/123/log.1"));
+  }
+
+  @Test
+  public void testEmptyWAL() throws Exception {
+    Storage storage = new HdfsStorage(conf, url);
+    TopicPartition tp = new TopicPartition("mytopic", 123);
+    String walFile = FileUtils.logFileName(url, "/logs", tp);
+    fs.createNewFile(new Path(walFile));
+    WAL wal = new FSWAL("/logs", tp, storage);
+    try {
+      wal.apply();
+    } catch (ConnectException e) {
+      fail("Empty WAL should be skipped.");
+    }
   }
 }
