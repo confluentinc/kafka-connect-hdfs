@@ -666,7 +666,11 @@ public class TopicPartitionWriter {
     Future<Void> future = executorService.submit(new Callable<Void>() {
       @Override
       public Void call() throws HiveMetaStoreException {
-        hive.createTable(hiveDatabase, tp.topic(), currentSchema, partitioner);
+        try {
+          hive.createTable(hiveDatabase, tp.topic(), currentSchema, partitioner);
+        } catch (Throwable e) {
+          log.error("Creating Hive table threw unexpected error", e);
+        }
         return null;
       }
     });
@@ -677,7 +681,11 @@ public class TopicPartitionWriter {
     Future<Void> future = executorService.submit(new Callable<Void>() {
       @Override
       public Void call() throws HiveMetaStoreException {
-        hive.alterSchema(hiveDatabase, tp.topic(), currentSchema);
+        try {
+          hive.alterSchema(hiveDatabase, tp.topic(), currentSchema);
+        } catch (Throwable e) {
+          log.error("Altering Hive schema threw unexpected error", e);
+        }
         return null;
       }
     });
@@ -688,7 +696,11 @@ public class TopicPartitionWriter {
     Future<Void> future = executorService.submit(new Callable<Void>() {
       @Override
       public Void call() throws Exception {
-        hiveMetaStore.addPartition(hiveDatabase, tp.topic(), location);
+        try {
+          hiveMetaStore.addPartition(hiveDatabase, tp.topic(), location);
+        } catch (Throwable e) {
+          log.error("Adding Hive partition threw unexpected error", e);
+        }
         return null;
       }
     });

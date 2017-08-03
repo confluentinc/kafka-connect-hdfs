@@ -64,10 +64,6 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
         PartitionerConfig.PARTITIONER_CLASS_CONFIG,
         DefaultPartitioner.class.getName()
     );
-    props.put(
-        PartitionerConfig.SCHEMA_GENERATOR_CLASS_CONFIG,
-        DefaultSchemaGenerator.class.getName()
-    );
     props.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
     props.put(
         PartitionerConfig.PARTITION_DURATION_MS_CONFIG,

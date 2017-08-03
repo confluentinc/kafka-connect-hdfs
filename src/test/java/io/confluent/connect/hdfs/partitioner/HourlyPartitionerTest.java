@@ -32,16 +32,6 @@ import static org.junit.Assert.assertEquals;
 public class HourlyPartitionerTest extends TestWithMiniDFSCluster {
   private static final long partitionDurationMs = TimeUnit.HOURS.toMillis(1);
 
-  @Override
-  protected Map<String, String> createProps() {
-    Map<String, String> props = super.createProps();
-    props.put(
-        PartitionerConfig.SCHEMA_GENERATOR_CLASS_CONFIG,
-        TimeBasedSchemaGenerator.class.getName()
-    );
-    return props;
-  }
-
   @Test
   public void testHourlyPartitioner() throws Exception {
     setUp();

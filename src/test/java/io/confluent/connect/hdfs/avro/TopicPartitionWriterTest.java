@@ -193,7 +193,6 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   public void testWriteRecordTimeBasedPartition() throws Exception {
     setUp();
     Partitioner partitioner = new TimeBasedPartitioner();
-    parsedConfig.put(PartitionerConfig.SCHEMA_GENERATOR_CLASS_CONFIG, TimeBasedSchemaGenerator.class);
     partitioner.configure(parsedConfig);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(

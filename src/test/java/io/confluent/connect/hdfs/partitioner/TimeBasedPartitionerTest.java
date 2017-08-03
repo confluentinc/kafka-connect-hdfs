@@ -34,16 +34,6 @@ public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
   private static final String timeZoneString = "America/Los_Angeles";
   private static final DateTimeZone DATE_TIME_ZONE = DateTimeZone.forID(timeZoneString);
 
-  @Override
-  protected Map<String, String> createProps() {
-    Map<String, String> props = super.createProps();
-    props.put(
-        PartitionerConfig.SCHEMA_GENERATOR_CLASS_CONFIG,
-        TimeBasedSchemaGenerator.class.getName()
-    );
-    return props;
-  }
-
   @Test
   public void testGeneratePartitionedPath() throws Exception {
     setUp();
