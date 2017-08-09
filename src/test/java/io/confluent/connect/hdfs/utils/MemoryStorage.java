@@ -16,25 +16,28 @@
 
 package io.confluent.connect.hdfs.utils;
 
+import org.apache.avro.file.SeekableInput;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 
-import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
 
-public class MemoryStorage implements Storage {
+public class MemoryStorage extends HdfsStorage {
 
   private static final Map<String, List<Object>> data = Data.getData();
-  private Configuration conf;
+  private HdfsSinkConnectorConfig conf;
   private String url;
   private Failure failure = Failure.noFailure;
 
@@ -49,13 +52,14 @@ public class MemoryStorage implements Storage {
     closeFailure
   }
 
-  public MemoryStorage(Configuration conf,  String url) {
+  public MemoryStorage(HdfsSinkConnectorConfig conf, String url) {
+    super(conf, url, null);
     this.conf = conf;
     this.url = url;
   }
 
   @Override
-  public FileStatus[] listStatus(String path) throws IOException {
+  public List<FileStatus> list(String path) {
     List<FileStatus> result = new ArrayList<>();
     for (String key: data.keySet()) {
       if (key.startsWith(path)) {
@@ -63,14 +67,13 @@ public class MemoryStorage implements Storage {
         result.add(status);
       }
     }
-    return result.toArray(new FileStatus[result.size()]);
+    return result;
   }
 
-  @Override
-  public FileStatus[] listStatus(String path, PathFilter filter) throws IOException {
+  public List<FileStatus> list(String path, PathFilter filter) {
     if (failure == Failure.listStatusFailure) {
       failure = Failure.noFailure;
-      throw new IOException("listStatus failed.");
+      throw new ConnectException("listStatus failed.");
     }
     List<FileStatus> result = new ArrayList<>();
     for (String key: data.keySet()) {
@@ -79,14 +82,13 @@ public class MemoryStorage implements Storage {
           result.add(status);
       }
     }
-    return result.toArray(new FileStatus[result.size()]);
+    return result;
   }
 
-  @Override
-  public void append(String filename, Object object) throws IOException {
+  public void append(String filename, Object object) {
     if (failure == Failure.appendFailure) {
       failure = Failure.noFailure;
-      throw new IOException("append failed.");
+      throw new ConnectException("append failed.");
     }
     if (!data.containsKey(filename)) {
       data.put(filename, new LinkedList<>());
@@ -95,28 +97,28 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public boolean mkdirs(String filename) throws IOException {
+  public boolean create(String filename) {
     if (failure == Failure.mkdirsFailure) {
       failure = Failure.noFailure;
-      throw new IOException("mkdirs failed.");
+      throw new ConnectException("mkdirs failed.");
     }
     return true;
   }
 
   @Override
-  public boolean exists(String filename) throws IOException {
+  public boolean exists(String filename) {
     if (failure == Failure.existsFailure) {
       failure = Failure.noFailure;
-      throw new IOException("exists failed.");
+      throw new ConnectException("exists failed.");
     }
     return data.containsKey(filename);
   }
 
   @Override
-  public void delete(String filename) throws IOException {
+  public void delete(String filename) {
     if (failure == Failure.deleteFailure) {
       failure = Failure.noFailure;
-      throw new IOException("delete failed.");
+      throw new ConnectException("delete failed.");
     }
     if (data.containsKey(filename)) {
       data.get(filename).clear();
@@ -125,10 +127,10 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public void commit(String tempFile, String committedFile) throws IOException {
+  public void commit(String tempFile, String committedFile) {
     if (failure == Failure.commitFailure) {
       failure = Failure.noFailure;
-      throw new IOException("commit failed.");
+      throw new ConnectException("commit failed.");
     }
     if (!data.containsKey(committedFile)) {
       List<Object> entryList = data.get(tempFile);
@@ -138,10 +140,10 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public void close() throws IOException {
+  public void close() {
     if (failure == Failure.closeFailure) {
       failure = Failure.noFailure;
-      throw new IOException("close failed.");
+      throw new ConnectException("close failed.");
     }
     data.clear();
   }
@@ -152,7 +154,7 @@ public class MemoryStorage implements Storage {
   }
 
   @Override
-  public Configuration conf() {
+  public HdfsSinkConnectorConfig conf() {
     return conf;
   }
 
@@ -163,5 +165,15 @@ public class MemoryStorage implements Storage {
 
   public void setFailure(Failure failure) {
     this.failure = failure;
+  }
+
+  @Override
+  public SeekableInput open(String filename, HdfsSinkConnectorConfig conf) {
+    return null;
+  }
+
+  @Override
+  public OutputStream create(String filename, HdfsSinkConnectorConfig conf, boolean overwrite) {
+    return null;
   }
 }

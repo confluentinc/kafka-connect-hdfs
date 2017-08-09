@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 
@@ -45,15 +46,15 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic + "/" + partition;
   }
 
-  public static String fileName(String url, String topicsDir, TopicPartition topicPart,
-                                String name) {
+  public static String fileName(
+      String url,
+      String topicsDir,
+      TopicPartition topicPart,
+      String name
+  ) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
     return url + "/" + topicsDir + "/" + topic + "/" + partition + "/" + name;
-  }
-
-  public static String hiveDirectoryName(String url, String topicsDir, String topic) {
-    return url + "/" + topicsDir + "/" + topic + "/";
   }
 
   public static String fileName(String url, String topicsDir, String directory, String name) {
@@ -64,16 +65,27 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + directory;
   }
 
-  public static String tempFileName(String url, String topicsDir, String directory,
-                                    String extension) {
+  public static String tempFileName(
+      String url,
+      String topicsDir,
+      String directory,
+      String extension
+  ) {
     UUID id = UUID.randomUUID();
     String name = id.toString() + "_" + "tmp" + extension;
     return fileName(url, topicsDir, directory, name);
   }
 
-  public static String committedFileName(String url, String topicsDir, String directory,
-                                         TopicPartition topicPart, long startOffset, long endOffset,
-                                         String extension, String zeroPadFormat) {
+  public static String committedFileName(
+      String url,
+      String topicsDir,
+      String directory,
+      TopicPartition topicPart,
+      long startOffset,
+      long endOffset,
+      String extension,
+      String zeroPadFormat
+  ) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
     StringBuilder sb = new StringBuilder();
@@ -93,13 +105,12 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic;
   }
 
-  private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter)
-      throws IOException {
+  private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter) {
     if (!storage.exists(path.toString())) {
       return new ArrayList<>();
     }
     ArrayList<FileStatus> result = new ArrayList<>();
-    FileStatus[] statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.list(path.toString());
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         result.addAll(traverseImpl(storage, status.getPath(), filter));
@@ -118,14 +129,13 @@ public class FileUtils {
     return result.toArray(new FileStatus[result.size()]);
   }
 
-  public static FileStatus fileStatusWithMaxOffset(Storage storage, Path path,
-                                                   CommittedFileFilter filter) throws IOException {
+  public static FileStatus fileStatusWithMaxOffset(Storage storage, Path path, CommittedFileFilter filter) {
     if (!storage.exists(path.toString())) {
       return null;
     }
     long maxOffset = -1L;
     FileStatus fileStatusWithMaxOffset = null;
-    FileStatus[] statuses = storage.listStatus(path.toString());
+    List<FileStatus> statuses = storage.list(path.toString());
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         FileStatus fileStatus = fileStatusWithMaxOffset(storage, status.getPath(), filter);
@@ -160,14 +170,13 @@ public class FileUtils {
     return Long.parseLong(m.group(HdfsSinkConnectorConstants.PATTERN_END_OFFSET_GROUP));
   }
 
-  private static ArrayList<FileStatus> getDirectoriesImpl(Storage storage, Path path)
-      throws IOException {
-    FileStatus[] statuses = storage.listStatus(path.toString());
+  private static ArrayList<FileStatus> getDirectoriesImpl(Storage storage, Path path) {
+    List<FileStatus> statuses = storage.list(path.toString());
     ArrayList<FileStatus> result = new ArrayList<>();
     for (FileStatus status : statuses) {
       if (status.isDirectory()) {
         int count = 0;
-        FileStatus[] fileStatuses = storage.listStatus(status.getPath().toString());
+        List<FileStatus> fileStatuses = storage.list(status.getPath().toString());
         for (FileStatus fileStatus : fileStatuses) {
           if (fileStatus.isDirectory()) {
             result.addAll(getDirectoriesImpl(storage, fileStatus.getPath()));
@@ -175,7 +184,7 @@ public class FileUtils {
             count++;
           }
         }
-        if (count == fileStatuses.length) {
+        if (count == fileStatuses.size()) {
           result.add(status);
         }
       }

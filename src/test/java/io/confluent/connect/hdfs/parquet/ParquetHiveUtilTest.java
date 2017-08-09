@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,28 +42,28 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 import static org.junit.Assert.assertEquals;
 
 public class ParquetHiveUtilTest extends HiveTestBase {
-
   private HiveUtil hive;
+  private Map<String, String> localProps = new HashMap<>();
 
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, ParquetFormat.class.getName());
+    props.putAll(localProps);
     return props;
   }
 
-  @Before
+  //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     super.setUp();
-    Map<String, String> props = createProps();
-    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
-    hive = new ParquetHiveUtil(connectorConfig, avroData, hiveMetaStore);
+    hive = new ParquetHiveUtil(connectorConfig, hiveMetaStore);
   }
 
   @Test
   public void testCreateTable() throws Exception {
+    setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
@@ -88,7 +89,10 @@ public class ParquetHiveUtilTest extends HiveTestBase {
     assertEquals(1, partitionCols.size());
     assertEquals("partition", partitionCols.get(0).getName());
 
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * from " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * from " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
@@ -103,8 +107,9 @@ public class ParquetHiveUtilTest extends HiveTestBase {
 
   @Test
   public void testAlterSchema() throws Exception {
+    setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 
@@ -130,7 +135,10 @@ public class ParquetHiveUtilTest extends HiveTestBase {
 
     hive.alterSchema(hiveDatabase, TOPIC, newSchema);
 
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * from " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * from " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
@@ -143,7 +151,7 @@ public class ParquetHiveUtilTest extends HiveTestBase {
     }
   }
 
-  private void prepareData(String topic, int partition) throws Exception {
+  private void prepareData(String topic, int partition) {
     TopicPartition tp = new TopicPartition(topic, partition);
     DataWriter hdfsWriter = createWriter(context, avroData);
     hdfsWriter.recover(tp);
@@ -158,13 +166,11 @@ public class ParquetHiveUtilTest extends HiveTestBase {
       sinkRecords.add(sinkRecord);
     }
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 
   private DataWriter createWriter(SinkTaskContext context, AvroData avroData) {
-    Map<String, String> props = createProps();
-    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
     return new DataWriter(connectorConfig, context, avroData);
   }
 }

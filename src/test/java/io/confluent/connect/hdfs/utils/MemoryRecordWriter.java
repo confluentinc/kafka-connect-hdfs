@@ -14,15 +14,15 @@
 
 package io.confluent.connect.hdfs.utils;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import io.confluent.connect.hdfs.RecordWriter;
 
-public class MemoryRecordWriter implements RecordWriter<SinkRecord> {
+public class MemoryRecordWriter implements io.confluent.connect.storage.format.RecordWriter {
   private String filename;
   private static final Map<String, List<Object>> data = Data.getData();
   private Failure failure = Failure.noFailure;
@@ -38,20 +38,23 @@ public class MemoryRecordWriter implements RecordWriter<SinkRecord> {
   }
 
   @Override
-  public void write(SinkRecord record) throws IOException {
+  public void write(SinkRecord record) {
     if (failure == Failure.writeFailure) {
       failure = Failure.noFailure;
-      throw new IOException("write failed.");
+      throw new ConnectException("write failed.");
     }
     data.get(filename).add(record);
 
   }
 
   @Override
-  public void close() throws IOException {
+  public void commit() {}
+
+  @Override
+  public void close() {
     if (failure == Failure.closeFailure) {
       failure = Failure.noFailure;
-      throw new IOException("close failed.");
+      throw new ConnectException("close failed.");
     }
   }
 

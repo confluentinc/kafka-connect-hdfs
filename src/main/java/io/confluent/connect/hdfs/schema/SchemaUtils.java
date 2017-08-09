@@ -19,6 +19,7 @@ import org.apache.kafka.connect.data.SchemaProjector;
 import org.apache.kafka.connect.errors.SchemaProjectorException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
+@Deprecated
 public class SchemaUtils {
 
   public static Compatibility getCompatibility(String compatibilityString) {

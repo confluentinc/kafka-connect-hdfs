@@ -22,11 +22,12 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.DataWriter;
@@ -38,10 +39,17 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 import static org.junit.Assert.assertEquals;
 
 public class AvroHiveUtilTest extends HiveTestBase {
-
   private HiveUtil hive;
+  private Map<String, String> localProps = new HashMap<>();
 
-  @Before
+  @Override
+  protected Map<String, String> createProps() {
+    Map<String, String> props = super.createProps();
+    props.putAll(localProps);
+    return props;
+  }
+
+  //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     super.setUp();
     hive = new AvroHiveUtil(connectorConfig, avroData, hiveMetaStore);
@@ -49,8 +57,9 @@ public class AvroHiveUtilTest extends HiveTestBase {
 
   @Test
   public void testCreateTable() throws Exception {
+    setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
@@ -76,7 +85,10 @@ public class AvroHiveUtilTest extends HiveTestBase {
     assertEquals(1, partitionCols.size());
     assertEquals("partition", partitionCols.get(0).getName());
 
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * FROM " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
@@ -91,8 +103,9 @@ public class AvroHiveUtilTest extends HiveTestBase {
 
   @Test
   public void testAlterSchema() throws Exception {
+    setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 
@@ -119,7 +132,10 @@ public class AvroHiveUtilTest extends HiveTestBase {
 
     hive.alterSchema(hiveDatabase, TOPIC, newSchema);
 
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * from " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * from " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
@@ -140,7 +156,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 

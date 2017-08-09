@@ -16,25 +16,12 @@
 
 package io.confluent.connect.hdfs.storage;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.PathFilter;
-import org.apache.kafka.common.TopicPartition;
 
-import java.io.IOException;
+import java.util.List;
 
-import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 
-public interface Storage {
-  boolean exists(String filename) throws IOException;
-  boolean mkdirs(String filename) throws IOException;
-  void append(String filename, Object object) throws IOException;
-  void delete(String filename) throws IOException;
-  void commit(String tempFile, String committedFile) throws IOException;
-  void close() throws IOException;
-  WAL wal(String topicsDir, TopicPartition topicPart);
-  FileStatus[] listStatus(String path, PathFilter filter) throws IOException;
-  FileStatus[] listStatus(String path) throws IOException;
-  String url();
-  Configuration conf();
-}
+@Deprecated
+public interface Storage
+    extends io.confluent.connect.storage.Storage<HdfsSinkConnectorConfig, List<FileStatus>> {}

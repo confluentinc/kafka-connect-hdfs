@@ -15,35 +15,9 @@
 package io.confluent.connect.hdfs.partitioner;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.apache.kafka.connect.sink.SinkRecord;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
-public class DefaultPartitioner implements Partitioner {
-
-  private static final String partitionField = "partition";
-  private final List<FieldSchema> partitionFields =  new ArrayList<>();;
-
-  @Override
-  public void configure(Map<String, Object> config) {
-    partitionFields.add(new FieldSchema(partitionField, TypeInfoFactory.stringTypeInfo.toString(), ""));
-  }
-
-  @Override
-  public String encodePartition(SinkRecord sinkRecord) {
-    return partitionField + "=" + String.valueOf(sinkRecord.kafkaPartition());
-  }
-
-  @Override
-  public String generatePartitionedPath(String topic, String encodedPartition) {
-    return topic + "/" + encodedPartition;
-  }
-
-  @Override
-  public List<FieldSchema> partitionFields() {
-    return partitionFields;
-  }
+@Deprecated
+public class DefaultPartitioner
+    extends io.confluent.connect.storage.partitioner.DefaultPartitioner<FieldSchema>
+    implements Partitioner {
 }

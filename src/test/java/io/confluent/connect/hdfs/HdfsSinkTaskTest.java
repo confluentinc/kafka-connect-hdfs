@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs;
 
-import io.confluent.kafka.serializers.NonRecordContainer;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -30,10 +29,12 @@ import java.util.List;
 import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.avro.AvroDataFileReader;
 import io.confluent.connect.hdfs.avro.AvroFileReader;
-import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.storage.StorageFactory;
-import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.StorageFactory;
+import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.wal.WAL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -44,17 +45,16 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   private static final String DIRECTORY2 = TOPIC + "/" + "partition=" + String.valueOf(PARTITION2);
   private static final String extension = ".avro";
   private static final String ZERO_PAD_FMT = "%010d";
-  private final SchemaFileReader schemaFileReader = new AvroFileReader(avroData);
+  private final DataFileReader schemaFileReader = new AvroDataFileReader();
 
   @Test
   public void testSinkTaskStart() throws Exception {
+    setUp();
     createCommittedFiles();
-
-    Map<String, String> props = createProps();
     HdfsSinkTask task = new HdfsSinkTask();
 
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
 
     Map<TopicPartition, Long> offsets = context.offsets();
     assertEquals(offsets.size(), 2);
@@ -68,11 +68,11 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskStartNoCommittedFiles() throws Exception {
-    Map<String, String> props = createProps();
+    setUp();
     HdfsSinkTask task = new HdfsSinkTask();
 
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
 
     // Even without any files in HDFS, we expect an explicit request to start from the beginning of the topic (which
     // either exists at offset 0, or offset 0 will be out of range and the consumer will reset to the smallest offset).
@@ -88,6 +88,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskStartWithRecovery() throws Exception {
+    setUp();
     Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
     List<String> list1 = new ArrayList<>();
     list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
@@ -119,13 +120,12 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
         fs.createNewFile(new Path(file));
       }
     }
-    createWALs(tempfiles, committedFiles);
 
-    Map<String, String> props = createProps();
+    createWALs(tempfiles, committedFiles);
     HdfsSinkTask task = new HdfsSinkTask();
 
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
 
     Map<TopicPartition, Long> offsets = context.offsets();
     assertEquals(2, offsets.size());
@@ -139,14 +139,14 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskPut() throws Exception {
-    Map<String, String> props = createProps();
+    setUp();
     HdfsSinkTask task = new HdfsSinkTask();
 
     String key = "key";
     Schema schema = createSchema();
     Struct record = createRecord(schema);
     Collection<SinkRecord> sinkRecords = new ArrayList<>();
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : context.assignment()) {
       for (long offset = 0; offset < 7; offset++) {
         SinkRecord sinkRecord =
             new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record, offset);
@@ -154,7 +154,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       }
     }
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
     task.put(sinkRecords);
     task.stop();
 
@@ -162,7 +162,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {-1, 2, 5};
 
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : context.assignment()) {
       String directory = tp.topic() + "/" + "partition=" + String.valueOf(tp.partition());
       for (int j = 1; j < validOffsets.length; ++j) {
         long startOffset = validOffsets[j - 1] + 1;
@@ -170,7 +170,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                                                          startOffset, endOffset, extension,
                                                          ZERO_PAD_FMT));
-        Collection<Object> records = schemaFileReader.readData(conf, path);
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
         long size = endOffset - startOffset + 1;
         assertEquals(records.size(), size);
         for (Object avroRecord : records) {
@@ -182,14 +182,14 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testSinkTaskPutPrimitive() throws Exception {
-    Map<String, String> props = createProps();
+    setUp();
     HdfsSinkTask task = new HdfsSinkTask();
 
     final String key = "key";
     final Schema schema = Schema.INT32_SCHEMA;
     final int record = 12;
     Collection<SinkRecord> sinkRecords = new ArrayList<>();
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : context.assignment()) {
       for (long offset = 0; offset < 7; offset++) {
         SinkRecord sinkRecord =
                 new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record, offset);
@@ -197,15 +197,14 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       }
     }
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
     task.put(sinkRecords);
     task.stop();
 
-    AvroData avroData = task.getAvroData();
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {-1, 2, 5};
 
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : context.assignment()) {
       String directory = tp.topic() + "/" + "partition=" + String.valueOf(tp.partition());
       for (int j = 1; j < validOffsets.length; ++j) {
         long startOffset = validOffsets[j - 1] + 1;
@@ -213,7 +212,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                 startOffset, endOffset, extension,
                 ZERO_PAD_FMT));
-        Collection<Object> records = schemaFileReader.readData(conf, path);
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
         long size = endOffset - startOffset + 1;
         assertEquals(records.size(), size);
         for (Object avroRecord : records) {
@@ -241,9 +240,14 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   private void createWALs(Map<TopicPartition, List<String>> tempfiles,
                           Map<TopicPartition, List<String>> committedFiles) throws Exception {
     @SuppressWarnings("unchecked")
-    Class<? extends Storage> storageClass = (Class<? extends Storage>)
-        Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-    Storage storage = StorageFactory.createStorage(storageClass, conf, url);
+    Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>)
+        connectorConfig.getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
+    HdfsStorage storage = StorageFactory.createStorage(
+        storageClass,
+        HdfsSinkConnectorConfig.class,
+        connectorConfig,
+        url
+    );
 
     for (TopicPartition tp: tempfiles.keySet()) {
       WAL wal = storage.wal(logsDir, tp);
