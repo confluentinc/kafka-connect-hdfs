@@ -35,14 +35,18 @@ import io.confluent.connect.storage.hive.HiveSchemaConverter;
 public class AvroHiveUtil extends HiveUtil {
 
   private static final String AVRO_SERDE = "org.apache.hadoop.hive.serde2.avro.AvroSerDe";
-  private static final String AVRO_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat";
-  private static final String AVRO_OUTPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat";
+  private static final String AVRO_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro"
+      + ".AvroContainerInputFormat";
+  private static final String AVRO_OUTPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro"
+      + ".AvroContainerOutputFormat";
   private static final String AVRO_SCHEMA_LITERAL = "avro.schema.literal";
   private final AvroData avroData;
   private final String topicsDir;
 
-  public AvroHiveUtil(HdfsSinkConnectorConfig conf, AvroData avroData, HiveMetaStore
-      hiveMetaStore) {
+  public AvroHiveUtil(
+      HdfsSinkConnectorConfig conf, AvroData avroData, HiveMetaStore
+      hiveMetaStore
+  ) {
     super(conf, hiveMetaStore);
     this.avroData = avroData;
     this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
@@ -56,13 +60,22 @@ public class AvroHiveUtil extends HiveUtil {
   }
 
   @Override
-  public void alterSchema(String database, String tableName, Schema schema) throws HiveMetaStoreException {
+  public void alterSchema(
+      String database,
+      String tableName,
+      Schema schema
+  ) throws HiveMetaStoreException {
     Table table = hiveMetaStore.getTable(database, tableName);
     table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
     hiveMetaStore.alterTable(table);
   }
 
-  private Table constructAvroTable(String database, String tableName, Schema schema, Partitioner partitioner)
+  private Table constructAvroTable(
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
+  )
       throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);

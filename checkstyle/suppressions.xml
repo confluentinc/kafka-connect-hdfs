@@ -24,12 +24,17 @@
 
     <suppress
             checks="CyclomaticComplexity"
-            files="(HdfsSinkConnectorConfig|TopicPartitionWriter|WALFile).java"
+            files="(DataWriter|HdfsSinkConnectorConfig|TopicPartitionWriter|WALFile).java"
     />
 
     <suppress
             checks="JavaNCSS"
             files="(DataWriter|TopicPartitionWriter).java"
+    />
+
+    <suppress
+            checks="MethodLength"
+            files="(DataWriter).java"
     />
 
     <suppress
@@ -40,13 +45,12 @@
     <suppress
             checks="ParameterNumber"
             files="(TopicPartitionWriter).java"
-            lines="129"
+            lines="138"
     />
 
     <suppress
             checks="FallThrough"
             files="(TopicPartitionWriter).java"
-            lines="229,232,235,238,299,344,348,351,354"
     />
 
     <suppress

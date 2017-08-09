@@ -87,6 +87,20 @@ public class HdfsStorage
     }
   }
 
+  public OutputStream create(String filename, boolean overwrite) {
+    return create(filename, this.conf, overwrite);
+  }
+
+  @Override
+  public OutputStream create(String filename, HdfsSinkConnectorConfig conf, boolean overwrite) {
+    try {
+      Path path = new Path(filename);
+      return path.getFileSystem(conf.getHadoopConfiguration()).create(path);
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
+  }
+
   @Override
   public boolean exists(String filename) {
     try {
@@ -153,20 +167,6 @@ public class HdfsStorage
   public SeekableInput open(String filename, HdfsSinkConnectorConfig conf) {
     try {
       return new FsInput(new Path(filename), conf.getHadoopConfiguration());
-    } catch (IOException e) {
-      throw new ConnectException(e);
-    }
-  }
-
-  public OutputStream create(String filename, boolean overwrite) {
-    return create(filename, this.conf, overwrite);
-  }
-
-  @Override
-  public OutputStream create(String filename, HdfsSinkConnectorConfig conf, boolean overwrite) {
-    try {
-      Path path = new Path(filename);
-      return path.getFileSystem(conf.getHadoopConfiguration()).create(path);
     } catch (IOException e) {
       throw new ConnectException(e);
     }

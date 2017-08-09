@@ -25,6 +25,7 @@ import io.confluent.connect.avro.AvroData;
 @Deprecated
 public interface RecordWriterProvider {
   String getExtension();
+
   RecordWriter<SinkRecord> getRecordWriter(
       Configuration conf,
       String fileName,

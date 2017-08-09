@@ -34,7 +34,7 @@ import io.confluent.kafka.serializers.NonRecordContainer;
 public class AvroRecordWriterProvider
     implements io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(AvroRecordWriterProvider.class);
-  private final static String EXTENSION = ".avro";
+  private static final String EXTENSION = ".avro";
   private final AvroData avroData;
 
   AvroRecordWriterProvider(AvroData avroData) {
@@ -74,19 +74,17 @@ public class AvroRecordWriterProvider
         log.trace("Sink record: {}", record.toString());
         Object value = avroData.fromConnectData(schema, record.value());
         try {
-          // AvroData wraps primitive types so their schema can be included. We need to unwrap NonRecordContainers to just
-          // their value to properly handle these types
-          if (value instanceof NonRecordContainer)
+          // AvroData wraps primitive types so their schema can be included. We need to unwrap
+          // NonRecordContainers to just their value to properly handle these types
+          if (value instanceof NonRecordContainer) {
             writer.append(((NonRecordContainer) value).getValue());
-          else
+          } else {
             writer.append(value);
+          }
         } catch (IOException e) {
           throw new DataException(e);
         }
       }
-
-      @Override
-      public void commit() {}
 
       @Override
       public void close() {
@@ -96,6 +94,9 @@ public class AvroRecordWriterProvider
           throw new DataException(e);
         }
       }
+
+      @Override
+      public void commit() {}
     };
   }
 }

@@ -1,17 +1,15 @@
 /**
  * Copyright 2015 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  **/
 
 package io.confluent.connect.hdfs;
@@ -46,6 +44,10 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic + "/" + partition;
   }
 
+  public static String directoryName(String url, String topicsDir, String directory) {
+    return url + "/" + topicsDir + "/" + directory;
+  }
+
   public static String fileName(
       String url,
       String topicsDir,
@@ -59,10 +61,6 @@ public class FileUtils {
 
   public static String fileName(String url, String topicsDir, String directory, String name) {
     return url + "/" + topicsDir + "/" + directory + "/" + name;
-  }
-
-  public static String directoryName(String url, String topicsDir, String directory) {
-    return url + "/" + topicsDir + "/" + directory;
   }
 
   public static String tempFileName(
@@ -105,31 +103,11 @@ public class FileUtils {
     return url + "/" + topicsDir + "/" + topic;
   }
 
-  private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter) {
-    if (!storage.exists(path.toString())) {
-      return new ArrayList<>();
-    }
-    ArrayList<FileStatus> result = new ArrayList<>();
-    List<FileStatus> statuses = storage.list(path.toString());
-    for (FileStatus status : statuses) {
-      if (status.isDirectory()) {
-        result.addAll(traverseImpl(storage, status.getPath(), filter));
-      } else {
-        if (filter.accept(status.getPath())) {
-          result.add(status);
-        }
-      }
-    }
-    return result;
-  }
-
-  public static FileStatus[] traverse(Storage storage, Path path, PathFilter filter)
-      throws IOException {
-    ArrayList<FileStatus> result = traverseImpl(storage, path, filter);
-    return result.toArray(new FileStatus[result.size()]);
-  }
-
-  public static FileStatus fileStatusWithMaxOffset(Storage storage, Path path, CommittedFileFilter filter) {
+  public static FileStatus fileStatusWithMaxOffset(
+      Storage storage,
+      Path path,
+      CommittedFileFilter filter
+  ) {
     if (!storage.exists(path.toString())) {
       return null;
     }
@@ -197,6 +175,24 @@ public class FileUtils {
     return result.toArray(new FileStatus[result.size()]);
   }
 
+  private static ArrayList<FileStatus> traverseImpl(Storage storage, Path path, PathFilter filter) {
+    if (!storage.exists(path.toString())) {
+      return new ArrayList<>();
+    }
+    ArrayList<FileStatus> result = new ArrayList<>();
+    List<FileStatus> statuses = storage.list(path.toString());
+    for (FileStatus status : statuses) {
+      if (status.isDirectory()) {
+        result.addAll(traverseImpl(storage, status.getPath(), filter));
+      } else {
+        if (filter.accept(status.getPath())) {
+          result.add(status);
+        }
+      }
+    }
+    return result;
+  }
+
   private static ArrayList<FileStatus> traverseImpl(FileSystem fs, Path path) throws IOException {
     if (!fs.exists(path)) {
       return new ArrayList<>();
@@ -211,6 +207,12 @@ public class FileUtils {
       }
     }
     return result;
+  }
+
+  public static FileStatus[] traverse(Storage storage, Path path, PathFilter filter)
+      throws IOException {
+    ArrayList<FileStatus> result = traverseImpl(storage, path, filter);
+    return result.toArray(new FileStatus[result.size()]);
   }
 
   public static FileStatus[] traverse(FileSystem fs, Path path) throws IOException {
