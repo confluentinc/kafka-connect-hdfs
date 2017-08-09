@@ -29,7 +29,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
+import io.confluent.connect.hdfs.avro.AvroFormat;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.ComposableConfig;
 import io.confluent.connect.storage.common.StorageCommonConfig;
@@ -50,53 +54,56 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   public static final String HADOOP_CONF_DIR_CONFIG = "hadoop.conf.dir";
   public static final String HADOOP_CONF_DIR_DEFAULT = "";
+  private static final String HADOOP_CONF_DIR_DOC = "The Hadoop configuration directory.";
+  private static final String HADOOP_CONF_DIR_DISPLAY = "Hadoop Configuration Directory";
+
   public static final String HADOOP_HOME_CONFIG = "hadoop.home";
   public static final String HADOOP_HOME_DEFAULT = "";
+  private static final String HADOOP_HOME_DOC = "The Hadoop home directory.";
+  private static final String HADOOP_HOME_DISPLAY = "Hadoop home directory";
+
   public static final String LOGS_DIR_CONFIG = "logs.dir";
   public static final String LOGS_DIR_DOC =
       "Top level directory to store the write ahead logs.";
   public static final String LOGS_DIR_DEFAULT = "logs";
   public static final String LOGS_DIR_DISPLAY = "Logs directory";
+
   // Security group
   public static final String HDFS_AUTHENTICATION_KERBEROS_CONFIG = "hdfs.authentication.kerberos";
-  public static final String CONNECT_HDFS_PRINCIPAL_CONFIG = "connect.hdfs.principal";
-  public static final String CONNECT_HDFS_PRINCIPAL_DEFAULT = "";
-  public static final String CONNECT_HDFS_KEYTAB_CONFIG = "connect.hdfs.keytab";
-  public static final String CONNECT_HDFS_KEYTAB_DEFAULT = "";
-  public static final String HDFS_NAMENODE_PRINCIPAL_CONFIG = "hdfs.namenode.principal";
-  public static final String HDFS_NAMENODE_PRINCIPAL_DEFAULT = "";
-  public static final String KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG = "kerberos.ticket.renew"
-      + ".period.ms";
-  public static final long KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT = 60000 * 60;
-  // Need to just set the default
-  public static final String STORAGE_CLASS_DEFAULT = "io.confluent.connect.hdfs.storage"
-      + ".HdfsStorage";
-  private static final String HADOOP_CONF_DIR_DOC =
-      "The Hadoop configuration directory.";
-  private static final String HADOOP_CONF_DIR_DISPLAY = "Hadoop Configuration Directory";
-  private static final String HADOOP_HOME_DOC =
-      "The Hadoop home directory.";
-  private static final String HADOOP_HOME_DISPLAY = "Hadoop home directory";
   private static final String HDFS_AUTHENTICATION_KERBEROS_DOC =
       "Configuration indicating whether HDFS is using Kerberos for authentication.";
   private static final boolean HDFS_AUTHENTICATION_KERBEROS_DEFAULT = false;
   private static final String HDFS_AUTHENTICATION_KERBEROS_DISPLAY = "HDFS Authentication Kerberos";
+
+  public static final String CONNECT_HDFS_PRINCIPAL_CONFIG = "connect.hdfs.principal";
+  public static final String CONNECT_HDFS_PRINCIPAL_DEFAULT = "";
   private static final String CONNECT_HDFS_PRINCIPAL_DOC =
       "The principal to use when HDFS is using Kerberos to for authentication.";
   private static final String CONNECT_HDFS_PRINCIPAL_DISPLAY = "Connect Kerberos Principal";
+
+  public static final String CONNECT_HDFS_KEYTAB_CONFIG = "connect.hdfs.keytab";
+  public static final String CONNECT_HDFS_KEYTAB_DEFAULT = "";
   private static final String CONNECT_HDFS_KEYTAB_DOC =
       "The path to the keytab file for the HDFS connector principal. "
           + "This keytab file should only be readable by the connector user.";
   private static final String CONNECT_HDFS_KEYTAB_DISPLAY = "Connect Kerberos Keytab";
+
+  public static final String HDFS_NAMENODE_PRINCIPAL_CONFIG = "hdfs.namenode.principal";
+  public static final String HDFS_NAMENODE_PRINCIPAL_DEFAULT = "";
   private static final String HDFS_NAMENODE_PRINCIPAL_DOC = "The principal for HDFS Namenode.";
   private static final String HDFS_NAMENODE_PRINCIPAL_DISPLAY = "HDFS NameNode Kerberos Principal";
+
+  public static final String KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG =
+      "kerberos.ticket.renew.period.ms";
+  public static final long KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT = 60000 * 60;
   private static final String KERBEROS_TICKET_RENEW_PERIOD_MS_DOC =
       "The period in milliseconds to renew the Kerberos ticket.";
   private static final String KERBEROS_TICKET_RENEW_PERIOD_MS_DISPLAY = "Kerberos Ticket Renew "
       + "Period (ms)";
+
   private static final ConfigDef.Recommender hdfsAuthenticationKerberosDependentsRecommender =
       new BooleanParentRecommender(
-      HDFS_AUTHENTICATION_KERBEROS_CONFIG);
+          HDFS_AUTHENTICATION_KERBEROS_CONFIG);
 
   static {
     // Define HDFS configuration group
@@ -236,7 +243,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
   private final PartitionerConfig partitionerConfig;
-
   private final Map<String, ComposableConfig> propertyToConfig = new HashMap<>();
   private final Set<AbstractConfig> allConfigs = new HashSet<>();
   private Configuration hadoopConfig;
@@ -258,28 +264,23 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     addToGlobal(this);
   }
 
-  protected static String parseName(Map<String, String> props) {
-    String nameProp = props.get("name");
-    return nameProp != null ? nameProp : "S3-sink";
+  public static HdfsSinkConnectorConfig getConfig(Map<String, String> props) {
+    return getConfig(CONFIG_DEF, props);
   }
 
-  public static ConfigDef getConfig() {
-    Map<String, ConfigDef.ConfigKey> everything = new HashMap<>(CONFIG_DEF.configKeys());
-    everything.putAll(StorageCommonConfig.getConfig().configKeys());
-    everything.putAll(PartitionerConfig.getConfig().configKeys());
+  protected static HdfsSinkConnectorConfig getConfig(
+      ConfigDef configDef,
+      Map<String, String> props
+  ) {
+    ConcurrentMap<String, String> propsCopy = new ConcurrentHashMap<>(props);
+    propsCopy.putIfAbsent(StorageCommonConfig.STORAGE_CLASS_CONFIG, HdfsStorage.class.getName());
+    propsCopy.putIfAbsent(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
+    return new HdfsSinkConnectorConfig(configDef, propsCopy);
+  }
 
-    Set<String> blacklist = new HashSet<>();
-    blacklist.add(StorageSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
-    blacklist.add(StorageSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
-    blacklist.add(StorageSinkConnectorConfig.SHUTDOWN_TIMEOUT_CONFIG);
-
-    ConfigDef visible = new ConfigDef();
-    for (ConfigDef.ConfigKey key : everything.values()) {
-      if (!blacklist.contains(key.name)) {
-        visible.define(key);
-      }
-    }
-    return visible;
+  protected static String parseName(Map<String, String> props) {
+    String nameProp = props.get("name");
+    return nameProp != null ? nameProp : "HDFS-sink";
   }
 
   private void addToGlobal(AbstractConfig config) {
