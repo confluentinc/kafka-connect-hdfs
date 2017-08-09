@@ -30,6 +30,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.storage.hive.HiveConfig;
 
 public class HiveExec {
 
@@ -44,7 +45,7 @@ public class HiveExec {
    */
   public HiveExec(HdfsSinkConnectorConfig config) {
     hiveConf = new HiveConf();
-    String hiveConfDir = config.getString(HdfsSinkConnectorConfig.HIVE_CONF_DIR_CONFIG);
+    String hiveConfDir = config.getString(HiveConfig.HIVE_CONF_DIR_CONFIG);
     hiveConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
     SessionState.start(new CliSessionState(hiveConf));
     cliDriver = new CliDriver();
@@ -70,7 +71,7 @@ public class HiveExec {
   }
 
 
-  private String[] getHiveArgs(String... args) throws IOException {
+  private String[] getHiveArgs(String... args) {
     List<String> newArgs = new LinkedList<>();
     newArgs.addAll(Arrays.asList(args));
     if (hiveConf.getBoolean(HIVE_SASL_ENABLED, false)) {

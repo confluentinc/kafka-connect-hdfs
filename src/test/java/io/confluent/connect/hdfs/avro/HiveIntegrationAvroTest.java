@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -38,20 +39,30 @@ import io.confluent.connect.hdfs.hive.HiveTestUtils;
 import io.confluent.connect.hdfs.partitioner.DailyPartitioner;
 import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
 import io.confluent.connect.hdfs.partitioner.TimeUtils;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.junit.Assert.assertEquals;
 
 public class HiveIntegrationAvroTest extends HiveTestBase {
+  private Map<String, String> localProps = new HashMap<>();
 
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
     props.put(HdfsSinkConnectorConfig.SHUTDOWN_TIMEOUT_CONFIG, "10000");
+    props.putAll(localProps);
     return props;
+  }
+
+  //@Before should be omitted in order to be able to add properties per test.
+  public void setUp() throws Exception {
+    super.setUp();
   }
 
   @Test
   public void testSyncWithHiveAvro() throws Exception {
+    setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_PARTITION);
 
@@ -67,11 +78,11 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
+    props.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
 
     hdfsWriter = new DataWriter(config, context, avroData);
@@ -97,17 +108,15 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     assertEquals(expectedPartitions, partitions);
 
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 
   @Test
   public void testHiveIntegrationAvro() throws Exception {
-    Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
-
-    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    setUp();
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_PARTITION);
 
     String key = "key";
@@ -123,7 +132,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
@@ -149,13 +158,11 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationTopicWithDotsAvro() throws Exception {
-    assignment.add(TOPIC_WITH_DOTS_PARTITION);
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    setUp();
+    context.assignment().add(TOPIC_WITH_DOTS_PARTITION);
 
-    Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
-
-    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_WITH_DOTS_PARTITION);
 
     String key = "key";
@@ -171,7 +178,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC_WITH_DOTS);
@@ -197,13 +204,12 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationFieldPartitionerAvro() throws Exception {
-    Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    props.put(HdfsSinkConnectorConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
-    props.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
+    localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
+    setUp();
 
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
-    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
 
     String key = "key";
     Schema schema = createSchema();
@@ -221,7 +227,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
@@ -238,7 +244,9 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     assertEquals(expectedColumnNames, actualColumnNames);
 
 
-    String partitionFieldName = config.getString(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG);
+    String partitionFieldName = connectorConfig.getString(
+        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
+    );
     String directory1 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(16);
     String directory2 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(17);
     String directory3 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(18);
@@ -259,7 +267,10 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
         expectedResult.add(part);
       }
     }
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * FROM " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
     for (int i = 0; i < rows.length; ++i) {
@@ -272,14 +283,10 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationTimeBasedPartitionerAvro() throws Exception {
-    Map<String, String> props = createProps();
-    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
-    props.put(HdfsSinkConnectorConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
-    props.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
-    props.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, "en");
-
-    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
-    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
+    setUp();
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
 
     String key = "key";
     Schema schema = createSchema();
@@ -289,15 +296,22 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     long offset = 0;
     for (Struct record : records) {
       for (long count = 0; count < 3; count++) {
-        SinkRecord sinkRecord = new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record,
-                                               offset + count);
+        SinkRecord sinkRecord = new SinkRecord(
+            TOPIC,
+            PARTITION,
+            Schema.STRING_SCHEMA,
+            key,
+            schema,
+            record,
+            offset + count
+        );
         sinkRecords.add(sinkRecord);
       }
       offset = offset + 3;
     }
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
@@ -339,7 +353,10 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
       }
     }
 
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * FROM " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
     for (int i = 0; i < rows.length; ++i) {

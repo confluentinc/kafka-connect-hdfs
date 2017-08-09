@@ -14,33 +14,45 @@
 
 package io.confluent.connect.hdfs.hive;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Schema;
 
-import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
-public abstract class HiveUtil {
+// NOTE: DO NOT add or modify this class as it is maintained for compatibility
+@Deprecated
+public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUtil {
 
-  protected final String url;
-  protected final String topicsDir;
-  protected final AvroData avroData;
-  protected final HiveMetaStore hiveMetaStore;
+  public HiveUtil(HdfsSinkConnectorConfig connectorConfig, HiveMetaStore hiveMetaStore) {
+    super(connectorConfig, hiveMetaStore);
+    String urlKey;
 
+    urlKey = connectorConfig.getString(StorageCommonConfig.STORE_URL_CONFIG);
+    if (urlKey == null || urlKey.equals(StorageCommonConfig.STORE_URL_DEFAULT)) {
+      urlKey = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
+    }
 
-  public HiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    this.url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
-    this.topicsDir = connectorConfig.getString(HdfsSinkConnectorConfig.TOPICS_DIR_CONFIG);
-    this.avroData = avroData;
-    this.hiveMetaStore = hiveMetaStore;
+    this.url = urlKey;
   }
 
-  public abstract void createTable(String database, String tableName, Schema schema, Partitioner partitioner);
-
-  public abstract void alterSchema(String database, String tableName, Schema schema);
-  
-  public Table newTable(String database, String table){
-    return new Table(database, hiveMetaStore.tableNameConverter(table));
+  @Override
+  public void createTable(
+      String database,
+      String tableName,
+      Schema schema,
+      io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> partitioner
+  ) {
+    createTable(database, tableName, schema, (Partitioner) partitioner);
   }
+
+  public abstract void createTable(
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
+  );
+
 }

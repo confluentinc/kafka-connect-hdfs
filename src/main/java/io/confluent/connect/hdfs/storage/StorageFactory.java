@@ -21,6 +21,7 @@ import org.apache.velocity.exception.MethodInvocationException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
+@Deprecated
 public class StorageFactory {
   public static Storage createStorage(Class<? extends Storage> storageClass, Configuration conf, String url) {
     try {

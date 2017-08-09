@@ -24,9 +24,15 @@ import java.util.Map;
  * Partition incoming records, and generates directories and file names in which to store the
  * incoming records.
  */
-public interface Partitioner {
+@Deprecated
+public interface Partitioner
+    extends io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> {
+  @Override
   void configure(Map<String, Object> config);
+  @Override
   String encodePartition(SinkRecord sinkRecord);
+  @Override
   String generatePartitionedPath(String topic, String encodedPartition);
+  @Override
   List<FieldSchema> partitionFields();
 }

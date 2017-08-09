@@ -21,16 +21,16 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.util.HashMap;
+import java.util.Map;
 
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 
 public class HiveTestUtils {
 
-  public static Partitioner getPartitioner() {
+  public static Partitioner getPartitioner(Map<String, Object> parsedConfig) {
     Partitioner partitioner = new DefaultPartitioner();
-    partitioner.configure(new HashMap<String, Object>());
+    partitioner.configure(parsedConfig);
     return partitioner;
   }
 

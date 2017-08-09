@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.avro.AvroDataFileReader;
 import io.confluent.connect.hdfs.avro.AvroFileReader;
 
 import static org.junit.Assert.assertEquals;
@@ -34,18 +35,18 @@ public class HdfsSinkTaskTestWithSecureHDFS extends TestWithSecureMiniDFSCluster
 
   private static final String extension = ".avro";
   private static final String ZERO_PAD_FMT = "%010d";
-  private final SchemaFileReader schemaFileReader = new AvroFileReader(avroData);
+  private final DataFileReader schemaFileReader = new AvroDataFileReader();
 
   @Test
   public void testSinkTaskPut() throws Exception {
-    Map<String, String> props = createProps();
+    setUp();
     HdfsSinkTask task = new HdfsSinkTask();
 
     String key = "key";
     Schema schema = createSchema();
     Struct record = createRecord(schema);
     Collection<SinkRecord> sinkRecords = new ArrayList<>();
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : context.assignment()) {
       for (long offset = 0; offset < 7; offset++) {
         SinkRecord sinkRecord =
             new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record,
@@ -54,7 +55,7 @@ public class HdfsSinkTaskTestWithSecureHDFS extends TestWithSecureMiniDFSCluster
       }
     }
     task.initialize(context);
-    task.start(props);
+    task.start(properties);
     task.put(sinkRecords);
     task.stop();
 
@@ -62,7 +63,7 @@ public class HdfsSinkTaskTestWithSecureHDFS extends TestWithSecureMiniDFSCluster
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {-1, 2, 5};
 
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : context.assignment()) {
       String directory = tp.topic() + "/" + "partition=" + String.valueOf(tp.partition());
       for (int j = 1; j < validOffsets.length; ++j) {
         long startOffset = validOffsets[j - 1] + 1;
@@ -70,7 +71,7 @@ public class HdfsSinkTaskTestWithSecureHDFS extends TestWithSecureMiniDFSCluster
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                                                          startOffset, endOffset, extension,
                                                          ZERO_PAD_FMT));
-        Collection<Object> records = schemaFileReader.readData(conf, path);
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
         long size = endOffset - startOffset + 1;
         assertEquals(records.size(), size);
         for (Object avroRecord : records) {

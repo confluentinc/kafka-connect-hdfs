@@ -19,19 +19,16 @@ import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.Format;
@@ -45,41 +42,73 @@ import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
 import io.confluent.connect.hdfs.partitioner.TimeUtils;
-import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.hdfs.storage.StorageFactory;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.StorageFactory;
+import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.hive.schema.TimeBasedSchemaGenerator;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
-  private RecordWriterProvider writerProvider;
-  private Storage storage;
+  private RecordWriterProvider writerProvider = null;
+  private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+      newWriterProvider;
+  private HdfsStorage storage;
+  private Map<String, String> localProps = new HashMap<>();
 
-  @Before
+  @Override
+  protected Map<String, String> createProps() {
+    Map<String, String> props = super.createProps();
+    props.putAll(localProps);
+    return props;
+  }
+
+  //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     super.setUp();
 
     @SuppressWarnings("unchecked")
-    Format format = ((Class<Format>) Class.forName(connectorConfig.getString(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG))).newInstance();
-    writerProvider = format.getRecordWriterProvider();
-    schemaFileReader = format.getSchemaFileReader(avroData);
-    extension = writerProvider.getExtension();
+    Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>)
+        connectorConfig.getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
+    storage = StorageFactory.createStorage(
+        storageClass,
+        HdfsSinkConnectorConfig.class,
+        connectorConfig,
+        url
+    );
     @SuppressWarnings("unchecked")
-    Class<? extends Storage> storageClass = (Class<? extends Storage>) Class
-            .forName(connectorConfig.getString(HdfsSinkConnectorConfig.STORAGE_CLASS_CONFIG));
-    storage = StorageFactory.createStorage(storageClass, conf, url);
+    Class<io.confluent.connect.storage.format.Format> formatClass
+        = (Class<io.confluent.connect.storage.format.Format>) connectorConfig.getClass(
+        HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG
+    );
+    io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> format
+        = formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
+    writerProvider = null;
+    newWriterProvider = format.getRecordWriterProvider();
+    dataFileReader = new AvroDataFileReader();
+    extension = newWriterProvider.getExtension();
     createTopicDir(url, topicsDir, TOPIC);
     createLogsDir(url, logsDir);
   }
 
   @Test
   public void testWriteRecordDefaultWithPadding() throws Exception {
+    localProps.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
+    setUp();
     Partitioner partitioner = new DefaultPartitioner();
-    partitioner.configure(Collections.<String, Object>emptyMap());
-    connectorProps.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
-    configureConnector();
+    partitioner.configure(parsedConfig);
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION, storage, writerProvider, partitioner,  connectorConfig, context, avroData);
+        TOPIC_PARTITION,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData
+    );
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 3);
@@ -106,17 +135,26 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     verify(expectedFiles, expectedBatchSize, records, schema);
   }
 
-
   @Test
   public void testWriteRecordFieldPartitioner() throws Exception {
-    Map<String, Object> config = createConfig();
+    setUp();
     Partitioner partitioner = new FieldPartitioner();
-    partitioner.configure(config);
+    partitioner.configure(parsedConfig);
 
-    String partitionField = (String) config.get(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG);
+    String partitionField = (String) parsedConfig.get(
+        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
+    );
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION, storage, writerProvider, partitioner, connectorConfig, context, avroData);
+        TOPIC_PARTITION,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData
+    );
 
     Schema schema = createSchema();
     List<Struct> records = new ArrayList<>();
@@ -153,12 +191,20 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testWriteRecordTimeBasedPartition() throws Exception {
-    Map<String, Object> config = createConfig();
+    setUp();
     Partitioner partitioner = new TimeBasedPartitioner();
-    partitioner.configure(config);
+    partitioner.configure(parsedConfig);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION, storage, writerProvider, partitioner, connectorConfig, context, avroData);
+        TOPIC_PARTITION,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData
+    );
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 3);
@@ -174,9 +220,11 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     topicPartitionWriter.write();
     topicPartitionWriter.close();
 
-    long partitionDurationMs = (Long) config.get(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG);
-    String pathFormat = (String) config.get(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG);
-    String timeZoneString = (String) config.get(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
+    long partitionDurationMs = (Long) parsedConfig.get(
+        PartitionerConfig.PARTITION_DURATION_MS_CONFIG
+    );
+    String pathFormat = (String) parsedConfig.get(PartitionerConfig.PATH_FORMAT_CONFIG);
+    String timeZoneString = (String) parsedConfig.get(PartitionerConfig.TIMEZONE_CONFIG);
     long timestamp = System.currentTimeMillis();
 
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
@@ -190,16 +238,6 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
     int expectedBatchSize = 3;
     verify(expectedFiles, expectedBatchSize, records, schema);
-  }
-
-  private Map<String, Object> createConfig() {
-    Map<String, Object> config = new HashMap<>();
-    config.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
-    config.put(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG, TimeUnit.HOURS.toMillis(1));
-    config.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH/");
-    config.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, "en");
-    config.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
-    return config;
   }
 
   private void createTopicDir(String url, String topicsDir, String topic) throws IOException {
@@ -224,7 +262,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     for (FileStatus status : statuses) {
       Path filePath = status.getPath();
       assertTrue(expectedFiles.contains(status.getPath()));
-      Collection<Object> avroRecords = schemaFileReader.readData(conf, filePath);
+      Collection<Object> avroRecords = dataFileReader.readData(connectorConfig.getHadoopConfiguration(), filePath);
       assertEquals(expectedSize, avroRecords.size());
       for (Object avroRecord : avroRecords) {
         assertEquals(avroData.fromConnectData(schema, records.get(index++)), avroRecord);

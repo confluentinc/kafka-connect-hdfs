@@ -25,14 +25,13 @@ import java.util.Map;
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
 
 public class DataWriterParquetTest extends TestWithMiniDFSCluster {
 
   @Before
   public void setUp() throws Exception {
     super.setUp();
-    schemaFileReader = new ParquetFileReader(avroData);
+    dataFileReader = new ParquetDataFileReader();
     extension = ".parquet";
   }
 
@@ -52,7 +51,7 @@ public class DataWriterParquetTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
