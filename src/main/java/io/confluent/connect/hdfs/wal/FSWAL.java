@@ -37,6 +37,7 @@ public class FSWAL implements WAL {
   private static final Logger log = LoggerFactory.getLogger(FSWAL.class);
   private static final String leaseException =
       "org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException";
+  private static final long MAX_SLEEP_INTERVAL_MS = 16000L;
 
   private WALFile.Writer writer = null;
   private WALFile.Reader reader = null;
@@ -67,7 +68,6 @@ public class FSWAL implements WAL {
 
   public void acquireLease() throws ConnectException {
     long sleepIntervalMs = 1000L;
-    long MAX_SLEEP_INTERVAL_MS = 16000L;
     while (sleepIntervalMs < MAX_SLEEP_INTERVAL_MS) {
       try {
         if (writer == null) {

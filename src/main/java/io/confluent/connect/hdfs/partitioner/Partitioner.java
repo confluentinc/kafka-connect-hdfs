@@ -29,10 +29,13 @@ public interface Partitioner
     extends io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> {
   @Override
   void configure(Map<String, Object> config);
+
   @Override
   String encodePartition(SinkRecord sinkRecord);
+
   @Override
   String generatePartitionedPath(String topic, String encodedPartition);
+
   @Override
   List<FieldSchema> partitionFields();
 }

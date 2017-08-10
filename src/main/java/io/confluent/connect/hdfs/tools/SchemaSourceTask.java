@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 
 public class SchemaSourceTask extends SourceTask {
-  private static final Logger log = LoggerFactory.getLogger(SchemaSourceTask.class);
-
   public static final String NAME_CONFIG = "name";
   public static final String ID_CONFIG = "id";
   public static final String TOPIC_CONFIG = "topic";
@@ -39,26 +37,9 @@ public class SchemaSourceTask extends SourceTask {
   public static final String THROUGHPUT_CONFIG = "throughput";
   public static final String MULTIPLE_SCHEMA_CONFIG = "multiple.schema";
   public static final String PARTITION_COUNT_CONFIG = "partition.count";
-
+  private static final Logger log = LoggerFactory.getLogger(SchemaSourceTask.class);
   private static final String ID_FIELD = "id";
   private static final String SEQNO_FIELD = "seqno";
-
-  private String name; // Connector name
-  private int id; // Task ID
-  private String topic;
-  private Map<String, Integer> partition;
-  private long startingSeqno;
-  private long seqno;
-  private long count;
-  private long maxNumMsgs;
-  private boolean multipleSchema;
-  private int partitionCount;
-
-  // Until we can use ThroughputThrottler from Kafka, use a fixed sleep interval. This isn't perfect, but close enough
-  // for system testing purposes
-  private long intervalMs;
-  private int intervalNanos;
-
   private static Schema valueSchema = SchemaBuilder.struct().version(1).name("record")
       .field("boolean", Schema.BOOLEAN_SCHEMA)
       .field("int", Schema.INT32_SCHEMA)
@@ -69,7 +50,6 @@ public class SchemaSourceTask extends SourceTask {
       .field("id", Schema.INT32_SCHEMA)
       .field("seqno", Schema.INT64_SCHEMA)
       .build();
-
   private static Schema valueSchema2 = SchemaBuilder.struct().version(2).name("record")
       .field("boolean", Schema.BOOLEAN_SCHEMA)
       .field("int", Schema.INT32_SCHEMA)
@@ -81,6 +61,21 @@ public class SchemaSourceTask extends SourceTask {
       .field("id", Schema.INT32_SCHEMA)
       .field("seqno", Schema.INT64_SCHEMA)
       .build();
+  private String name; // Connector name
+  private int id; // Task ID
+  private String topic;
+  private Map<String, Integer> partition;
+  private long startingSeqno;
+  private long seqno;
+  private long count;
+  private long maxNumMsgs;
+  private boolean multipleSchema;
+  private int partitionCount;
+  // Until we can use ThroughputThrottler from Kafka, use a fixed sleep interval. This isn't
+  // perfect, but close enough
+  // for system testing purposes
+  private long intervalMs;
+  private int intervalNanos;
 
   public String version() {
     return new SchemaSourceConnector().version();
@@ -94,8 +89,9 @@ public class SchemaSourceTask extends SourceTask {
       topic = props.get(TOPIC_CONFIG);
       maxNumMsgs = Long.parseLong(props.get(NUM_MSGS_CONFIG));
       multipleSchema = Boolean.parseBoolean(props.get(MULTIPLE_SCHEMA_CONFIG));
-      partitionCount = Integer.parseInt(props.containsKey(PARTITION_COUNT_CONFIG) ?
-                                        props.get(PARTITION_COUNT_CONFIG) : "1");
+      partitionCount = Integer.parseInt(
+          props.containsKey(PARTITION_COUNT_CONFIG) ? props.get(PARTITION_COUNT_CONFIG) : "1"
+      );
       String throughputStr = props.get(THROUGHPUT_CONFIG);
       if (throughputStr != null) {
         long throughput = Long.parseLong(throughputStr);
@@ -112,13 +108,20 @@ public class SchemaSourceTask extends SourceTask {
 
     partition = Collections.singletonMap(ID_FIELD, id);
     Map<String, Object> previousOffset = this.context.offsetStorageReader().offset(partition);
-    if (previousOffset != null)
+    if (previousOffset != null) {
       seqno = (Long) previousOffset.get(SEQNO_FIELD) + 1;
-    else
+    } else {
       seqno = 0;
+    }
     startingSeqno = seqno;
     count = 0;
-    log.info("Started SchemaSourceTask {}-{} producing to topic {} resuming from seqno {}", name, id, topic, startingSeqno);
+    log.info(
+        "Started SchemaSourceTask {}-{} producing to topic {} resuming from seqno {}",
+        name,
+        id,
+        topic,
+        startingSeqno
+    );
   }
 
   @Override
@@ -145,8 +148,16 @@ public class SchemaSourceTask extends SourceTask {
             .put("id", id)
             .put("seqno", seqno);
 
-        srcRecord = new SourceRecord(partition, ccOffset, topic, id, Schema.STRING_SCHEMA, "key",
-                             valueSchema, data);
+        srcRecord = new SourceRecord(
+            partition,
+            ccOffset,
+            topic,
+            id,
+            Schema.STRING_SCHEMA,
+            "key",
+            valueSchema,
+            data
+        );
       } else {
         data = new Struct(valueSchema2)
             .put("boolean", true)
@@ -159,9 +170,18 @@ public class SchemaSourceTask extends SourceTask {
             .put("id", id)
             .put("seqno", seqno);
 
-        srcRecord = new SourceRecord(partition, ccOffset, topic, id, Schema.STRING_SCHEMA, "key", valueSchema2, data);
+        srcRecord = new SourceRecord(
+            partition,
+            ccOffset,
+            topic,
+            id,
+            Schema.STRING_SCHEMA,
+            "key",
+            valueSchema2,
+            data
+        );
       }
-      
+
       System.out.println("{\"task\": " + id + ", \"seqno\": " + seqno + "}");
       List<SourceRecord> result = Arrays.asList(srcRecord);
       seqno++;

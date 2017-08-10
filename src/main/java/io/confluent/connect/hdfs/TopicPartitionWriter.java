@@ -58,6 +58,10 @@ import io.confluent.connect.storage.wal.WAL;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
+  private final io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+      newWriterProvider;
+  private final String zeroPadOffsetFormat;
+  private final boolean hiveIntegration;
   private WAL wal;
   private Map<String, String> tempFiles;
   private Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
@@ -82,8 +86,6 @@ public class TopicPartitionWriter {
   // extra parameters. Instead, we have to (optionally) store one of each and use whichever one is
   // non-null.
   private RecordWriterProvider writerProvider;
-  private final io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
-      newWriterProvider;
   private HdfsSinkConnectorConfig connectorConfig;
   private AvroData avroData;
   private Set<String> appended;
@@ -95,10 +97,7 @@ public class TopicPartitionWriter {
   private StorageSchemaCompatibility compatibility;
   private Schema currentSchema;
   private String extension;
-  private final String zeroPadOffsetFormat;
   private DateTimeZone timeZone;
-
-  private final boolean hiveIntegration;
   private String hiveDatabase;
   private HiveMetaStore hiveMetaStore;
   private io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
@@ -112,11 +111,13 @@ public class TopicPartitionWriter {
       TopicPartition tp,
       HdfsStorage storage,
       RecordWriterProvider writerProvider,
-      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> newWriterProvider,
+      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+          newWriterProvider,
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
-      AvroData avroData) {
+      AvroData avroData
+  ) {
     this(
         tp,
         storage,
@@ -138,7 +139,8 @@ public class TopicPartitionWriter {
       TopicPartition tp,
       HdfsStorage storage,
       RecordWriterProvider writerProvider,
-      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> newWriterProvider,
+      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+          newWriterProvider,
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
@@ -148,7 +150,8 @@ public class TopicPartitionWriter {
       io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
           schemaFileReader,
       ExecutorService executorService,
-      Queue<Future<Void>> hiveUpdateFutures) {
+      Queue<Future<Void>> hiveUpdateFutures
+  ) {
     this.tp = tp;
     this.context = context;
     this.avroData = avroData;
@@ -163,7 +166,8 @@ public class TopicPartitionWriter {
     topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
-    rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
+    rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig
+        .ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
     timeoutMs = connectorConfig.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG);
     compatibility = StorageSchemaCompatibility.getCompatibility(
         connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG));
@@ -185,13 +189,13 @@ public class TopicPartitionWriter {
     } else if (newWriterProvider != null) {
       extension = newWriterProvider.getExtension();
     } else {
-      throw new ConnectException("Invalid state: either old or new RecordWriterProvider must be"
-                                 + " provided");
+      throw new ConnectException(
+          "Invalid state: either old or new RecordWriterProvider must be provided"
+      );
     }
-    zeroPadOffsetFormat
-        = "%0" +
-          connectorConfig.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG) +
-          "d";
+    zeroPadOffsetFormat = "%0"
+        + connectorConfig.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG)
+        + "d";
 
     hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
     if (hiveIntegration) {
@@ -203,31 +207,12 @@ public class TopicPartitionWriter {
       hivePartitions = new HashSet<>();
     }
 
-    if(rotateScheduleIntervalMs > 0) {
+    if (rotateScheduleIntervalMs > 0) {
       timeZone = DateTimeZone.forID(connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG));
     }
 
     // Initialize rotation timers
     updateRotationTimers();
-  }
-
-  private enum State {
-    RECOVERY_STARTED,
-    RECOVERY_PARTITION_PAUSED,
-    WAL_APPLIED,
-    WAL_TRUNCATED,
-    OFFSET_RESET,
-    WRITE_STARTED,
-    WRITE_PARTITION_PAUSED,
-    SHOULD_ROTATE,
-    TEMP_FILE_CLOSED,
-    WAL_APPENDED,
-    FILE_COMMITTED;
-
-    private static State[] vals = values();
-    public State next() {
-      return vals[(this.ordinal() + 1) % vals.length];
-    }
   }
 
   @SuppressWarnings("fallthrough")
@@ -253,7 +238,11 @@ public class TopicPartitionWriter {
           log.info("Finished recovery for topic partition {}", tp);
           break;
         default:
-          log.error("{} is not a valid state to perform recovery for topic partition {}.", state, tp);
+          log.error(
+              "{} is not a valid state to perform recovery for topic partition {}.",
+              state,
+              tp
+          );
       }
     } catch (ConnectException e) {
       log.error("Recovery failed at state {}", state, e);
@@ -265,13 +254,25 @@ public class TopicPartitionWriter {
 
   private void updateRotationTimers() {
     lastRotate = System.currentTimeMillis();
-    if(log.isDebugEnabled() && rotateIntervalMs > 0) {
-      log.debug("Update last rotation timer. Next rotation for {} will be in {}ms", tp, rotateIntervalMs);
+    if (log.isDebugEnabled() && rotateIntervalMs > 0) {
+      log.debug(
+          "Update last rotation timer. Next rotation for {} will be in {}ms",
+          tp,
+          rotateIntervalMs
+      );
     }
     if (rotateScheduleIntervalMs > 0) {
-      nextScheduledRotate = DateTimeUtils.getNextTimeAdjustedByDay(lastRotate, rotateScheduleIntervalMs, timeZone);
+      nextScheduledRotate = DateTimeUtils.getNextTimeAdjustedByDay(
+          lastRotate,
+          rotateScheduleIntervalMs,
+          timeZone
+      );
       if (log.isDebugEnabled()) {
-        log.debug("Update scheduled rotation timer. Next rotation for {} will be at {}", tp, new DateTime(nextScheduledRotate).withZone(timeZone).toString());
+        log.debug(
+            "Update scheduled rotation timer. Next rotation for {} will be at {}",
+            tp,
+            new DateTime(nextScheduledRotate).withZone(timeZone).toString()
+        );
       }
     }
   }
@@ -289,7 +290,7 @@ public class TopicPartitionWriter {
       }
       updateRotationTimers();
     }
-    while(!buffer.isEmpty()) {
+    while (!buffer.isEmpty()) {
       try {
         switch (state) {
           case WRITE_STARTED:
@@ -332,8 +333,13 @@ public class TopicPartitionWriter {
               writeRecord(projectedRecord);
               buffer.poll();
               if (shouldRotate(now)) {
-                log.info("Starting commit and rotation for topic partition {} with start offsets {}"
-                         + " and end offsets {}", tp, startOffsets, offsets);
+                log.info(
+                    "Starting commit and rotation for topic partition {} with start offsets {} "
+                        + "and end offsets {}",
+                    tp,
+                    startOffsets,
+                    offsets
+                );
                 nextState();
                 // Fall through and try to rotate immediately
               } else {
@@ -356,7 +362,7 @@ public class TopicPartitionWriter {
           default:
             log.error("{} is not a valid state to write record for topic partition {}.", state, tp);
         }
-      } catch (SchemaProjectorException | IllegalWorkerStateException | HiveMetaStoreException e ) {
+      } catch (SchemaProjectorException | IllegalWorkerStateException | HiveMetaStoreException e) {
         throw new RuntimeException(e);
       } catch (ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
@@ -366,9 +372,13 @@ public class TopicPartitionWriter {
       }
     }
     if (buffer.isEmpty()) {
-      // committing files after waiting for rotateIntervalMs time but less than flush.size records available
+      // committing files after waiting for rotateIntervalMs time but less than flush.size
+      // records available
       if (recordCounter > 0 && shouldRotate(now)) {
-        log.info("committing files after waiting for rotateIntervalMs time but less than flush.size records available.");
+        log.info(
+            "committing files after waiting for rotateIntervalMs time but less than flush.size "
+                + "records available."
+        );
         updateRotationTimers();
 
         try {
@@ -394,13 +404,19 @@ public class TopicPartitionWriter {
       try {
         if (writers.containsKey(encodedPartition)) {
           log.debug("Discarding in progress tempfile {} for {} {}",
-                    tempFiles.get(encodedPartition), tp, encodedPartition);
+              tempFiles.get(encodedPartition), tp, encodedPartition
+          );
           closeTempFile(encodedPartition);
           deleteTempFile(encodedPartition);
         }
       } catch (DataException e) {
-        log.error("Error discarding temp file {} for {} {} when closing TopicPartitionWriter:",
-                  tempFiles.get(encodedPartition), tp, encodedPartition, e);
+        log.error(
+            "Error discarding temp file {} for {} {} when closing TopicPartitionWriter:",
+            tempFiles.get(encodedPartition),
+            tp,
+            encodedPartition,
+            e
+        );
       }
     }
 
@@ -417,7 +433,7 @@ public class TopicPartitionWriter {
 
     if (exceptions.size() != 0) {
       StringBuilder sb = new StringBuilder();
-      for (Exception exception: exceptions) {
+      for (Exception exception : exceptions) {
         sb.append(exception.getMessage());
         sb.append("\n");
       }
@@ -464,7 +480,11 @@ public class TopicPartitionWriter {
   private void readOffset() throws ConnectException {
     String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
     CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
-    FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(storage, new Path(path), filter);
+    FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
+        storage,
+        new Path(path),
+        filter
+    );
     if (fileStatusWithMaxOffset != null) {
       offset = FileUtils.extractOffset(fileStatusWithMaxOffset.getPath().getName()) + 1;
     }
@@ -501,8 +521,9 @@ public class TopicPartitionWriter {
       } else if (newWriterProvider != null) {
         writer = newWriterProvider.getRecordWriter(connectorConfig, tempFile);
       } else {
-        throw new ConnectException("Invalid state: either old or new RecordWriterProvider must be"
-                                   + " provided");
+        throw new ConnectException(
+            "Invalid state: either old or new RecordWriterProvider must be provided"
+        );
       }
     } catch (IOException e) {
       throw new ConnectException("Couldn't create RecordWriter", e);
@@ -521,7 +542,8 @@ public class TopicPartitionWriter {
     if (tempFiles.containsKey(encodedPartition)) {
       tempFile = tempFiles.get(encodedPartition);
     } else {
-      String directory = HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY + getDirectory(encodedPartition);
+      String directory = HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY
+          + getDirectory(encodedPartition);
       tempFile = FileUtils.tempFileName(url, topicsDir, directory, extension);
       tempFiles.put(encodedPartition, tempFile);
     }
@@ -543,12 +565,13 @@ public class TopicPartitionWriter {
   private void resetOffsets() throws ConnectException {
     if (!recovered) {
       readOffset();
-      // Note that we must *always* request that we seek to an offset here. Currently the framework will still commit
-      // Kafka offsets even though we track our own (see KAFKA-3462), which can result in accidentally using that offset
-      // if one was committed but no files were rolled to their final location in HDFS (i.e. some data was accepted,
-      // written to a tempfile, but then that tempfile was discarded). To protect against this, even if we just want
-      // to start at offset 0 or reset to the earliest offset, we specify that explicitly to forcibly override any
-      // committed offsets.
+      // Note that we must *always* request that we seek to an offset here. Currently the
+      // framework will still commit Kafka offsets even though we track our own (see KAFKA-3462),
+      // which can result in accidentally using that offset if one was committed but no files
+      // were rolled to their final location in HDFS (i.e. some data was accepted, written to a
+      // tempfile, but then that tempfile was discarded). To protect against this, even if we
+      // just want to start at offset 0 or reset to the earliest offset, we specify that
+      // explicitly to forcibly override any committed offsets.
       long seekOffset = offset > 0 ? offset : 0;
       log.debug("Resetting offset for {} to {}", tp, seekOffset);
       context.offset(tp, seekOffset);
@@ -581,7 +604,7 @@ public class TopicPartitionWriter {
   }
 
   private void closeTempFile() {
-    for (String encodedPartition: tempFiles.keySet()) {
+    for (String encodedPartition : tempFiles.keySet()) {
       closeTempFile(encodedPartition);
     }
   }
@@ -597,16 +620,23 @@ public class TopicPartitionWriter {
     long startOffset = startOffsets.get(encodedPartition);
     long endOffset = offsets.get(encodedPartition);
     String directory = getDirectory(encodedPartition);
-    String committedFile = FileUtils.committedFileName(url, topicsDir, directory, tp,
-                                                       startOffset, endOffset, extension,
-                                                       zeroPadOffsetFormat);
+    String committedFile = FileUtils.committedFileName(
+        url,
+        topicsDir,
+        directory,
+        tp,
+        startOffset,
+        endOffset,
+        extension,
+        zeroPadOffsetFormat
+    );
     wal.append(tempFile, committedFile);
     appended.add(tempFile);
   }
 
   private void appendToWAL() {
     beginAppend();
-    for (String encodedPartition: tempFiles.keySet()) {
+    for (String encodedPartition : tempFiles.keySet()) {
       appendToWAL(encodedPartition);
     }
     endAppend();
@@ -626,7 +656,7 @@ public class TopicPartitionWriter {
 
   private void commitFile() {
     appended.clear();
-    for (String encodedPartition: tempFiles.keySet()) {
+    for (String encodedPartition : tempFiles.keySet()) {
       commitFile(encodedPartition);
     }
   }
@@ -639,9 +669,16 @@ public class TopicPartitionWriter {
     long endOffset = offsets.get(encodedPartition);
     String tempFile = tempFiles.get(encodedPartition);
     String directory = getDirectory(encodedPartition);
-    String committedFile = FileUtils.committedFileName(url, topicsDir, directory, tp,
-                                                       startOffset, endOffset, extension,
-                                                       zeroPadOffsetFormat);
+    String committedFile = FileUtils.committedFileName(
+        url,
+        topicsDir,
+        directory,
+        tp,
+        startOffset,
+        endOffset,
+        extension,
+        zeroPadOffsetFormat
+    );
 
     String directoryName = FileUtils.directoryName(url, topicsDir, directory);
     if (!storage.exists(directoryName)) {
@@ -705,5 +742,25 @@ public class TopicPartitionWriter {
       }
     });
     hiveUpdateFutures.add(future);
+  }
+
+  private enum State {
+    RECOVERY_STARTED,
+    RECOVERY_PARTITION_PAUSED,
+    WAL_APPLIED,
+    WAL_TRUNCATED,
+    OFFSET_RESET,
+    WRITE_STARTED,
+    WRITE_PARTITION_PAUSED,
+    SHOULD_ROTATE,
+    TEMP_FILE_CLOSED,
+    WAL_APPENDED,
+    FILE_COMMITTED;
+
+    private static State[] vals = values();
+
+    public State next() {
+      return vals[(this.ordinal() + 1) % vals.length];
+    }
   }
 }
