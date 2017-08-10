@@ -12,6 +12,7 @@ import java.util.Map;
 
 import io.confluent.connect.hdfs.avro.AvroDataFileReader;
 import io.confluent.connect.hdfs.hive.HiveTestBase;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 
 /**
@@ -50,6 +51,44 @@ public class FormatAPIDataWriterCompatibilityTest extends HiveTestBase {
     hdfsWriter.stop();
 
     Map<String, String> props = createProps();
+    props.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
+
+    hdfsWriter = new DataWriter(config, context, avroData);
+    hdfsWriter.syncWithHive();
+
+    // Since we're not using a real format, we won't validate the output. However, this should at
+    // least exercise the code paths for the old Format class
+
+    hdfsWriter.close();
+    hdfsWriter.stop();
+  }
+
+  @Test
+  public void dataWriterNewFormatAPICompatibilityWithDefaultsTest() {
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    String key = "key";
+    Schema schema = createSchema();
+    Struct record = createRecord(schema);
+
+    Collection<SinkRecord> sinkRecords = new ArrayList<>();
+    for (long offset = 0; offset < 7; offset++) {
+      SinkRecord sinkRecord =
+          new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset);
+      sinkRecords.add(sinkRecord);
+    }
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    Map<String, String> props = createProps();
+    // Removing the entries below should test proper use of defaults in the connector's config.
+    props.remove(StorageCommonConfig.STORAGE_CLASS_CONFIG);
+    props.remove(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
     props.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
 
