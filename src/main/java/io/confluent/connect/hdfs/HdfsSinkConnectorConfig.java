@@ -397,8 +397,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     everything.putAll(PartitionerConfig.getConfig().configKeys());
 
     Set<String> skip = new HashSet<>();
-    skip.add(StorageSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
-    skip.add(StorageSinkConnectorConfig.SHUTDOWN_TIMEOUT_CONFIG);
+    skip.add(STORAGE_CLASS_CONFIG);
+    skip.add(FORMAT_CLASS_CONFIG);
 
     ConfigDef visible = new ConfigDef();
 
