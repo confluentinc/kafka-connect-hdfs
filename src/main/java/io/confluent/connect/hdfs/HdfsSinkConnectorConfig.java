@@ -275,65 +275,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return propsCopy;
   }
 
-  public static HdfsSinkConnectorConfig getConfig(Map<String, String> props) {
-    return getConfig(CONFIG_DEF, props);
-  }
-
-  protected static HdfsSinkConnectorConfig getConfig(
-      ConfigDef configDef,
-      Map<String, String> props
-  ) {
-    ConcurrentMap<String, String> propsCopy = new ConcurrentHashMap<>(props);
-    propsCopy.putIfAbsent(StorageCommonConfig.STORAGE_CLASS_CONFIG, HdfsStorage.class.getName());
-    propsCopy.putIfAbsent(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
-    return new HdfsSinkConnectorConfig(configDef, propsCopy);
-  }
-
   protected static String parseName(Map<String, String> props) {
     String nameProp = props.get("name");
     return nameProp != null ? nameProp : "HDFS-sink";
-  }
-
-  public static ConfigDef getConfig() {
-    Map<String, ConfigDef.ConfigKey> everything = new HashMap<>(CONFIG_DEF.configKeys());
-    everything.putAll(StorageCommonConfig.getConfig().configKeys());
-    everything.putAll(PartitionerConfig.getConfig().configKeys());
-
-    Set<String> skip = new HashSet<>();
-    skip.add(StorageSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
-    skip.add(StorageSinkConnectorConfig.SHUTDOWN_TIMEOUT_CONFIG);
-
-    ConfigDef visible = new ConfigDef();
-
-    visible.define(
-        STORAGE_CLASS_CONFIG,
-        Type.CLASS,
-        Importance.HIGH,
-        STORAGE_CLASS_DOC,
-        "Storage",
-        1,
-        Width.NONE,
-        STORAGE_CLASS_DISPLAY
-    );
-
-    visible.define(
-        FORMAT_CLASS_CONFIG,
-        Type.CLASS,
-        Importance.HIGH,
-        FORMAT_CLASS_DOC,
-        "Connector",
-        1,
-        Width.NONE,
-        FORMAT_CLASS_DISPLAY
-    );
-
-    for (ConfigDef.ConfigKey key : everything.values()) {
-      if (!skip.contains(key.name)) {
-        visible.define(key);
-      }
-    }
-
-    return visible;
   }
 
   private void addToGlobal(AbstractConfig config) {
@@ -427,7 +371,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     );
 
     for (ConfigDef.ConfigKey key : everything.values()) {
-      if(!skip.contains(key.name)) {
+      if (!skip.contains(key.name)) {
         visible.define(key);
       }
     }
