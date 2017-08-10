@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE suppressions PUBLIC
+        "-//Puppy Crawl//DTD Suppressions 1.1//EN"
+        "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
+
+<suppressions>
+
+    <!-- TODO: fix all of these -->
+    <suppress
+            checks="AbbreviationAsWordInName"
+            files="(DataWriter|FSWAL|TopicPartitionWriter|WAL|WALEntry|WALFile).java"
+    />
+
+    <suppress
+            checks="ClassDataAbstractionCoupling"
+            files="(DataWriter|WALFile).java"
+    />
+
+    <suppress
+            checks="ClassFanOutComplexity"
+            files="(DataWriter|HiveMetaStore|TopicPartitionWriter|WALFile).java"
+    />
+
+    <suppress
+            checks="CyclomaticComplexity"
+            files="(DataWriter|HdfsSinkConnectorConfig|TopicPartitionWriter|WALFile).java"
+    />
+
+    <suppress
+            checks="JavaNCSS"
+            files="(DataWriter|TopicPartitionWriter).java"
+    />
+
+    <suppress
+            checks="MethodLength"
+            files="(DataWriter).java"
+    />
+
+    <suppress
+            checks="NPathComplexity"
+            files="(TopicPartitionWriter).java"
+    />
+
+    <suppress
+            checks="ParameterNumber"
+            files="(TopicPartitionWriter).java"
+            lines="138"
+    />
+
+    <suppress
+            checks="FallThrough"
+            files="(TopicPartitionWriter).java"
+    />
+
+    <suppress
+            checks="Indentation"
+            files="(HdfsSinkConnectorConfig).java"
+            lines="341,405,468,492,627"
+    />
+</suppressions>

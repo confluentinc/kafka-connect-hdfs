@@ -22,6 +22,8 @@ import io.confluent.connect.hdfs.hive.HiveUtil;
 @Deprecated
 public interface Format {
   RecordWriterProvider getRecordWriterProvider();
+
   SchemaFileReader getSchemaFileReader(AvroData avroData);
+
   HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, HiveMetaStore hiveMetaStore);
 }

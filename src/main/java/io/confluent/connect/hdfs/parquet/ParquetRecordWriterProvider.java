@@ -29,13 +29,11 @@ import java.io.IOException;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriter;
-import io.confluent.connect.hdfs.RecordWriterProvider;
 
 public class ParquetRecordWriterProvider
     implements io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(ParquetRecordWriterProvider.class);
-  private final static String EXTENSION = ".parquet";
+  private static final String EXTENSION = ".parquet";
   private final AvroData avroData;
 
   ParquetRecordWriterProvider(AvroData avroData) {
@@ -91,18 +89,18 @@ public class ParquetRecordWriterProvider
       }
 
       @Override
-      public void commit() {}
-
-      @Override
       public void close() {
         if (writer != null) {
           try {
             writer.close();
-          } catch(IOException e){
+          } catch (IOException e) {
             throw new ConnectException(e);
           }
         }
       }
+
+      @Override
+      public void commit() {}
     };
   }
 }

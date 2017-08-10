@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs;
 
-
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.connector.Task;
@@ -29,7 +28,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * HdfsSinkConnector is a Kafka Connect Connector implementation that ingest data from Kafka to HDFS.
+ * HdfsSinkConnector is a Kafka Connect Connector implementation that ingest data from Kafka to
+ * HDFS.
  */
 public class HdfsSinkConnector extends SinkConnector {
 
