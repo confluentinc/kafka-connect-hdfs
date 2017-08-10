@@ -58,4 +58,10 @@
             files="(HdfsSinkConnectorConfig).java"
             lines="341,405,468,492,627"
     />
+
+    <suppress
+            checks="ClassDataAbstractionCoupling"
+            files="(HdfsSinkConnectorConfig).java"
+    />
+
 </suppressions>
