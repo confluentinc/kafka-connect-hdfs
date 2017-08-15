@@ -21,13 +21,24 @@ import org.apache.velocity.exception.MethodInvocationException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
+@Deprecated
 public class StorageFactory {
-  public static Storage createStorage(Class<? extends Storage> storageClass, Configuration conf, String url) {
+  public static Storage createStorage(
+      Class<? extends Storage> storageClass,
+      Configuration conf,
+      String url
+  ) {
     try {
       Constructor<? extends Storage> ctor =
           storageClass.getConstructor(Configuration.class, String.class);
       return ctor.newInstance(conf, url);
-    } catch (NoSuchMethodException | InvocationTargetException | MethodInvocationException | InstantiationException | IllegalAccessException e) {
+    } catch (
+        NoSuchMethodException
+            | InvocationTargetException
+            | MethodInvocationException
+            | InstantiationException
+            | IllegalAccessException e
+    ) {
       throw new ConnectException(e);
     }
   }

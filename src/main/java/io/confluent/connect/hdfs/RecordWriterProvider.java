@@ -21,7 +21,15 @@ import java.io.IOException;
 
 import io.confluent.connect.avro.AvroData;
 
+// NOTE: DO NOT add or modify this class as it is maintained for compatibility
+@Deprecated
 public interface RecordWriterProvider {
   String getExtension();
-  RecordWriter<SinkRecord> getRecordWriter(Configuration conf, String fileName, SinkRecord record, AvroData avroData) throws IOException;
+
+  RecordWriter<SinkRecord> getRecordWriter(
+      Configuration conf,
+      String fileName,
+      SinkRecord record,
+      AvroData avroData
+  ) throws IOException;
 }

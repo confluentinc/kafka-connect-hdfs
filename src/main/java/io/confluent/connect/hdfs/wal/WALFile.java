@@ -45,45 +45,55 @@ import java.rmi.server.UID;
 import java.security.MessageDigest;
 import java.util.Arrays;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+
 public class WALFile {
 
   private static final Log log = LogFactory.getLog(WALFile.class);
   private static final byte INITIAL_VERSION = (byte) 0;
-  private static byte[] VERSION = new byte[]{
-      (byte) 'W', (byte) 'A', (byte) 'L', INITIAL_VERSION
-  };
-
   private static final int SYNC_ESCAPE = -1;      // "length" of sync entries
   private static final int SYNC_HASH_SIZE = 16;   // number of bytes in hash
   private static final int SYNC_SIZE = 4 + SYNC_HASH_SIZE; // escape + hash
-
   /**
    * The number of bytes between sync points.
    */
   public static final int SYNC_INTERVAL = 100 * SYNC_SIZE;
+  private static byte[] VERSION = new byte[]{
+      (byte) 'W', (byte) 'A', (byte) 'L', INITIAL_VERSION
+  };
+
+  private static String deserErrorFmt = "Could not find a deserializer for the %s class: '%s'. "
+      + "Please ensure that the configuration '%s' is properly configured, if you're using custom"
+      + " serialization.";
 
   private WALFile() {}
 
-  public static Writer createWriter(Configuration conf, Writer.Option... opts) throws IOException {
+  public static Writer createWriter(
+      HdfsSinkConnectorConfig conf,
+      Writer.Option... opts
+  ) throws IOException {
     return new Writer(conf, opts);
   }
 
+  /**
+   * Get the configured buffer size
+   */
+  private static int getBufferSize(Configuration conf) {
+    return conf.getInt("io.file.buffer.size", 4096);
+  }
 
   public static class Writer implements Closeable, Syncable {
-
-    private Configuration conf;
-    private FSDataOutputStream out;
-    private DataOutputBuffer buffer = new DataOutputBuffer();
-    boolean ownOutputStream = true;
-    private boolean appendMode;
     protected Serializer<WALEntry> keySerializer;
     protected Serializer<WALEntry> valSerializer;
-
+    boolean ownOutputStream = true;
     // Insert a globally unique 16-byte value every few entries, so that one
     // can seek into the middle of a file and then synchronize with record
     // starts and ends by scanning for this value.
     long lastSyncPos;                     // position of last sync
     byte[] sync;                          // 16 random bytes
+    private FSDataOutputStream out;
+    private DataOutputBuffer buffer = new DataOutputBuffer();
+    private boolean appendMode;
 
     {
       try {
@@ -96,10 +106,84 @@ public class WALFile {
       }
     }
 
-    /**
-     * A tag interface for all of the Reader options
-     */
-    public interface Option {}
+    Writer(HdfsSinkConnectorConfig connectorConfig, Option... opts) throws IOException {
+      Configuration conf = connectorConfig.getHadoopConfiguration();
+      BlockSizeOption blockSizeOption =
+          Options.getOption(BlockSizeOption.class, opts);
+      BufferSizeOption bufferSizeOption =
+          Options.getOption(BufferSizeOption.class, opts);
+      ReplicationOption replicationOption =
+          Options.getOption(ReplicationOption.class, opts);
+
+      FileOption fileOption = Options.getOption(FileOption.class, opts);
+      AppendIfExistsOption appendIfExistsOption = Options.getOption(
+          AppendIfExistsOption.class, opts);
+      StreamOption streamOption = Options.getOption(StreamOption.class, opts);
+
+      // check consistency of options
+      if ((fileOption == null) == (streamOption == null)) {
+        throw new IllegalArgumentException("file or stream must be specified");
+      }
+      if (fileOption == null && (
+          blockSizeOption != null
+              || bufferSizeOption != null
+              || replicationOption != null
+          )
+      ) {
+        throw new IllegalArgumentException("file modifier options not compatible with stream");
+      }
+
+      FileSystem fs = null;
+      FSDataOutputStream out;
+      boolean ownStream = fileOption != null;
+
+      try {
+        if (ownStream) {
+          Path p = fileOption.getValue();
+          fs = p.getFileSystem(conf);
+          int bufferSize = bufferSizeOption == null
+                           ? getBufferSize(conf)
+                           : bufferSizeOption.getValue();
+          short replication = replicationOption == null
+                              ? fs.getDefaultReplication(p)
+                              : (short) replicationOption.getValue();
+          long blockSize = blockSizeOption == null
+                           ? fs.getDefaultBlockSize(p)
+                           : blockSizeOption.getValue();
+
+          if (appendIfExistsOption != null && appendIfExistsOption.getValue() && fs.exists(p)) {
+            // Read the file and verify header details
+            try (WALFile.Reader reader = new WALFile.Reader(
+                connectorConfig.getHadoopConfiguration(),
+                WALFile.Reader.file(p),
+                new Reader.OnlyHeaderOption()
+            )) {
+              if (reader.getVersion() != VERSION[3]) {
+                throw new VersionMismatchException(VERSION[3], reader.getVersion());
+              }
+              sync = reader.getSync();
+            }
+            out = fs.append(p, bufferSize);
+            this.appendMode = true;
+          } else {
+            out = fs.create(p, true, bufferSize, replication, blockSize);
+          }
+        } else {
+          out = streamOption.getValue();
+        }
+
+        init(connectorConfig, out, ownStream);
+      } catch (RemoteException re) {
+        log.error("Failed creating a WAL Writer: " + re.getMessage());
+        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
+          if (fs != null) {
+            fs.close();
+          }
+        }
+        throw re;
+      }
+
+    }
 
     public static Option file(Path value) {
       return new FileOption(value);
@@ -125,6 +209,131 @@ public class WALFile {
       return new BlockSizeOption(value);
     }
 
+    void init(HdfsSinkConnectorConfig connectorConfig, FSDataOutputStream out, boolean ownStream)
+        throws IOException {
+      Configuration conf = connectorConfig.getHadoopConfiguration();
+      this.out = out;
+      this.ownOutputStream = ownStream;
+      SerializationFactory serializationFactory = new SerializationFactory(conf);
+      this.keySerializer = serializationFactory.getSerializer(WALEntry.class);
+      if (this.keySerializer == null) {
+        String errorMsg = String.format(
+            deserErrorFmt,
+            "Key",
+            WALEntry.class.getCanonicalName(),
+            CommonConfigurationKeys.IO_SERIALIZATIONS_KEY
+        );
+        throw new IOException(errorMsg);
+      }
+      this.keySerializer.open(buffer);
+      this.valSerializer = serializationFactory.getSerializer(WALEntry.class);
+      if (this.valSerializer == null) {
+        String errorMsg = String.format(
+            deserErrorFmt,
+            "Value",
+            WALEntry.class.getCanonicalName(),
+            CommonConfigurationKeys.IO_SERIALIZATIONS_KEY
+        );
+        throw new IOException(errorMsg);
+      }
+      this.valSerializer.open(buffer);
+      if (appendMode) {
+        sync();
+      } else {
+        writeFileHeader();
+      }
+    }
+
+    public synchronized void append(WALEntry key, WALEntry val)
+        throws IOException {
+      buffer.reset();
+
+      // Append the 'key'
+      keySerializer.serialize(key);
+      int keyLength = buffer.getLength();
+      if (keyLength < 0) {
+        throw new IOException("negative length keys not allowed: " + key);
+      }
+
+      valSerializer.serialize(val);
+
+      // Write the record out
+      checkAndWriteSync();                                // sync
+      out.writeInt(buffer.getLength());                   // total record length
+      out.writeInt(keyLength);                            // key portion length
+      out.write(buffer.getData(), 0, buffer.getLength()); // data
+    }
+
+    /**
+     * Returns the current length of the output file.
+     *
+     * <p>This always returns a synchronized position.  In other words, immediately after calling
+     * {@link WALFile.Reader#seek(long)} with a position returned by this method, {@link
+     * WALFile.Reader#next(Writable)} may be called.  However the key may be earlier in the file
+     * than key last written when this method was called (e.g., with block-compression, it may be
+     * the first key in the block that was being written when this method was called).
+     */
+    public synchronized long getLength() throws IOException {
+      return out.getPos();
+    }
+
+    private synchronized void checkAndWriteSync() throws IOException {
+      if (sync != null && out.getPos() >= lastSyncPos + SYNC_INTERVAL) {
+        // time to emit sync
+        sync();
+      }
+    }
+
+    private void writeFileHeader()
+        throws IOException {
+      out.write(VERSION);                    // write the version
+      out.write(sync);                       // write the sync bytes
+      out.flush();                           // flush header
+    }
+
+    @Override
+    public synchronized void close() throws IOException {
+      keySerializer.close();
+      valSerializer.close();
+      if (out != null) {
+        // Close the underlying stream iff we own it...
+        if (ownOutputStream) {
+          out.close();
+        } else {
+          out.flush();
+        }
+        out = null;
+      }
+    }
+
+    @Override
+    public void sync() throws IOException {
+      if (sync != null && lastSyncPos != out.getPos()) {
+        out.writeInt(SYNC_ESCAPE);                // mark the start of the sync
+        out.write(sync);                          // write sync
+        lastSyncPos = out.getPos();               // update lastSyncPos
+      }
+    }
+
+    @Override
+    public void hflush() throws IOException {
+      if (out != null) {
+        out.hflush();
+      }
+    }
+
+    @Override
+    public void hsync() throws IOException {
+      if (out != null) {
+        out.hsync();
+      }
+    }
+
+    /**
+     * A tag interface for all of the Reader options
+     */
+    public interface Option {
+    }
 
     static class FileOption extends Options.PathOption implements Option {
 
@@ -169,207 +378,6 @@ public class WALFile {
         super(value);
       }
     }
-
-
-    Writer(Configuration conf, Option... opts) throws IOException {
-      BlockSizeOption blockSizeOption =
-          Options.getOption(BlockSizeOption.class, opts);
-      BufferSizeOption bufferSizeOption =
-          Options.getOption(BufferSizeOption.class, opts);
-      ReplicationOption replicationOption =
-          Options.getOption(ReplicationOption.class, opts);
-
-      FileOption fileOption = Options.getOption(FileOption.class, opts);
-      AppendIfExistsOption appendIfExistsOption = Options.getOption(
-          AppendIfExistsOption.class, opts);
-      StreamOption streamOption = Options.getOption(StreamOption.class, opts);
-
-      // check consistency of options
-      if ((fileOption == null) == (streamOption == null)) {
-        throw new IllegalArgumentException("file or stream must be specified");
-      }
-      if (fileOption == null && (blockSizeOption != null ||
-                                 bufferSizeOption != null ||
-                                 replicationOption != null)) {
-        throw new IllegalArgumentException("file modifier options not " +
-                                           "compatible with stream");
-      }
-
-      FileSystem fs = null;
-      FSDataOutputStream out;
-      boolean ownStream = fileOption != null;
-
-      try {
-        if (ownStream) {
-          Path p = fileOption.getValue();
-          fs = p.getFileSystem(conf);
-          int bufferSize = bufferSizeOption == null ? getBufferSize(conf) :
-            bufferSizeOption.getValue();
-          short replication = replicationOption == null ?
-            fs.getDefaultReplication(p) :
-            (short) replicationOption.getValue();
-          long blockSize = blockSizeOption == null ? fs.getDefaultBlockSize(p) :
-            blockSizeOption.getValue();
-
-          if (appendIfExistsOption != null && appendIfExistsOption.getValue()
-            && fs.exists(p)) {
-            // Read the file and verify header details
-            try (WALFile.Reader reader =
-                   new WALFile.Reader(conf, WALFile.Reader.file(p), new Reader.OnlyHeaderOption())){
-              if (reader.getVersion() != VERSION[3]) {
-                throw new VersionMismatchException(VERSION[3], reader.getVersion());
-              }
-              sync = reader.getSync();
-            }
-            out = fs.append(p, bufferSize);
-            this.appendMode = true;
-          } else {
-            out = fs.create(p, true, bufferSize, replication, blockSize);
-          }
-        } else {
-          out = streamOption.getValue();
-        }
-
-        init(conf, out, ownStream);
-      } catch (RemoteException re) {
-        log.error("Failed creating a WAL Writer: " + re.getMessage());
-        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          if (fs != null) {
-            fs.close();
-          }
-        }
-        throw re;
-      }
-
-    }
-
-    void init(Configuration conf, FSDataOutputStream out, boolean ownStream)
-        throws IOException {
-      this.conf = conf;
-      this.out = out;
-      this.ownOutputStream = ownStream;
-      SerializationFactory serializationFactory = new SerializationFactory(conf);
-      this.keySerializer = serializationFactory.getSerializer(WALEntry.class);
-      if (this.keySerializer == null) {
-        throw new IOException(
-            "Could not find a serializer for the Key class: '"
-            + WALEntry.class.getCanonicalName() + "'. "
-            + "Please ensure that the configuration '" +
-            CommonConfigurationKeys.IO_SERIALIZATIONS_KEY + "' is "
-            + "properly configured, if you're using"
-            + "custom serialization.");
-      }
-      this.keySerializer.open(buffer);
-      this.valSerializer = serializationFactory.getSerializer(WALEntry.class);
-      if (this.valSerializer == null) {
-        throw new IOException(
-            "Could not find a serializer for the Value class: '"
-            + WALEntry.class.getCanonicalName() + "'. "
-            + "Please ensure that the configuration '" +
-            CommonConfigurationKeys.IO_SERIALIZATIONS_KEY + "' is "
-            + "properly configured, if you're using"
-            + "custom serialization.");
-      }
-      this.valSerializer.open(buffer);
-      if (appendMode) {
-        sync();
-      } else {
-        writeFileHeader();
-      }
-    }
-
-    public synchronized void append(WALEntry key, WALEntry val)
-        throws IOException {
-      buffer.reset();
-
-      // Append the 'key'
-      keySerializer.serialize(key);
-      int keyLength = buffer.getLength();
-      if (keyLength < 0) {
-        throw new IOException("negative length keys not allowed: " + key);
-      }
-
-      valSerializer.serialize(val);
-
-      // Write the record out
-      checkAndWriteSync();                                // sync
-      out.writeInt(buffer.getLength());                   // total record length
-      out.writeInt(keyLength);                            // key portion length
-      out.write(buffer.getData(), 0, buffer.getLength()); // data
-    }
-
-    /** Returns the current length of the output file.
-     *
-     * <p>This always returns a synchronized position.  In other words,
-     * immediately after calling {@link WALFile.Reader#seek(long)} with a position
-     * returned by this method, {@link WALFile.Reader#next(Writable)} may be called.  However
-     * the key may be earlier in the file than key last written when this
-     * method was called (e.g., with block-compression, it may be the first key
-     * in the block that was being written when this method was called).
-     */
-    public synchronized long getLength() throws IOException {
-      return out.getPos();
-    }
-
-    private synchronized void checkAndWriteSync() throws IOException {
-      if (sync != null &&
-          out.getPos() >= lastSyncPos + SYNC_INTERVAL) { // time to emit sync
-        sync();
-      }
-    }
-
-    private void writeFileHeader()
-        throws IOException {
-      out.write(VERSION);                    // write the version
-      out.write(sync);                       // write the sync bytes
-      out.flush();                           // flush header
-    }
-
-
-    @Override
-    public synchronized void close() throws IOException {
-      keySerializer.close();
-      valSerializer.close();
-      if (out != null) {
-        // Close the underlying stream iff we own it...
-        if (ownOutputStream) {
-          out.close();
-        } else {
-          out.flush();
-        }
-        out = null;
-      }
-    }
-
-    @Override
-    public void sync() throws IOException {
-      if (sync != null && lastSyncPos != out.getPos()) {
-        out.writeInt(SYNC_ESCAPE);                // mark the start of the sync
-        out.write(sync);                          // write sync
-        lastSyncPos = out.getPos();               // update lastSyncPos
-      }
-    }
-
-    @Override
-    public void hsync() throws IOException {
-      if (out != null) {
-        out.hsync();
-      }
-    }
-
-    @Override
-    public void hflush() throws IOException {
-      if (out != null) {
-        out.hflush();
-      }
-    }
-  }
-
-  /**
-   * Get the configured buffer size
-   */
-  private static int getBufferSize(Configuration conf) {
-    return conf.getInt("io.file.buffer.size", 4096);
   }
 
   public static class Reader implements java.io.Closeable {
@@ -395,11 +403,55 @@ public class WALFile {
     private Deserializer<WALEntry> keyDeserializer;
     private Deserializer<WALEntry> valDeserializer;
 
-    /**
-     * A tag interface for all of the Reader options
-     */
-    public interface Option {
+    public Reader(Configuration conf, Option... opts) throws IOException {
+      // Look up the options, these are null if not set
+      FileOption fileOpt = Options.getOption(FileOption.class, opts);
+      InputStreamOption streamOpt = Options.getOption(InputStreamOption.class, opts);
+      LengthOption lenOpt = Options.getOption(LengthOption.class, opts);
+      BufferSizeOption bufOpt = Options.getOption(BufferSizeOption.class, opts);
 
+      // check for consistency
+      if ((fileOpt == null) == (streamOpt == null)) {
+        throw new
+            IllegalArgumentException("File or stream option must be specified");
+      }
+      if (fileOpt == null && bufOpt != null) {
+        throw new IllegalArgumentException("buffer size can only be set when a file is specified.");
+      }
+
+      // figure out the real values
+      Path filename = null;
+      FSDataInputStream file;
+      final long len;
+      FileSystem fs = null;
+
+      try {
+        if (fileOpt != null) {
+          filename = fileOpt.getValue();
+          fs = filename.getFileSystem(conf);
+          int bufSize = bufOpt == null ? getBufferSize(conf) : bufOpt.getValue();
+          len = null == lenOpt
+                ? fs.getFileStatus(filename).getLen()
+                : lenOpt.getValue();
+          file = openFile(fs, filename, bufSize, len);
+        } else {
+          len = null == lenOpt ? Long.MAX_VALUE : lenOpt.getValue();
+          file = streamOpt.getValue();
+        }
+        StartOption startOpt = Options.getOption(StartOption.class, opts);
+        long start = startOpt == null ? 0 : startOpt.getValue();
+        // really set up
+        OnlyHeaderOption headerOnly = Options.getOption(OnlyHeaderOption.class, opts);
+        initialize(filename, file, start, len, conf, headerOnly != null);
+      } catch (RemoteException re) {
+        log.error("Failed creating a WAL Reader: " + re.getMessage());
+        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
+          if (fs != null) {
+            fs.close();
+          }
+        }
+        throw re;
+      }
     }
 
     /**
@@ -452,116 +504,14 @@ public class WALFile {
       return new BufferSizeOption(value);
     }
 
-    private static class FileOption extends Options.PathOption
-        implements Option {
-
-      private FileOption(Path value) {
-        super(value);
-      }
-    }
-
-    private static class InputStreamOption
-        extends Options.FSDataInputStreamOption
-        implements Option {
-
-      private InputStreamOption(FSDataInputStream value) {
-        super(value);
-      }
-    }
-
-    private static class StartOption extends Options.LongOption
-        implements Option {
-
-      private StartOption(long value) {
-        super(value);
-      }
-    }
-
-    private static class LengthOption extends Options.LongOption
-        implements Option {
-
-      private LengthOption(long value) {
-        super(value);
-      }
-    }
-
-    private static class BufferSizeOption extends Options.IntegerOption
-        implements Option {
-
-      private BufferSizeOption(int value) {
-        super(value);
-      }
-    }
-
-    // only used directly
-    private static class OnlyHeaderOption extends Options.BooleanOption
-        implements Option {
-
-      private OnlyHeaderOption() {
-        super(true);
-      }
-    }
-
-    public Reader(Configuration conf, Option... opts) throws IOException {
-      // Look up the options, these are null if not set
-      FileOption fileOpt = Options.getOption(FileOption.class, opts);
-      InputStreamOption streamOpt =
-          Options.getOption(InputStreamOption.class, opts);
-      StartOption startOpt = Options.getOption(StartOption.class, opts);
-      LengthOption lenOpt = Options.getOption(LengthOption.class, opts);
-      BufferSizeOption bufOpt = Options.getOption(BufferSizeOption.class, opts);
-      OnlyHeaderOption headerOnly =
-          Options.getOption(OnlyHeaderOption.class, opts);
-
-      // check for consistency
-      if ((fileOpt == null) == (streamOpt == null)) {
-        throw new
-            IllegalArgumentException("File or stream option must be specified");
-      }
-      if (fileOpt == null && bufOpt != null) {
-        throw new IllegalArgumentException("buffer size can only be set when" +
-                                           " a file is specified.");
-      }
-
-      // figure out the real values
-      Path filename = null;
-      FSDataInputStream file;
-      final long len;
-      FileSystem fs = null;
-
-      try {
-        if (fileOpt != null) {
-          filename = fileOpt.getValue();
-          fs = filename.getFileSystem(conf);
-          int bufSize = bufOpt == null ? getBufferSize(conf) : bufOpt.getValue();
-          len = null == lenOpt
-            ? fs.getFileStatus(filename).getLen()
-            : lenOpt.getValue();
-          file = openFile(fs, filename, bufSize, len);
-        } else {
-          len = null == lenOpt ? Long.MAX_VALUE : lenOpt.getValue();
-          file = streamOpt.getValue();
-        }
-        long start = startOpt == null ? 0 : startOpt.getValue();
-        // really set up
-        initialize(filename, file, start, len, conf, headerOnly != null);
-      } catch (RemoteException re) {
-        log.error("Failed creating a WAL Reader: " + re.getMessage());
-        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          if (fs != null) {
-            fs.close();
-          }
-        }
-        throw re;
-      }
-    }
-
     /**
      * Common work of the constructors.
      */
-    private void initialize(Path filename, FSDataInputStream in,
-                            long start, long length, Configuration conf,
-                            boolean tempReader) throws IOException {
+    private void initialize(
+        Path filename, FSDataInputStream in,
+        long start, long length, Configuration conf,
+        boolean tempReader
+    ) throws IOException {
       if (in == null) {
         throw new IllegalArgumentException("in == null");
       }
@@ -588,15 +538,16 @@ public class WALFile {
     /**
      * Override this method to specialize the type of {@link FSDataInputStream} returned.
      *
-     * @param fs         The file system used to open the file.
-     * @param file       The file being read.
+     * @param fs The file system used to open the file.
+     * @param file The file being read.
      * @param bufferSize The buffer size used to read the file.
-     * @param length     The length being read if it is >= 0.  Otherwise, the length is not
-     *                   available.
+     * @param length The length being read if it is >= 0.  Otherwise, the length is not available.
      * @return The opened stream.
      */
-    protected FSDataInputStream openFile(FileSystem fs, Path file,
-                                         int bufferSize, long length) throws IOException {
+    protected FSDataInputStream openFile(
+        FileSystem fs, Path file,
+        int bufferSize, long length
+    ) throws IOException {
       return fs.open(file, bufferSize);
     }
 
@@ -604,15 +555,16 @@ public class WALFile {
      * Initialize the {@link Reader}
      *
      * @param tempReader <code>true</code> if we are constructing a temporary and hence do not
-     *                   initialize every component; <code>false</code> otherwise.
+     *      initialize every component; <code>false</code> otherwise.
      */
     private void init(boolean tempReader) throws IOException {
       byte[] versionBlock = new byte[VERSION.length];
       in.readFully(versionBlock);
 
-      if ((versionBlock[0] != VERSION[0]) ||
-          (versionBlock[1] != VERSION[1]) ||
-          (versionBlock[2] != VERSION[2])) {
+      if ((versionBlock[0] != VERSION[0])
+          || (versionBlock[1] != VERSION[1])
+          || (versionBlock[2] != VERSION[2])
+      ) {
         throw new IOException(this + " not a WALFile");
       }
 
@@ -635,13 +587,13 @@ public class WALFile {
         this.keyDeserializer =
             getDeserializer(serializationFactory, WALEntry.class);
         if (this.keyDeserializer == null) {
-          throw new IOException(
-              "Could not find a deserializer for the Key class: '"
-              + WALFile.class.getCanonicalName() + "'. "
-              + "Please ensure that the configuration '" +
-              CommonConfigurationKeys.IO_SERIALIZATIONS_KEY + "' is "
-              + "properly configured, if you're using "
-              + "custom serialization.");
+          String errorMsg = String.format(
+              deserErrorFmt,
+              "Key",
+              WALEntry.class.getCanonicalName(),
+              CommonConfigurationKeys.IO_SERIALIZATIONS_KEY
+          );
+          throw new IOException(errorMsg);
         }
 
         this.keyDeserializer.open(valBuffer);
@@ -649,13 +601,13 @@ public class WALFile {
         this.valDeserializer =
             getDeserializer(serializationFactory, WALEntry.class);
         if (this.valDeserializer == null) {
-          throw new IOException(
-              "Could not find a deserializer for the Value class: '"
-              + WALEntry.class.getCanonicalName() + "'. "
-              + "Please ensure that the configuration '" +
-              CommonConfigurationKeys.IO_SERIALIZATIONS_KEY + "' is "
-              + "properly configured, if you're using "
-              + "custom serialization.");
+          String errorMsg = String.format(
+              deserErrorFmt,
+              "Value",
+              WALEntry.class.getCanonicalName(),
+              CommonConfigurationKeys.IO_SERIALIZATIONS_KEY
+          );
+          throw new IOException(errorMsg);
         }
         this.valDeserializer.open(valIn);
       }
@@ -663,6 +615,10 @@ public class WALFile {
 
     private <T> Deserializer<T> getDeserializer(SerializationFactory sf, Class<T> c) {
       return sf.getDeserializer(c);
+    }
+
+    private byte[] getSync() {
+      return sync;
     }
 
     /**
@@ -681,10 +637,6 @@ public class WALFile {
       in.close();
     }
 
-    private byte[] getSync() {
-      return sync;
-    }
-
     private byte getVersion() {
       return version;
     }
@@ -695,7 +647,6 @@ public class WALFile {
     Configuration getConf() {
       return conf;
     }
-
 
     /**
      * Position valLenIn/valIn to the 'value' corresponding to the 'current' key
@@ -720,9 +671,13 @@ public class WALFile {
       val.readFields(valIn);
       if (valIn.read() > 0) {
         log.info("available bytes: " + valIn.available());
-        throw new IOException(val + " read " + (valBuffer.getPosition() - keyLength)
-                              + " bytes, should read " +
-                              (valBuffer.getLength() - keyLength));
+        throw new IOException(
+            val
+                + " read "
+                + (valBuffer.getPosition() - keyLength)
+                + " bytes, should read "
+                + (valBuffer.getLength() - keyLength)
+        );
       }
     }
 
@@ -742,9 +697,13 @@ public class WALFile {
       val = deserializeValue(val);
       if (valIn.read() > 0) {
         log.info("available bytes: " + valIn.available());
-        throw new IOException(val + " read " + (valBuffer.getPosition() - keyLength)
-                              + " bytes, should read " +
-                              (valBuffer.getLength() - keyLength));
+        throw new IOException(
+            val
+                + " read "
+                + (valBuffer.getPosition() - keyLength)
+                + " bytes, should read "
+                + (valBuffer.getLength() - keyLength)
+        );
       }
       return val;
 
@@ -755,13 +714,43 @@ public class WALFile {
     }
 
     /**
+     * Read and return the next record length, potentially skipping over a sync block.
+     *
+     * @return the length of the next record or -1 if there is no next record
+     */
+    private synchronized int readRecordLength() throws IOException {
+      if (in.getPos() >= end) {
+        return -1;
+      }
+      int length = in.readInt();
+      if (sync != null && length == SYNC_ESCAPE) {
+        // process a sync entry
+        // read syncCheck
+        in.readFully(syncCheck);
+        if (!Arrays.equals(sync, syncCheck)) {
+          // check it
+          throw new IOException("File is corrupt!");
+        }
+        syncSeen = true;
+        if (in.getPos() >= end) {
+          return -1;
+        }
+        length = in.readInt();                  // re-read length
+      } else {
+        syncSeen = false;
+      }
+
+      return length;
+    }
+
+    /**
      * Read the next key in the file into <code>key</code>, skipping its value.  True if another
      * entry exists, and false at end of file.
      */
     public synchronized boolean next(Writable key) throws IOException {
       if (key.getClass() != WALEntry.class) {
         throw new IOException("wrong key class: " + key.getClass().getName()
-                              + " is not " + WALEntry.class);
+            + " is not " + WALEntry.class);
       }
 
       outBuf.reset();
@@ -777,9 +766,8 @@ public class WALFile {
       valBuffer.mark(0);
       if (valBuffer.getPosition() != keyLength) {
         throw new IOException(key + " read " + valBuffer.getPosition()
-                              + " bytes, should read " + keyLength);
+            + " bytes, should read " + keyLength);
       }
-
 
       return true;
     }
@@ -788,8 +776,7 @@ public class WALFile {
      * Read the next key/value pair in the file into <code>key</code> and <code>val</code>.  Returns
      * true if such a pair exists and false when at end of file
      */
-    public synchronized boolean next(Writable key, Writable val)
-        throws IOException {
+    public synchronized boolean next(Writable key, Writable val) throws IOException {
       if (val.getClass() != WALEntry.class) {
         throw new IOException("wrong value class: " + val + " is not " + WALEntry.class);
       }
@@ -803,10 +790,11 @@ public class WALFile {
       return more;
     }
 
-    /** Read the next key/value pair in the file into <code>buffer</code>.
-     * Returns the length of the key read, or -1 if at end of file.  The length
-     * of the value may be computed by calling buffer.getLength() before and
-     * after calls to this method. */
+    /**
+     * Read the next key/value pair in the file into <code>buffer</code>. Returns the length of the
+     * key read, or -1 if at end of file.  The length of the value may be computed by calling
+     * buffer.getLength() before and after calls to this method.
+     */
     synchronized int next(DataOutputBuffer buffer) throws IOException {
       try {
         int length = readRecordLength();
@@ -823,35 +811,6 @@ public class WALFile {
     }
 
     /**
-     * Read and return the next record length, potentially skipping over a sync block.
-     *
-     * @return the length of the next record or -1 if there is no next record
-     */
-    private synchronized int readRecordLength() throws IOException {
-      if (in.getPos() >= end) {
-        return -1;
-      }
-      int length = in.readInt();
-      if (sync != null &&
-          length == SYNC_ESCAPE) {              // process a sync entry
-        in.readFully(syncCheck);                // read syncCheck
-        if (!Arrays.equals(sync, syncCheck))    // check it
-        {
-          throw new IOException("File is corrupt!");
-        }
-        syncSeen = true;
-        if (in.getPos() >= end) {
-          return -1;
-        }
-        length = in.readInt();                  // re-read length
-      } else {
-        syncSeen = false;
-      }
-
-      return length;
-    }
-
-    /**
      * Read the next key in the file, skipping its value.  Return null at end of file.
      */
     public synchronized WALEntry next(WALEntry key) throws IOException {
@@ -865,7 +824,7 @@ public class WALFile {
       valBuffer.mark(0);
       if (valBuffer.getPosition() != keyLength) {
         throw new IOException(key + " read " + valBuffer.getPosition()
-                              + " bytes, should read " + keyLength);
+            + " bytes, should read " + keyLength);
       }
       return key;
     }
@@ -894,9 +853,8 @@ public class WALFile {
     /**
      * Set the current byte position in the input file.
      *
-     * <p>The position passed must be a position returned by {@link WALFile.Writer#getLength()}
-     * when writing this file.  To seek to an arbitrary position, use {@link
-     * WALFile.Reader#sync(long)}.
+     * <p>The position passed must be a position returned by {@link WALFile.Writer#getLength()} when
+     * writing this file.  To seek to an arbitrary position, use {@link WALFile.Reader#sync(long)}.
      */
     public synchronized void seek(long position) throws IOException {
       in.seek(position);
@@ -962,5 +920,64 @@ public class WALFile {
     public String toString() {
       return filename;
     }
+
+    /**
+     * A tag interface for all of the Reader options
+     */
+    public interface Option {
+
+    }
+
+    private static class FileOption extends Options.PathOption
+        implements Option {
+
+      private FileOption(Path value) {
+        super(value);
+      }
+    }
+
+    private static class InputStreamOption
+        extends Options.FSDataInputStreamOption
+        implements Option {
+
+      private InputStreamOption(FSDataInputStream value) {
+        super(value);
+      }
+    }
+
+    private static class StartOption extends Options.LongOption
+        implements Option {
+
+      private StartOption(long value) {
+        super(value);
+      }
+    }
+
+    private static class LengthOption extends Options.LongOption
+        implements Option {
+
+      private LengthOption(long value) {
+        super(value);
+      }
+    }
+
+    private static class BufferSizeOption extends Options.IntegerOption
+        implements Option {
+
+      private BufferSizeOption(int value) {
+        super(value);
+      }
+    }
+
+    // only used directly
+    private static class OnlyHeaderOption extends Options.BooleanOption
+        implements Option {
+
+      private OnlyHeaderOption() {
+        super(true);
+      }
+    }
+
+
   }
 }

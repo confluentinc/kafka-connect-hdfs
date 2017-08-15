@@ -19,11 +19,13 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.util.Locale;
+
 public class TimeUtils {
 
   public static String encodeTimestamp(long partitionDurationMs, String pathFormat, String timeZoneString, long timestamp) {
     DateTimeZone timeZone = DateTimeZone.forID(timeZoneString);
-    DateTimeFormatter formatter = DateTimeFormat.forPattern(pathFormat).withZone(timeZone);
+    DateTimeFormatter formatter = DateTimeFormat.forPattern(pathFormat).withZone(timeZone).withLocale(Locale.ENGLISH);
     DateTime partition = new DateTime(getPartition(partitionDurationMs, timestamp, timeZone));
     return partition.toString(formatter);
   }

@@ -10,7 +10,7 @@
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
- **/
+ */
 
 package io.confluent.connect.hdfs.avro;
 
@@ -24,24 +24,32 @@ import org.apache.kafka.connect.data.Schema;
 import java.util.List;
 
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
-import io.confluent.connect.hdfs.hive.HiveSchemaConverter;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.errors.HiveMetaStoreException;
+import io.confluent.connect.storage.hive.HiveSchemaConverter;
 
 public class AvroHiveUtil extends HiveUtil {
 
-  private static final String avroSerde = "org.apache.hadoop.hive.serde2.avro.AvroSerDe";
-  private static final String avroInputFormat = "org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat";
-  private static final String avroOutputFormat = "org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat";
+  private static final String AVRO_SERDE = "org.apache.hadoop.hive.serde2.avro.AvroSerDe";
+  private static final String AVRO_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro"
+      + ".AvroContainerInputFormat";
+  private static final String AVRO_OUTPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro"
+      + ".AvroContainerOutputFormat";
   private static final String AVRO_SCHEMA_LITERAL = "avro.schema.literal";
+  private final AvroData avroData;
+  private final String topicsDir;
 
-
-  public AvroHiveUtil(HdfsSinkConnectorConfig connectorConfig, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    super(connectorConfig, avroData, hiveMetaStore);
+  public AvroHiveUtil(
+      HdfsSinkConnectorConfig conf, AvroData avroData, HiveMetaStore
+      hiveMetaStore
+  ) {
+    super(conf, hiveMetaStore);
+    this.avroData = avroData;
+    this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
   }
 
   @Override
@@ -52,23 +60,32 @@ public class AvroHiveUtil extends HiveUtil {
   }
 
   @Override
-  public void alterSchema(String database, String tableName, Schema schema) throws HiveMetaStoreException {
+  public void alterSchema(
+      String database,
+      String tableName,
+      Schema schema
+  ) throws HiveMetaStoreException {
     Table table = hiveMetaStore.getTable(database, tableName);
     table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
     hiveMetaStore.alterTable(table);
   }
 
-  private Table constructAvroTable(String database, String tableName, Schema schema, Partitioner partitioner)
+  private Table constructAvroTable(
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
+  )
       throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
-    String tablePath = FileUtils.hiveDirectoryName(url, topicsDir, tableName);
+    String tablePath = hiveDirectoryName(url, topicsDir, tableName);
     table.setDataLocation(new Path(tablePath));
-    table.setSerializationLib(avroSerde);
+    table.setSerializationLib(AVRO_SERDE);
     try {
-      table.setInputFormatClass(avroInputFormat);
-      table.setOutputFormatClass(avroOutputFormat);
+      table.setInputFormatClass(AVRO_INPUT_FORMAT);
+      table.setOutputFormatClass(AVRO_OUTPUT_FORMAT);
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }

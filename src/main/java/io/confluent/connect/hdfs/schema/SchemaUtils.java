@@ -19,6 +19,7 @@ import org.apache.kafka.connect.data.SchemaProjector;
 import org.apache.kafka.connect.errors.SchemaProjectorException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
+@Deprecated
 public class SchemaUtils {
 
   public static Compatibility getCompatibility(String compatibilityString) {
@@ -34,12 +35,19 @@ public class SchemaUtils {
     }
   }
 
-  public static boolean shouldChangeSchema(Schema valueSchema, Schema currentSchema, Compatibility compatibility) {
+  public static boolean shouldChangeSchema(
+      Schema valueSchema,
+      Schema currentSchema,
+      Compatibility compatibility
+  ) {
     if (currentSchema == null) {
       return true;
     }
-    if ((valueSchema.version() == null || currentSchema.version() == null) && compatibility != Compatibility.NONE) {
-      throw new SchemaProjectorException("Schema version required for " + compatibility.toString() + " compatibility");
+    if ((valueSchema.version() == null || currentSchema.version() == null)
+        && compatibility != Compatibility.NONE) {
+      throw new SchemaProjectorException("Schema version required for "
+          + compatibility.toString()
+          + " compatibility");
     }
     switch (compatibility) {
       case BACKWARD:
@@ -53,7 +61,11 @@ public class SchemaUtils {
   }
 
 
-  public static SinkRecord project(SinkRecord record, Schema currentSchema, Compatibility compatibility) {
+  public static SinkRecord project(
+      SinkRecord record,
+      Schema currentSchema,
+      Compatibility compatibility
+  ) {
     switch (compatibility) {
       case BACKWARD:
       case FULL:
@@ -64,8 +76,15 @@ public class SchemaUtils {
           return record;
         }
         Object projected = SchemaProjector.project(sourceSchema, value, currentSchema);
-        return new SinkRecord(record.topic(), record.kafkaPartition(), record.keySchema(),
-                              record.key(), currentSchema, projected, record.kafkaOffset());
+        return new SinkRecord(
+            record.topic(),
+            record.kafkaPartition(),
+            record.keySchema(),
+            record.key(),
+            currentSchema,
+            projected,
+            record.kafkaOffset()
+        );
       default:
         return record;
     }

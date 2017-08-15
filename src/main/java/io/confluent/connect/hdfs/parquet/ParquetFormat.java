@@ -10,28 +10,42 @@
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
- **/
+ */
 
 package io.confluent.connect.hdfs.parquet;
 
-import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.Format;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriterProvider;
-import io.confluent.connect.hdfs.SchemaFileReader;
-import io.confluent.connect.hdfs.hive.HiveMetaStore;
-import io.confluent.connect.hdfs.hive.HiveUtil;
+import org.apache.hadoop.fs.Path;
 
-public class ParquetFormat implements Format {
-  public RecordWriterProvider getRecordWriterProvider() {
-    return new ParquetRecordWriterProvider();
+import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.format.RecordWriterProvider;
+import io.confluent.connect.storage.format.SchemaFileReader;
+import io.confluent.connect.storage.hive.HiveFactory;
+
+public class ParquetFormat
+    implements io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
+  private final AvroData avroData;
+
+  // DO NOT change this signature, it is required for instantiation via reflection
+  public ParquetFormat(HdfsStorage storage) {
+    this.avroData = new AvroData(
+        storage.conf().getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
+    );
   }
 
-  public SchemaFileReader getSchemaFileReader(AvroData avroData) {
+  @Override
+  public RecordWriterProvider<HdfsSinkConnectorConfig> getRecordWriterProvider() {
+    return new ParquetRecordWriterProvider(avroData);
+  }
+
+  @Override
+  public SchemaFileReader<HdfsSinkConnectorConfig, Path> getSchemaFileReader() {
     return new ParquetFileReader(avroData);
   }
 
-  public HiveUtil getHiveUtil(HdfsSinkConnectorConfig config, AvroData avroData, HiveMetaStore hiveMetaStore) {
-    return new ParquetHiveUtil(config, avroData, hiveMetaStore);
+  @Override
+  public HiveFactory getHiveFactory() {
+    return new ParquetHiveFactory();
   }
 }

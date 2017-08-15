@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.schema;
 
+@Deprecated
 public enum Compatibility {
   NONE,
   BACKWARD,

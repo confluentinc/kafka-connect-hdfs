@@ -22,7 +22,9 @@ public class HdfsSinkConnectorConstants {
 
   // groups: topic, partition, start offset, end offset, extension
   // Also see legalChars in Topic.scala
-  public static final Pattern COMMITTED_FILENAME_PATTERN = Pattern.compile("([a-zA-Z0-9\\._\\-]+)\\+(\\d+)\\+(\\d+)\\+(\\d+)(.\\w+)?");
+  public static final Pattern COMMITTED_FILENAME_PATTERN = Pattern.compile(
+      "([a-zA-Z0-9\\._\\-]+)\\+(\\d+)\\+(\\d+)\\+(\\d+)(.\\w+)?"
+  );
   public static final int PATTERN_TOPIC_GROUP = 1;
   public static final int PATTERN_PARTITION_GROUP = 2;
   public static final int PATTERN_START_OFFSET_GROUP = 3;

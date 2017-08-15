@@ -20,10 +20,14 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.confluent</groupId>
+    <parent>
+        <groupId>io.confluent</groupId>
+        <artifactId>common</artifactId>
+        <version>4.0.0-SNAPSHOT</version>
+    </parent>
+
     <artifactId>kafka-connect-hdfs</artifactId>
     <packaging>jar</packaging>
-    <version>3.3.0-SNAPSHOT</version>
     <name>kafka-connect-hdfs</name>
     <organization>
         <name>Confluent, Inc.</name>
@@ -50,17 +54,14 @@
     </scm>
 
     <properties>
-        <confluent.version>3.3.0-SNAPSHOT</confluent.version>
-        <kafka.version>0.10.3.0-SNAPSHOT</kafka.version>
-        <junit.version>4.12</junit.version>
-        <hadoop.version>2.6.1</hadoop.version>
-        <hive.version>1.2.1</hive.version>
-        <avro.version>1.7.7</avro.version>
-        <parquet.version>1.7.0</parquet.version>
         <commons-io.version>2.4</commons-io.version>
-        <joda.version>1.6.2</joda.version>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <confluent.maven.repo>http://packages.confluent.io/maven/</confluent.maven.repo>
+        <hadoop.version>2.7.3</hadoop.version>
+        <hive.version>1.2.1</hive.version>
+        <avro.version>1.8.2</avro.version>
+        <parquet.version>1.7.0</parquet.version>
+        <joda.version>2.9.7</joda.version>
+        <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
     </properties>
 
     <repositories>
@@ -75,54 +76,42 @@
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
-            <version>${kafka.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-avro-converter</artifactId>
+            <version>${version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-common</artifactId>
             <version>${confluent.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-client</artifactId>
-            <version>${hadoop.version}</version>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-core</artifactId>
+            <version>${confluent.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-cli</artifactId>
-            <version>${hive.version}</version>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-format</artifactId>
+            <version>${confluent.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-common</artifactId>
-            <version>${hive.version}</version>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-partitioner</artifactId>
+            <version>${confluent.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro-mapred</artifactId>
-            <version>${avro.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.parquet</groupId>
-            <artifactId>parquet-column</artifactId>
-            <version>${parquet.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.parquet</groupId>
-            <artifactId>parquet-avro</artifactId>
-            <version>${parquet.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>${commons-io.version}</version>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-wal</artifactId>
+            <version>${confluent.version}</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
@@ -148,7 +137,7 @@
             <!-- add this to satisfy the dependency requirement of apacheds-jdbm1-->
             <groupId>org.apache.directory.jdbm</groupId>
             <artifactId>apacheds-jdbm1</artifactId>
-            <version>2.0.0-M2</version>
+            <version>${apacheds-jdbm1.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -173,11 +162,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.5.1</version>
-                <inherited>true</inherited>
                 <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
                     <compilerArguments>
                         <Xlint:all/>
                         <!-- bootstrap class path not set in conjunction with -source 1.7 -->
@@ -207,6 +192,7 @@
                         <descriptor>src/assembly/development.xml</descriptor>
                         <descriptor>src/assembly/package.xml</descriptor>
                     </descriptors>
+                    <attach>false</attach>
                 </configuration>
                 <executions>
                     <execution>
@@ -221,11 +207,26 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.18.1</version>
                 <configuration>
-                    <argLine>-Djava.awt.headless=true</argLine>
-                    <forkMode>pertest</forkMode>
+                    <reuseForks>false</reuseForks>
+                    <forkCount>1</forkCount>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>validate</id>
+                        <phase>validate</phase>
+                        <configuration>
+                            <suppressionsLocation>checkstyle/suppressions.xml</suppressionsLocation>
+                        </configuration>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>

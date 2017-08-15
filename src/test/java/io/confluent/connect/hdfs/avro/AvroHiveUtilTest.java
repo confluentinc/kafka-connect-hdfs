@@ -22,12 +22,12 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.DataWriter;
@@ -39,10 +39,17 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 import static org.junit.Assert.assertEquals;
 
 public class AvroHiveUtilTest extends HiveTestBase {
-
   private HiveUtil hive;
+  private Map<String, String> localProps = new HashMap<>();
 
-  @Before
+  @Override
+  protected Map<String, String> createProps() {
+    Map<String, String> props = super.createProps();
+    props.putAll(localProps);
+    return props;
+  }
+
+  //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     super.setUp();
     hive = new AvroHiveUtil(connectorConfig, avroData, hiveMetaStore);
@@ -50,22 +57,26 @@ public class AvroHiveUtilTest extends HiveTestBase {
 
   @Test
   public void testCreateTable() throws Exception {
+    setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
     String location = "partition=" + String.valueOf(PARTITION);
     hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
 
+    Struct expectedRecord = createRecord(schema);
+    List<String> expectedResult = new ArrayList<>();
     List<String> expectedColumnNames = new ArrayList<>();
-    for (Field field: schema.fields()) {
+    for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
+      expectedResult.add(String.valueOf(expectedRecord.get(field.name())));
     }
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
     List<String> actualColumnNames = new ArrayList<>();
-    for (FieldSchema column: table.getSd().getCols()) {
+    for (FieldSchema column : table.getSd().getCols()) {
       actualColumnNames.add(column.getName());
     }
 
@@ -74,37 +85,44 @@ public class AvroHiveUtilTest extends HiveTestBase {
     assertEquals(1, partitionCols.size());
     assertEquals("partition", partitionCols.get(0).getName());
 
-    String[] expectedResult = {"true", "12", "12", "12.2", "12.2", "12"};
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * FROM " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
-    for (String row: rows) {
+    for (String row : rows) {
       String[] parts = HiveTestUtils.parseOutput(row);
-      for (int j = 0; j < expectedResult.length; ++j) {
-        assertEquals(expectedResult[j], parts[j]);
+      int j = 0;
+      for (String expectedValue : expectedResult) {
+        assertEquals(expectedValue, parts[j++]);
       }
     }
   }
 
   @Test
   public void testAlterSchema() throws Exception {
+    setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 
     String location = "partition=" + String.valueOf(PARTITION);
     hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
 
+    Struct expectedRecord = createRecord(schema);
+    List<String> expectedResult = new ArrayList<>();
     List<String> expectedColumnNames = new ArrayList<>();
-    for (Field field: schema.fields()) {
+    for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
+      expectedResult.add(String.valueOf(expectedRecord.get(field.name())));
     }
 
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
     List<String> actualColumnNames = new ArrayList<>();
-    for (FieldSchema column: table.getSd().getCols()) {
+    for (FieldSchema column : table.getSd().getCols()) {
       actualColumnNames.add(column.getName());
     }
 
@@ -114,15 +132,18 @@ public class AvroHiveUtilTest extends HiveTestBase {
 
     hive.alterSchema(hiveDatabase, TOPIC, newSchema);
 
-    String[] expectedResult = {"true", "12", "12", "12.2", "12.2", "abc", "12"};
-    String result = HiveTestUtils.runHive(hiveExec, "SELECT * from " + TOPIC);
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * from " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
     String[] rows = result.split("\n");
     // Only 6 of the 7 records should have been delivered due to flush_size = 3
     assertEquals(6, rows.length);
-    for (String row: rows) {
+    for (String row : rows) {
       String[] parts = HiveTestUtils.parseOutput(row);
-      for (int j = 0; j < expectedResult.length; ++j) {
-        assertEquals(expectedResult[j], parts[j]);
+      int j = 0;
+      for (String expectedValue : expectedResult) {
+        assertEquals(expectedValue, parts[j++]);
       }
     }
   }
@@ -131,19 +152,11 @@ public class AvroHiveUtilTest extends HiveTestBase {
     TopicPartition tp = new TopicPartition(topic, partition);
     DataWriter hdfsWriter = createWriter(context, avroData);
     hdfsWriter.recover(tp);
-    String key = "key";
-    Schema schema = createSchema();
-    Struct record = createRecord(schema);
 
-    Collection<SinkRecord> sinkRecords = new ArrayList<>();
-    for (long offset = 0; offset < 7; offset++) {
-      SinkRecord sinkRecord =
-          new SinkRecord(topic, partition, Schema.STRING_SCHEMA, key, schema, record, offset);
-      sinkRecords.add(sinkRecord);
-    }
+    List<SinkRecord> sinkRecords = createSinkRecords(7);
 
     hdfsWriter.write(sinkRecords);
-    hdfsWriter.close(assignment);
+    hdfsWriter.close();
     hdfsWriter.stop();
   }
 

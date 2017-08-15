@@ -29,8 +29,9 @@ import java.util.Map;
 import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.schema.Compatibility;
-import io.confluent.connect.hdfs.schema.SchemaUtils;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 
 public class HdfsSinkTask extends SinkTask {
 
@@ -38,9 +39,7 @@ public class HdfsSinkTask extends SinkTask {
   private DataWriter hdfsWriter;
   private AvroData avroData;
 
-  public HdfsSinkTask() {
-
-  }
+  public HdfsSinkTask() {}
 
   @Override
   public String version() {
@@ -49,29 +48,35 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void start(Map<String, String> props) {
-    Set<TopicPartition> assignment = context.assignment();;
+    Set<TopicPartition> assignment = context.assignment();
     try {
       HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
-      boolean hiveIntegration = connectorConfig.getBoolean(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
+      boolean hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
-        Compatibility compatibility = SchemaUtils.getCompatibility(
-            connectorConfig.getString(HdfsSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
-        if (compatibility == Compatibility.NONE) {
-          throw new ConfigException("Hive Integration requires schema compatibility to be BACKWARD, FORWARD or FULL");
+        StorageSchemaCompatibility compatibility = StorageSchemaCompatibility.getCompatibility(
+            connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG)
+        );
+        if (compatibility == StorageSchemaCompatibility.NONE) {
+          throw new ConfigException(
+              "Hive Integration requires schema compatibility to be BACKWARD, FORWARD or FULL"
+          );
         }
       }
 
       //check that timezone it setup correctly in case of scheduled rotation
-      if(connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG) > 0) {
-        String timeZoneString = connectorConfig.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG);
+      if (connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG) > 0) {
+        String timeZoneString = connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG);
         if (timeZoneString.equals("")) {
-          throw new ConfigException(HdfsSinkConnectorConfig.TIMEZONE_CONFIG,
-                  timeZoneString, "Timezone cannot be empty when using scheduled file rotation.");
+          throw new ConfigException(PartitionerConfig.TIMEZONE_CONFIG,
+              timeZoneString, "Timezone cannot be empty when using scheduled file rotation."
+          );
         }
         DateTimeZone.forID(timeZoneString);
       }
 
-      int schemaCacheSize = connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG);
+      int schemaCacheSize = connectorConfig.getInt(
+          HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG
+      );
       avroData = new AvroData(schemaCacheSize);
       hdfsWriter = new DataWriter(connectorConfig, context, avroData);
       recover(assignment);
@@ -84,16 +89,9 @@ public class HdfsSinkTask extends SinkTask {
       log.info("Couldn't start HdfsSinkConnector:", e);
       log.info("Shutting down HdfsSinkConnector.");
       if (hdfsWriter != null) {
-        hdfsWriter.close(assignment);
+        hdfsWriter.close();
         hdfsWriter.stop();
       }
-    }
-  }
-
-  @Override
-  public void stop() throws ConnectException {
-    if (hdfsWriter != null) {
-      hdfsWriter.stop();
     }
   }
 
@@ -118,11 +116,18 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    hdfsWriter.close(partitions);
+    hdfsWriter.close();
+  }
+
+  @Override
+  public void stop() throws ConnectException {
+    if (hdfsWriter != null) {
+      hdfsWriter.stop();
+    }
   }
 
   private void recover(Set<TopicPartition> assignment) {
-    for (TopicPartition tp: assignment) {
+    for (TopicPartition tp : assignment) {
       hdfsWriter.recover(tp);
     }
   }
