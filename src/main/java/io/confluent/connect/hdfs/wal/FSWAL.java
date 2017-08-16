@@ -41,7 +41,6 @@ public class FSWAL implements WAL {
   private String logFile = null;
   private HdfsSinkConnectorConfig conf = null;
   private HdfsStorage storage = null;
-  private long sleepIntervalMs = WALConstants.INITIAL_SLEEP_INTERVAL_MS;
 
   public FSWAL(String logsDir, TopicPartition topicPart, HdfsStorage storage)
       throws ConnectException {
@@ -67,6 +66,7 @@ public class FSWAL implements WAL {
   }
 
   public void acquireLease() throws ConnectException {
+    long sleepIntervalMs = WALConstants.INITIAL_SLEEP_INTERVAL_MS;
     while (sleepIntervalMs < WALConstants.MAX_SLEEP_INTERVAL_MS) {
       try {
         if (writer == null) {
