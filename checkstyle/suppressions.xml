@@ -9,7 +9,7 @@
     <!-- TODO: fix all of these -->
     <suppress
             checks="AbbreviationAsWordInName"
-            files="(DataWriter|FSWAL|TopicPartitionWriter|WAL|WALEntry|WALFile).java"
+            files="(DataWriter|FSWAL|TopicPartitionWriter|WAL|WALEntry|WALFile|WALConstants).java"
     />
 
     <suppress

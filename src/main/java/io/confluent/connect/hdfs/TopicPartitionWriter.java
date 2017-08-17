@@ -385,7 +385,7 @@ public class TopicPartitionWriter {
           closeTempFile();
           appendToWAL();
           commitFile();
-        } catch (DataException e) {
+        } catch (ConnectException e) {
           log.error("Exception on topic partition {}: ", tp, e);
           failureTime = System.currentTimeMillis();
           setRetryTimeout(timeoutMs);
