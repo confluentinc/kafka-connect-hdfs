@@ -15,6 +15,7 @@
 package io.confluent.connect.hdfs.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -22,10 +23,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -55,12 +58,12 @@ public class DataWriterJsonTest extends TestWithMiniDFSCluster {
   }
 
   @Test
-  public void testWriteRecord() throws Exception {
+  public void testWithSchema() throws Exception {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
     hdfsWriter.recover(TOPIC_PARTITION);
 
-    List<SinkRecord> sinkRecords = createSinkRecords(7);
+    List<SinkRecord> sinkRecords = createSinkRecords(7, 0, context.assignment());
 
     hdfsWriter.write(sinkRecords);
     hdfsWriter.close();
@@ -68,7 +71,59 @@ public class DataWriterJsonTest extends TestWithMiniDFSCluster {
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {0, 3, 6};
-    verify(sinkRecords, validOffsets);
+    verify(sinkRecords, validOffsets, context.assignment());
+  }
+
+  @Test
+  public void testNoSchema() throws Exception {
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    List<SinkRecord> sinkRecords = createJsonRecordsWithoutSchema(
+        7 * context.assignment().size(),
+        0,
+        context.assignment()
+    );
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
+    long[] validOffsets = {0, 3, 6};
+    verify(sinkRecords, validOffsets, context.assignment());
+  }
+
+  protected List<SinkRecord> createJsonRecordsWithoutSchema(
+      int size,
+      long startOffset,
+      Set<TopicPartition> partitions
+  ) {
+    String key = "key";
+    int ibase = 12;
+
+    List<SinkRecord> sinkRecords = new ArrayList<>();
+    for (long offset = startOffset, total = 0; total < size; ++offset) {
+      for (TopicPartition tp : partitions) {
+        String record = "{\"schema\":{\"type\":\"struct\",\"fields\":[ "
+            + "{\"type\":\"boolean\",\"optional\":true,\"field\":\"booleanField\"},"
+            + "{\"type\":\"int32\",\"optional\":true,\"field\":\"intField\"},"
+            + "{\"type\":\"int64\",\"optional\":true,\"field\":\"longField\"},"
+            + "{\"type\":\"string\",\"optional\":false,\"field\":\"stringField\"}],"
+            + "\"payload\":"
+            + "{\"booleanField\":\"true\","
+            + "\"intField\":" + String.valueOf(ibase) + ","
+            + "\"longField\":" + String.valueOf((long) ibase) + ","
+            + "\"stringField\":str" + String.valueOf(ibase)
+            + "}}";
+        sinkRecords.add(new SinkRecord(TOPIC, tp.partition(), null, key, null, record, offset));
+        if (++total >= size) {
+          break;
+        }
+      }
+    }
+    return sinkRecords;
   }
 
   @Override
