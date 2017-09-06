@@ -23,6 +23,9 @@ import java.util.Iterator;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.storage.format.SchemaFileReader;
 
+/**
+ * A no-op implementation of a schema reader for JSON files.
+ */
 public class JsonFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, Path> {
   @Override
   public Schema getSchema(HdfsSinkConnectorConfig conf, Path path) {

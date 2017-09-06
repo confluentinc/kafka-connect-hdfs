@@ -27,10 +27,20 @@ import io.confluent.connect.storage.format.RecordWriterProvider;
 import io.confluent.connect.storage.format.SchemaFileReader;
 import io.confluent.connect.storage.hive.HiveFactory;
 
+/**
+ * A storage format implementation that exports JSON records to text files with a '.json'
+ * extension. In these files, records are separated by the system's line separator,
+ * and therefore store one record per line.
+ */
 public class JsonFormat implements Format<HdfsSinkConnectorConfig, Path> {
   private final HdfsStorage storage;
   private final JsonConverter converter;
 
+  /**
+   * Constructor.
+   *
+   * @param storage the underlying storage implementation.
+   */
   public JsonFormat(HdfsStorage storage) {
     this.storage = storage;
     this.converter = new JsonConverter();

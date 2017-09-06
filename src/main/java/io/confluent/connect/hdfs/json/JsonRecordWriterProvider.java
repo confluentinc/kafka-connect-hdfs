@@ -32,6 +32,9 @@ import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.format.RecordWriter;
 import io.confluent.connect.storage.format.RecordWriterProvider;
 
+/**
+ * Provider of a JSON record writer.
+ */
 public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkConnectorConfig> {
 
   private static final Logger log = LoggerFactory.getLogger(JsonRecordWriterProvider.class);
@@ -42,6 +45,12 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
   private final ObjectMapper mapper;
   private final JsonConverter converter;
 
+  /**
+   * Constructor.
+   *
+   * @param storage the underlying storage implementation.
+   * @param converter the JSON converter to be used to convert records from Kafka Connect format.
+   */
   JsonRecordWriterProvider(HdfsStorage storage, JsonConverter converter) {
     this.storage = storage;
     this.mapper = new ObjectMapper();
