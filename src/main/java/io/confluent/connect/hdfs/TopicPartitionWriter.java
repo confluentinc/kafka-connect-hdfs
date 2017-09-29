@@ -686,6 +686,7 @@ public class TopicPartitionWriter {
     }
     storage.commit(tempFile, committedFile);
     startOffsets.remove(encodedPartition);
+    offsets.remove(encodedPartition);
     offset = offset + recordCounter;
     recordCounter = 0;
     log.info("Committed {} for {}", committedFile, tp);
