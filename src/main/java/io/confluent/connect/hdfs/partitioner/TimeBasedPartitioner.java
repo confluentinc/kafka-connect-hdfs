@@ -17,6 +17,8 @@ package io.confluent.connect.hdfs.partitioner;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -31,14 +33,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TimeBasedPartitioner implements Partitioner {
 
   // Duration of a partition in milliseconds.
   private long partitionDurationMs;
   private DateTimeFormatter formatter;
+  private String timeFieldName;
   protected List<FieldSchema> partitionFields = new ArrayList<>();
   private static String patternString = "'year'=Y{1,5}/('month'=M{1,5}/)?('day'=d{1,3}/)?('hour'=H{1,3}/)?('minute'=m{1,3}/)?";
+  private static final Logger log = LoggerFactory.getLogger(TimeBasedPartitioner.class);
   private static Pattern pattern = Pattern.compile(patternString);
 
   protected void init(long partitionDurationMs, String pathFormat, Locale locale,
@@ -86,6 +92,11 @@ public class TimeBasedPartitioner implements Partitioner {
     String hiveIntString = (String) config.get(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG);
     boolean hiveIntegration = hiveIntString != null && hiveIntString.toLowerCase().equals("true");
 
+    timeFieldName = (String) config.get(HdfsSinkConnectorConfig.PARTITION_TIME_FIELD_NAME_CONFIG);
+    if (timeFieldName == null || timeFieldName.trim().isEmpty()) {
+      timeFieldName = null;
+    }
+
     Locale locale = new Locale(localeString);
     DateTimeZone timeZone = DateTimeZone.forID(timeZoneString);
     init(partitionDurationMs, pathFormat, locale, timeZone, hiveIntegration);
@@ -93,9 +104,55 @@ public class TimeBasedPartitioner implements Partitioner {
 
   @Override
   public String encodePartition(SinkRecord sinkRecord) {
-    long timestamp = System.currentTimeMillis();
+      long timestamp;
+      if (timeFieldName == null) {
+          timestamp = System.currentTimeMillis();
+      } else if (sinkRecord.value() instanceof Struct) {
+          Struct struct = (Struct) sinkRecord.value();
+          try {
+              timestamp = getTimestampValue(struct);
+          } catch (DataException e) {
+              log.warn("Unknown or non-numeric time field. "
+                      + "Defaulting to system time. Check the configuration option '"
+                      + HdfsSinkConnectorConfig.PARTITION_TIME_FIELD_NAME_CONFIG + "' in the connector config.", e);
+              timestamp = System.currentTimeMillis();
+          }
+      } else {
+          throw new DataException("The value of the sink record is expected to be a Struct type");
+      }
     DateTime bucket = new DateTime(getPartition(partitionDurationMs, timestamp, formatter.getZone()));
     return bucket.toString(formatter);
+  }
+
+  private long getTimestampValue(Struct record) throws DataException {
+      final String[] fieldNames = timeFieldName.split("\\.");
+      int i = 0;
+      Struct tmpRecord = record;
+      Object tmpRecordObject;
+      while (i < fieldNames.length - 1) {
+          tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+          tmpRecord = (Struct) tmpRecordObject;
+          i++;
+      }
+      try {
+          tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+      } catch (DataException e) {
+          throw e;
+      }
+      if (!(tmpRecordObject instanceof Number)) {
+          throw new DataException("The value of the time field must be numeric.");
+      }
+      return ((Number) tmpRecordObject).longValue();
+  }
+
+  private Object getField(Struct record, String fieldName) {
+      Object field;
+      try {
+          field = record.get(fieldName);
+      } catch (DataException e) {
+          throw new DataException(String.format("The field named '%s' does not exist.", fieldName), e);
+      }
+      return field;
   }
 
 

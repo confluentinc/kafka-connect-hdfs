@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs;
 
-import io.confluent.kafka.serializers.NonRecordContainer;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
