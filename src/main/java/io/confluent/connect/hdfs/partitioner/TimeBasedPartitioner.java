@@ -33,6 +33,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TimeBasedPartitioner implements Partitioner {
 
@@ -42,6 +44,7 @@ public class TimeBasedPartitioner implements Partitioner {
   private String timeFieldName;
   protected List<FieldSchema> partitionFields = new ArrayList<>();
   private static String patternString = "'year'=Y{1,5}/('month'=M{1,5}/)?('day'=d{1,3}/)?('hour'=H{1,3}/)?('minute'=m{1,3}/)?";
+  private static final Logger log = LoggerFactory.getLogger(TimeBasedPartitioner.class);
   private static Pattern pattern = Pattern.compile(patternString);
 
   protected void init(long partitionDurationMs, String pathFormat, Locale locale,
@@ -102,11 +105,18 @@ public class TimeBasedPartitioner implements Partitioner {
   @Override
   public String encodePartition(SinkRecord sinkRecord) {
       long timestamp;
-      if (timeFieldName == null || timeFieldName.equals("")) {
+      if (timeFieldName == null) {
           timestamp = System.currentTimeMillis();
       } else if (sinkRecord.value() instanceof Struct) {
           Struct struct = (Struct) sinkRecord.value();
-          timestamp = getTimestampValue(struct);
+          try {
+              timestamp = getTimestampValue(struct);
+          } catch (DataException e) {
+              log.warn("Unknown or non-numeric time field. "
+                      + "Defaulting to system time. Check the configuration option '"
+                      + HdfsSinkConnectorConfig.PARTITION_TIME_FIELD_NAME_CONFIG + "' in the connector config.", e);
+              timestamp = System.currentTimeMillis();
+          }
       } else {
           throw new DataException("The value of the sink record is expected to be a Struct type");
       }
@@ -114,7 +124,7 @@ public class TimeBasedPartitioner implements Partitioner {
     return bucket.toString(formatter);
   }
 
-  private long getTimestampValue(Struct record) {
+  private long getTimestampValue(Struct record) throws DataException {
       final String[] fieldNames = timeFieldName.split("\\.");
       int i = 0;
       Struct tmpRecord = record;
@@ -124,7 +134,11 @@ public class TimeBasedPartitioner implements Partitioner {
           tmpRecord = (Struct) tmpRecordObject;
           i++;
       }
-      tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+      try {
+          tmpRecordObject = getField(tmpRecord, fieldNames[i]);
+      } catch (DataException e) {
+          throw e;
+      }
       if (!(tmpRecordObject instanceof Number)) {
           throw new DataException("The value of the time field must be numeric.");
       }
