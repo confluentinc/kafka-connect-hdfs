@@ -15,7 +15,6 @@
 package io.confluent.connect.hdfs.hive;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Schema;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
