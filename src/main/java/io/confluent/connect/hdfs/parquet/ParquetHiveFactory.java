@@ -18,7 +18,6 @@ package io.confluent.connect.hdfs.parquet;
 
 import org.apache.kafka.common.config.AbstractConfig;
 
-import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.storage.hive.HiveFactory;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
