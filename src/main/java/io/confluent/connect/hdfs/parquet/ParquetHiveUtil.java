@@ -51,7 +51,7 @@ public class ParquetHiveUtil extends HiveUtil {
     Table table = hiveMetaStore.getTable(database, tableName);
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
     table.setFields(columns);
-    hiveMetaStore.alterTable(table);
+    hiveMetaStore.alterTable(table, true);
   }
 
   private Table constructParquetTable(String database, String tableName, Schema schema, Partitioner partitioner) throws HiveMetaStoreException {

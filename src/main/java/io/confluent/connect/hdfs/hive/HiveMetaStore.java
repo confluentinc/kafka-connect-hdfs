@@ -205,11 +205,11 @@ public class HiveMetaStore {
     }
   }
 
-  public void alterTable(final Table table) throws HiveMetaStoreException {
+  public void alterTable(final Table table, final boolean cascade) throws HiveMetaStoreException {
     ClientAction<Void> alter = new ClientAction<Void>() {
       @Override
       public Void call() throws TException {
-        client.alter_table(table.getDbName(), table.getTableName(), table.getTTable());
+        client.alter_table(table.getDbName(), table.getTableName(), table.getTTable(), cascade);
         return null;
       }
     };
@@ -227,6 +227,10 @@ public class HiveMetaStore {
     } catch (TException e) {
       throw new HiveMetaStoreException("Exception communicating with the Hive MetaStore", e);
     }
+  }
+
+  public void alterTable(final Table table) throws HiveMetaStoreException {
+    alterTable(table, false);
   }
 
   public void dropTable(final String database, final String tableName) {

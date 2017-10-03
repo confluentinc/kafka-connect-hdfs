@@ -138,6 +138,46 @@ public class ParquetHiveUtilTest extends HiveTestBase {
     }
   }
 
+  @Test
+  public void testAlterSchemaWithCascade() throws Exception{
+    prepareData(TOPIC, PARTITION);
+    Partitioner partitioner = HiveTestUtils.getPartitioner();
+    Schema schema = createSchema();
+    hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
+
+    String location = "partition=" + String.valueOf(PARTITION);
+    hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
+
+    List<String> expectedColumnNames = new ArrayList<>();
+    for (Field field: schema.fields()) {
+      expectedColumnNames.add(field.name());
+    }
+
+    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+    List<String> actualColumnNames = new ArrayList<>();
+    for (FieldSchema column: table.getSd().getCols()) {
+      actualColumnNames.add(column.getName());
+    }
+
+    assertEquals(expectedColumnNames, actualColumnNames);
+
+    Schema newSchema = createUpdatedSchemaWithFieldsInTheMiddleAndEnd();
+
+    hive.alterSchema(hiveDatabase, TOPIC, newSchema);
+
+    String[] expectedResult = {"true", "12", "NULL", "12", "12.2", "12.2", "NULL"};
+    String result = HiveTestUtils.runHive(hiveExec, "SELECT * from " + TOPIC);
+    String[] rows = result.split("\n");
+    // Only 6 of the 7 records should have been delivered due to flush_size = 3
+    assertEquals(6, rows.length);
+    for (String row: rows) {
+      String[] parts = HiveTestUtils.parseOutput(row);
+      for (int j = 0; j < expectedResult.length; ++j) {
+        assertEquals(expectedResult[j], parts[j]);
+      }
+    }
+  }
+
   private void prepareData(String topic, int partition) throws Exception {
     TopicPartition tp = new TopicPartition(topic, partition);
     DataWriter hdfsWriter = createWriter(context, avroData);

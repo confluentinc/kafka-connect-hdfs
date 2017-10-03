@@ -79,6 +79,19 @@ public class HdfsSinkConnectorTestBase {
         .put("double", 12.2);
   }
 
+
+  protected Schema createUpdatedSchemaWithFieldsInTheMiddleAndEnd() {
+    return SchemaBuilder.struct().name("record").version(2)
+            .field("boolean", Schema.BOOLEAN_SCHEMA)
+            .field("int", Schema.INT32_SCHEMA)
+            .field("string", Schema.STRING_SCHEMA)
+            .field("long", Schema.INT64_SCHEMA)
+            .field("float", Schema.FLOAT32_SCHEMA)
+            .field("double", Schema.FLOAT64_SCHEMA)
+            .field("string2", Schema.STRING_SCHEMA)
+            .build();
+  }
+
   protected Schema createNewSchema() {
     return SchemaBuilder.struct().name("record").version(2)
         .field("boolean", Schema.BOOLEAN_SCHEMA)
