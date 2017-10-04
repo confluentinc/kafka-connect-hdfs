@@ -225,6 +225,85 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
   }
 
   @Test
+  public void testHiveIntegrationFieldPartitionerParquetWithPartitionName() throws Exception {
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");
+    props.put(HdfsSinkConnectorConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
+    props.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
+    props.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NEW_COLUMN_NAME_CONFIG, "int_part");
+
+    HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
+    DataWriter hdfsWriter = new DataWriter(config, context, avroData);
+
+    String key = "key";
+    Schema schema = createSchema();
+
+    Struct[] records = createRecords(schema);
+    ArrayList<SinkRecord> sinkRecords = new ArrayList<>();
+    long offset = 0;
+    for (Struct record : records) {
+      for (long count = 0; count < 3; count++) {
+        SinkRecord sinkRecord = new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record,
+                offset + count);
+        sinkRecords.add(sinkRecord);
+      }
+      offset = offset + 3;
+    }
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close(assignment);
+    hdfsWriter.stop();
+
+    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+
+    List<String> expectedColumnNames = new ArrayList<>();
+    for (Field field: schema.fields()) {
+      expectedColumnNames.add(field.name());
+    }
+
+    List<String> actualColumnNames = new ArrayList<>();
+    for (FieldSchema column: table.getSd().getCols()) {
+      actualColumnNames.add(column.getName());
+    }
+    assertEquals(expectedColumnNames, actualColumnNames);
+    List<FieldSchema> partitionKeys = table.getPartitionKeys();
+    assertEquals(partitionKeys.size(), 1);
+    for(FieldSchema partitionKey : partitionKeys)
+      assertEquals("int_part", partitionKey.getName());
+
+    String partitionFieldName = config.getString(HdfsSinkConnectorConfig.PARTITION_FIELD_NEW_COLUMN_NAME_CONFIG);
+    String directory1 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(16);
+    String directory2 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(17);
+    String directory3 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(18);
+
+    List<String> expectedPartitions = new ArrayList<>();
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory1));
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory2));
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory3));
+
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
+
+    assertEquals(expectedPartitions, partitions);
+
+    ArrayList<String[]> expectedResult = new ArrayList<>();
+    for (int i = 16; i <= 18; ++i) {
+      String[] part = {"true", String.valueOf(i), "12", "12.2", "12.2"};
+      for (int j = 0; j < 3; ++j) {
+        expectedResult.add(part);
+      }
+    }
+    String result = HiveTestUtils.runHive(hiveExec, "SELECT * FROM " + TOPIC);
+    String[] rows = result.split("\n");
+    assertEquals(9, rows.length);
+    for (int i = 0; i < rows.length; ++i) {
+      String[] parts = HiveTestUtils.parseOutput(rows[i]);
+      for (int j = 0; j < expectedResult.get(i).length; ++j) {
+        assertEquals(expectedResult.get(i)[j], parts[j]);
+      }
+    }
+  }
+
+  @Test
   public void testHiveIntegrationTimeBasedPartitionerParquet() throws Exception {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.HIVE_INTEGRATION_CONFIG, "true");

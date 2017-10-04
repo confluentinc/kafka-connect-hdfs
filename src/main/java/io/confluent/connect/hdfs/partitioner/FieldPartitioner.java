@@ -33,12 +33,18 @@ import io.confluent.connect.hdfs.errors.PartitionException;
 public class FieldPartitioner implements Partitioner {
   private static final Logger log = LoggerFactory.getLogger(FieldPartitioner.class);
   private static String fieldName;
+  private static String partitionColumnName;
   private List<FieldSchema> partitionFields = new ArrayList<>();
 
   @Override
   public void configure(Map<String, Object> config) {
     fieldName = (String) config.get(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG);
-    partitionFields.add(new FieldSchema(fieldName, TypeInfoFactory.stringTypeInfo.toString(), ""));
+    partitionColumnName = (String) config.get(HdfsSinkConnectorConfig.PARTITION_FIELD_NEW_COLUMN_NAME_CONFIG);
+    if (partitionColumnName == null || partitionColumnName.trim().equals("")) {
+      partitionColumnName = fieldName;
+    }
+
+    partitionFields.add(new FieldSchema(partitionColumnName, TypeInfoFactory.stringTypeInfo.toString(), ""));
   }
 
   @Override
@@ -55,12 +61,12 @@ public class FieldPartitioner implements Partitioner {
         case INT32:
         case INT64:
           Number record = (Number) partitionKey;
-          return fieldName + "=" + record.toString();
+          return partitionColumnName + "=" + record.toString();
         case STRING:
-          return fieldName + "=" + (String) partitionKey;
+          return partitionColumnName + "=" + (String) partitionKey;
         case BOOLEAN:
           boolean booleanRecord = (boolean) partitionKey;
-          return fieldName + "=" + Boolean.toString(booleanRecord);
+          return partitionColumnName + "=" + Boolean.toString(booleanRecord);
         default:
           log.error("Type {} is not supported as a partition key.", type.getName());
           throw new PartitionException("Error encoding partition.");

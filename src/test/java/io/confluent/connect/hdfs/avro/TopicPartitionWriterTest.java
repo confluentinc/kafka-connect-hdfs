@@ -113,7 +113,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testWriteRecordFieldPartitioner() throws Exception {
-    Map<String, Object> config = createConfig();
+    Map<String, Object> config = createFieldConfigNoPath();
     Partitioner partitioner = new FieldPartitioner();
     partitioner.configure(config);
 
@@ -150,8 +150,46 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   }
 
   @Test
+  public void testWriteRecordFieldPartitionerWithCustomName() throws Exception {
+    Map<String, Object> config = createFieldConfig();
+    Partitioner partitioner = new FieldPartitioner();
+    partitioner.configure(config);
+
+    String partitionField = (String) config.get(HdfsSinkConnectorConfig.PARTITION_FIELD_NEW_COLUMN_NAME_CONFIG);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+            TOPIC_PARTITION, storage, writerProvider, partitioner, connectorConfig, context, avroData);
+
+    String key = "key";
+    Schema schema = createSchema();
+    Struct[] records = createRecords(schema);
+
+    Collection<SinkRecord> sinkRecords = createSinkRecords(records, key, schema);
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.recover();
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+
+    String directory1 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(16));
+    String directory2 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(17));
+    String directory3 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(18));
+
+    Set<Path> expectedFiles = new HashSet<>();
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory1, TOPIC_PARTITION, 0, 2, extension, ZERO_PAD_FMT)));
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory2, TOPIC_PARTITION, 3, 5, extension, ZERO_PAD_FMT)));
+    expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory3, TOPIC_PARTITION, 6, 8, extension, ZERO_PAD_FMT)));
+
+    verify(expectedFiles, records, schema);
+  }
+
+  @Test
   public void testWriteRecordTimeBasedPartition() throws Exception {
-    Map<String, Object> config = createConfig();
+    Map<String, Object> config = createTimeBasedConfig();
     Partitioner partitioner = new TimeBasedPartitioner();
     partitioner.configure(config);
 
@@ -190,13 +228,26 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     verify(expectedFiles, records, schema);
   }
 
-  private Map<String, Object> createConfig() {
+  private Map<String, Object> createTimeBasedConfig() {
     Map<String, Object> config = new HashMap<>();
     config.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
     config.put(HdfsSinkConnectorConfig.PARTITION_DURATION_MS_CONFIG, TimeUnit.HOURS.toMillis(1));
     config.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH/");
     config.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, "en");
     config.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
+    return config;
+  }
+
+  private Map<String, Object> createFieldConfig() {
+    Map<String, Object> config = new HashMap<>();
+    config.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
+    config.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NEW_COLUMN_NAME_CONFIG, "int_partition");
+    return config;
+  }
+
+  private Map<String, Object> createFieldConfigNoPath() {
+    Map<String, Object> config = new HashMap<>();
+    config.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NAME_CONFIG, "int");
     return config;
   }
 

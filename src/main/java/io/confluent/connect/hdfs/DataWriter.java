@@ -406,6 +406,7 @@ public class DataWriter {
     map.put(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG, config.getString(HdfsSinkConnectorConfig.PATH_FORMAT_CONFIG));
     map.put(HdfsSinkConnectorConfig.LOCALE_CONFIG, config.getString(HdfsSinkConnectorConfig.LOCALE_CONFIG));
     map.put(HdfsSinkConnectorConfig.TIMEZONE_CONFIG, config.getString(HdfsSinkConnectorConfig.TIMEZONE_CONFIG));
+    map.put(HdfsSinkConnectorConfig.PARTITION_FIELD_NEW_COLUMN_NAME_CONFIG, config.getString(HdfsSinkConnectorConfig.PARTITION_FIELD_NEW_COLUMN_NAME_CONFIG));
     return map;
   }
 }
