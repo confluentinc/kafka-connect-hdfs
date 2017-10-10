@@ -33,12 +33,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import io.confluent.connect.hdfs.avro.AvroFormat;
+import io.confluent.connect.hdfs.json.JsonFormat;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.ComposableConfig;
+import io.confluent.connect.storage.common.GenericRecommender;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.DailyPartitioner;
+import io.confluent.connect.storage.partitioner.DefaultPartitioner;
+import io.confluent.connect.storage.partitioner.FieldPartitioner;
+import io.confluent.connect.storage.partitioner.HourlyPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_CONFIG;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DISPLAY;
@@ -109,7 +116,32 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       new BooleanParentRecommender(
           HDFS_AUTHENTICATION_KERBEROS_CONFIG);
 
+  private static final GenericRecommender STORAGE_CLASS_RECOMMENDER = new GenericRecommender();
+  private static final GenericRecommender FORMAT_CLASS_RECOMMENDER = new GenericRecommender();
+  private static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
+
   static {
+    STORAGE_CLASS_RECOMMENDER.addValidValues(
+        Arrays.<Object>asList(HdfsStorage.class)
+    );
+
+    FORMAT_CLASS_RECOMMENDER.addValidValues(
+        Arrays.<Object>asList(AvroFormat.class, JsonFormat.class)
+    );
+
+    PARTITIONER_CLASS_RECOMMENDER.addValidValues(
+        Arrays.<Object>asList(
+            DefaultPartitioner.class,
+            HourlyPartitioner.class,
+            DailyPartitioner.class,
+            TimeBasedPartitioner.class,
+            FieldPartitioner.class
+        )
+    );
+  }
+
+  public static ConfigDef newConfigDef() {
+    ConfigDef configDef = StorageSinkConnectorConfig.newConfigDef(FORMAT_CLASS_RECOMMENDER);
     // Define HDFS configuration group
     {
       final String group = "HDFS";
@@ -117,7 +149,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
       // HDFS_URL_CONFIG property is retained for backwards compatibility with HDFS connector and
       // will be removed in future versions.
-      CONFIG_DEF.define(
+      configDef.define(
           HDFS_URL_CONFIG,
           Type.STRING,
           HDFS_URL_DEFAULT,
@@ -129,7 +161,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           HDFS_URL_DISPLAY
       );
 
-      CONFIG_DEF.define(
+      configDef.define(
           HADOOP_CONF_DIR_CONFIG,
           Type.STRING,
           HADOOP_CONF_DIR_DEFAULT,
@@ -141,7 +173,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           HADOOP_CONF_DIR_DISPLAY
       );
 
-      CONFIG_DEF.define(
+      configDef.define(
           HADOOP_HOME_CONFIG,
           Type.STRING,
           HADOOP_HOME_DEFAULT,
@@ -153,7 +185,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           HADOOP_HOME_DISPLAY
       );
 
-      CONFIG_DEF.define(
+      configDef.define(
           LOGS_DIR_CONFIG,
           Type.STRING,
           LOGS_DIR_DEFAULT,
@@ -170,7 +202,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       final String group = "Security";
       int orderInGroup = 0;
       // Define Security configuration group
-      CONFIG_DEF.define(
+      configDef.define(
           HDFS_AUTHENTICATION_KERBEROS_CONFIG,
           Type.BOOLEAN,
           HDFS_AUTHENTICATION_KERBEROS_DEFAULT,
@@ -188,7 +220,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           )
       );
 
-      CONFIG_DEF.define(
+      configDef.define(
           CONNECT_HDFS_PRINCIPAL_CONFIG,
           Type.STRING,
           CONNECT_HDFS_PRINCIPAL_DEFAULT,
@@ -201,7 +233,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           hdfsAuthenticationKerberosDependentsRecommender
       );
 
-      CONFIG_DEF.define(
+      configDef.define(
           CONNECT_HDFS_KEYTAB_CONFIG,
           Type.STRING,
           CONNECT_HDFS_KEYTAB_DEFAULT,
@@ -214,7 +246,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           hdfsAuthenticationKerberosDependentsRecommender
       );
 
-      CONFIG_DEF.define(
+      configDef.define(
           HDFS_NAMENODE_PRINCIPAL_CONFIG,
           Type.STRING,
           HDFS_NAMENODE_PRINCIPAL_DEFAULT,
@@ -227,7 +259,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           hdfsAuthenticationKerberosDependentsRecommender
       );
 
-      CONFIG_DEF.define(
+      configDef.define(
           KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG,
           Type.LONG,
           KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT,
@@ -240,7 +272,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           hdfsAuthenticationKerberosDependentsRecommender
       );
     }
-
+    return configDef;
   }
 
   private final String name;
@@ -252,14 +284,16 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private Configuration hadoopConfig;
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
-    this(CONFIG_DEF, addDefaults(props));
+    this(newConfigDef() , addDefaults(props));
   }
 
   protected HdfsSinkConnectorConfig(ConfigDef configDef, Map<String, String> props) {
     super(configDef, props);
-    commonConfig = new StorageCommonConfig(originalsStrings());
+    ConfigDef storageCommonConfigDef = StorageCommonConfig.newConfigDef(STORAGE_CLASS_RECOMMENDER);
+    commonConfig = new StorageCommonConfig(storageCommonConfigDef, originalsStrings());
     hiveConfig = new HiveConfig(originalsStrings());
-    partitionerConfig = new PartitionerConfig(originalsStrings());
+    ConfigDef partitionerConfigDef = PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER);
+    partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
     this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
     addToGlobal(hiveConfig);
@@ -336,9 +370,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   public static ConfigDef getConfig() {
-    Map<String, ConfigDef.ConfigKey> everything = new HashMap<>(CONFIG_DEF.configKeys());
-    everything.putAll(StorageCommonConfig.getConfig().configKeys());
-    everything.putAll(PartitionerConfig.getConfig().configKeys());
+    Map<String, ConfigDef.ConfigKey> everything = new HashMap<>(newConfigDef().configKeys());
+    everything.putAll(StorageCommonConfig.newConfigDef(STORAGE_CLASS_RECOMMENDER).configKeys());
+    everything.putAll(PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER).configKeys());
 
     Set<String> skip = new HashSet<>();
     skip.add(STORAGE_CLASS_CONFIG);
@@ -355,7 +389,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         "Storage",
         1,
         Width.NONE,
-        STORAGE_CLASS_DISPLAY
+        STORAGE_CLASS_DISPLAY,
+        STORAGE_CLASS_RECOMMENDER
     );
 
     visible.define(
@@ -367,7 +402,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         "Connector",
         1,
         Width.NONE,
-        FORMAT_CLASS_DISPLAY
+        FORMAT_CLASS_DISPLAY,
+        FORMAT_CLASS_RECOMMENDER
     );
 
     for (ConfigDef.ConfigKey key : everything.values()) {
