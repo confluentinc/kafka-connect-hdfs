@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.confluent.common.utils.MockTime;
 import io.confluent.connect.hdfs.avro.AvroDataFileReader;
 import io.confluent.connect.hdfs.filter.CommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
@@ -35,6 +36,7 @@ public class FormatAPITopicPartitionWriterCompatibilityTest extends TestWithMini
   private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
       newWriterProvider;
   private HdfsStorage storage;
+  private MockTime time;
 
   @Override
   protected Map<String, String> createProps() {
@@ -44,6 +46,7 @@ public class FormatAPITopicPartitionWriterCompatibilityTest extends TestWithMini
   @Before
   public void setUp() throws Exception {
     super.setUp();
+    time = new MockTime();
 
     @SuppressWarnings("unchecked")
     Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>)
@@ -76,7 +79,8 @@ public class FormatAPITopicPartitionWriterCompatibilityTest extends TestWithMini
         partitioner,
         connectorConfig,
         context,
-        avroData
+        avroData,
+        time
     );
 
     Schema schema = createSchema();
