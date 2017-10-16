@@ -69,24 +69,24 @@ public class TopicPartitionWriter {
   private final boolean hiveIntegration;
   private final Time time;
   private final HdfsStorage storage;
-  private WAL wal;
-  private Map<String, String> tempFiles;
-  private Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
-  private TopicPartition tp;
-  private Partitioner partitioner;
+  private final WAL wal;
+  private final Map<String, String> tempFiles;
+  private final Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
+  private final TopicPartition tp;
+  private final Partitioner partitioner;
   private final TimestampExtractor timestampExtractor;
   private final boolean isWallclockBased;
-  private String url;
-  private String topicsDir;
+  private final String url;
+  private final String topicsDir;
   private State state;
-  private Queue<SinkRecord> buffer;
+  private final Queue<SinkRecord> buffer;
   private boolean recovered;
-  private SinkTaskContext context;
+  private final SinkTaskContext context;
   private int recordCounter;
-  private int flushSize;
-  private long rotateIntervalMs;
+  private final int flushSize;
+  private final long rotateIntervalMs;
   private Long lastRotate;
-  private long rotateScheduleIntervalMs;
+  private final long rotateScheduleIntervalMs;
   private long nextScheduledRotate;
   private Long currentTimestamp;
   private SinkRecord currentRecord;
@@ -95,27 +95,27 @@ public class TopicPartitionWriter {
   // config + extra parameters, the other requires the ConnectorConfig and doesn't get the other
   // extra parameters. Instead, we have to (optionally) store one of each and use whichever one is
   // non-null.
-  private RecordWriterProvider writerProvider;
-  private HdfsSinkConnectorConfig connectorConfig;
-  private AvroData avroData;
-  private Set<String> appended;
+  private final RecordWriterProvider writerProvider;
+  private final HdfsSinkConnectorConfig connectorConfig;
+  private final AvroData avroData;
+  private final Set<String> appended;
   private long offset;
-  private Map<String, Long> startOffsets;
-  private Map<String, Long> offsets;
-  private long timeoutMs;
+  private final Map<String, Long> startOffsets;
+  private final Map<String, Long> offsets;
+  private final long timeoutMs;
   private long failureTime;
-  private StorageSchemaCompatibility compatibility;
+  private final StorageSchemaCompatibility compatibility;
   private Schema currentSchema;
-  private String extension;
-  private DateTimeZone timeZone;
-  private String hiveDatabase;
-  private HiveMetaStore hiveMetaStore;
-  private io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
+  private final String extension;
+  private final DateTimeZone timeZone;
+  private final String hiveDatabase;
+  private final HiveMetaStore hiveMetaStore;
+  private final io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
       schemaFileReader;
-  private HiveUtil hive;
-  private ExecutorService executorService;
-  private Queue<Future<Void>> hiveUpdateFutures;
-  private Set<String> hivePartitions;
+  private final HiveUtil hive;
+  private final ExecutorService executorService;
+  private final Queue<Future<Void>> hiveUpdateFutures;
+  private final Set<String> hivePartitions;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -226,15 +226,20 @@ public class TopicPartitionWriter {
     hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
     if (hiveIntegration) {
       hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
-      this.hiveMetaStore = hiveMetaStore;
-      this.hive = hive;
-      this.executorService = executorService;
-      this.hiveUpdateFutures = hiveUpdateFutures;
-      hivePartitions = new HashSet<>();
+    } else {
+      hiveDatabase = null;
     }
+
+    this.hiveMetaStore = hiveMetaStore;
+    this.hive = hive;
+    this.executorService = executorService;
+    this.hiveUpdateFutures = hiveUpdateFutures;
+    hivePartitions = new HashSet<>();
 
     if (rotateScheduleIntervalMs > 0) {
       timeZone = DateTimeZone.forID(connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG));
+    } else {
+      timeZone = null;
     }
 
     // Initialize rotation timers
