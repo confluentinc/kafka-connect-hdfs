@@ -16,6 +16,9 @@ package io.confluent.connect.hdfs.avro;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -244,6 +247,101 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     verify(expectedFiles, expectedBatchSize, records, schema);
   }
 
+  @Test
+  public void testWriteRecordTimeBasedPartitionFieldTimestampHours() throws Exception {
+    // Do not roll on size, only based on time.
+    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "1000");
+    localProps.put(
+        HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
+        String.valueOf(TimeUnit.MINUTES.toMillis(1))
+    );
+    setUp();
+
+    // Define the partitioner
+    partitioner = new DataWriter.PartitionerWrapper(new HourlyPartitioner<FieldSchema>());
+    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "RecordField");
+    partitioner.configure(parsedConfig);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+        TOPIC_PARTITION,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData,
+        time
+    );
+
+    Schema schema = createSchemaWithTimestampField();
+
+    DateTime first = new DateTime(2017, 3, 2, 10, 0, DateTimeZone.forID("America/Los_Angeles"));
+    // One record every 20 sec, puts 3 records every minute/rotate interval
+    long advanceMs = 20000;
+    long timestampFirst = first.getMillis();
+    int size = 18;
+
+    ArrayList<Struct> records = new ArrayList<>(size);
+    for (int i = 0; i < size/2; ++i) {
+      records.add(createRecordWithTimestampField(schema, timestampFirst));
+      timestampFirst += advanceMs;
+    }
+    Collection<SinkRecord> sinkRecords = createSinkRecords(records.subList(0, 9), schema);
+
+    long timestampLater = first.plusHours(2).getMillis();
+    for (int i = size/2; i < size; ++i) {
+      records.add(createRecordWithTimestampField(schema, timestampLater));
+      timestampLater += advanceMs;
+    }
+    sinkRecords.addAll(createSinkRecords(
+        records.subList(9, 18),
+        schema,
+        9,
+        Collections.singleton(new TopicPartition(TOPIC, PARTITION))
+    ));
+
+    // And one last record to flush the previous ones.
+    long timestampMuchLater = first.plusHours(6).getMillis();
+    Struct lastOne = createRecordWithTimestampField(schema, timestampMuchLater);
+    sinkRecords.addAll(createSinkRecords(
+        Collections.singletonList(lastOne),
+        schema,
+        19,
+        Collections.singleton(new TopicPartition(TOPIC, PARTITION))
+    ));
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.recover();
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+    String encodedPartitionFirst = getTimebasedEncodedPartition(timestampFirst);
+    String encodedPartitionLater = getTimebasedEncodedPartition(timestampLater);
+
+    String dirPrefixFirst = partitioner.generatePartitionedPath(TOPIC, encodedPartitionFirst);
+    Set<Path> expectedFiles = new HashSet<>();
+    for (int i : new int[]{0, 3, 6}) {
+      expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixFirst, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
+    }
+
+    String dirPrefixLater = partitioner.generatePartitionedPath(TOPIC, encodedPartitionLater);
+    for (int i : new int[]{9, 12, 15}) {
+      expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixLater, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
+    }
+    verify(expectedFiles, 3, records, schema);
+  }
+
+  private String getTimebasedEncodedPartition(long timestamp) {
+    long partitionDurationMs = (Long) parsedConfig.get(PartitionerConfig.PARTITION_DURATION_MS_CONFIG);
+    String pathFormat = (String) parsedConfig.get(PartitionerConfig.PATH_FORMAT_CONFIG);
+    String timeZone = (String) parsedConfig.get(PartitionerConfig.TIMEZONE_CONFIG);
+    return TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZone, timestamp);
+  }
+
   private void createTopicDir(String url, String topicsDir, String topic) throws IOException {
     Path path = new Path(FileUtils.topicDirectory(url, topicsDir, topic));
     if (!fs.exists(path)) {
@@ -274,4 +372,17 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     }
   }
 
+  public static class MockedWallclockTimestampExtractor
+      extends
+      io.confluent.connect.storage.partitioner.TimeBasedPartitioner.WallclockTimestampExtractor{
+    public static final MockTime TIME = new MockTime();
+
+    @Override
+    public void configure(Map<String, Object> config) {}
+
+    @Override
+    public Long extract(ConnectRecord<?> record) {
+      return TIME.milliseconds();
+    }
+  }
 }

@@ -45,7 +45,7 @@
     <suppress
             checks="ParameterNumber"
             files="(TopicPartitionWriter).java"
-            lines="112,142"
+            lines="112,150"
     />
 
     <suppress

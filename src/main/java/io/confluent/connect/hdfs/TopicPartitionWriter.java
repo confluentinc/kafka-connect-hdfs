@@ -54,11 +54,15 @@ import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
+import io.confluent.connect.storage.partitioner.TimestampExtractor;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
+  private static final TimestampExtractor WALLCLOCK =
+      new TimeBasedPartitioner.WallclockTimestampExtractor();
   private final io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
       newWriterProvider;
   private final String zeroPadOffsetFormat;
@@ -70,6 +74,8 @@ public class TopicPartitionWriter {
   private Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
   private TopicPartition tp;
   private Partitioner partitioner;
+  private final TimestampExtractor timestampExtractor;
+  private final boolean isWallclockBased;
   private String url;
   private String topicsDir;
   private State state;
@@ -79,9 +85,11 @@ public class TopicPartitionWriter {
   private int recordCounter;
   private int flushSize;
   private long rotateIntervalMs;
-  private long lastRotate;
+  private Long lastRotate;
   private long rotateScheduleIntervalMs;
   private long nextScheduledRotate;
+  private Long currentTimestamp;
+  private SinkRecord currentRecord;
   // This is one case where we cannot simply wrap the old or new RecordWriterProvider with the
   // other because they have incompatible requirements for some methods -- one requires the Hadoop
   // config + extra parameters, the other requires the ConnectorConfig and doesn't get the other
@@ -165,6 +173,18 @@ public class TopicPartitionWriter {
     this.writerProvider = writerProvider;
     this.newWriterProvider = newWriterProvider;
     this.partitioner = partitioner;
+    TimestampExtractor timestampExtractor = null;
+    if (partitioner instanceof DataWriter.PartitionerWrapper) {
+      io.confluent.connect.storage.partitioner.Partitioner<?> inner =
+          ((DataWriter.PartitionerWrapper) partitioner).partitioner;
+      if (TimeBasedPartitioner.class.isAssignableFrom(inner.getClass())) {
+        timestampExtractor = ((TimeBasedPartitioner) inner).getTimestampExtractor();
+      }
+    }
+    this.timestampExtractor = timestampExtractor != null ? timestampExtractor : WALLCLOCK;
+    this.isWallclockBased = TimeBasedPartitioner.WallclockTimestampExtractor.class.isAssignableFrom(
+        this.timestampExtractor.getClass()
+    );
     this.url = storage.url();
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
@@ -259,7 +279,11 @@ public class TopicPartitionWriter {
   }
 
   private void updateRotationTimers() {
-    lastRotate = time.milliseconds();
+    long now = time.milliseconds();
+    // Wallclock-based partitioners should be independent of the record argument.
+    lastRotate = isWallclockBased
+                 ? timestampExtractor.extract(null)
+                 : currentRecord != null ? timestampExtractor.extract(currentRecord) : null;
     if (log.isDebugEnabled() && rotateIntervalMs > 0) {
       log.debug(
           "Update last rotation timer. Next rotation for {} will be in {}ms",
@@ -269,7 +293,7 @@ public class TopicPartitionWriter {
     }
     if (rotateScheduleIntervalMs > 0) {
       nextScheduledRotate = DateTimeUtils.getNextTimeAdjustedByDay(
-          lastRotate,
+          now,
           rotateScheduleIntervalMs,
           timeZone
       );
@@ -321,6 +345,7 @@ public class TopicPartitionWriter {
               }
             }
             SinkRecord record = buffer.peek();
+            currentRecord = record;
             Schema valueSchema = record.valueSchema();
             if ((recordCounter <= 0 && currentSchema == null && valueSchema != null)
                 || compatibility.shouldChangeSchema(record, null, currentSchema)) {
@@ -335,9 +360,6 @@ public class TopicPartitionWriter {
                 break;
               }
             } else {
-              SinkRecord projectedRecord = compatibility.project(record, null, currentSchema);
-              writeRecord(projectedRecord);
-              buffer.poll();
               if (shouldRotate(now)) {
                 log.info(
                     "Starting commit and rotation for topic partition {} with start offsets {} "
@@ -349,6 +371,9 @@ public class TopicPartitionWriter {
                 nextState();
                 // Fall through and try to rotate immediately
               } else {
+                SinkRecord projectedRecord = compatibility.project(record, null, currentSchema);
+                writeRecord(projectedRecord);
+                buffer.poll();
                 break;
               }
             }
@@ -476,7 +501,15 @@ public class TopicPartitionWriter {
   }
 
   private boolean shouldRotate(long now) {
-    boolean periodicRotation = rotateIntervalMs > 0 && now - lastRotate >= rotateIntervalMs;
+    currentTimestamp = timestampExtractor.extract(currentRecord);
+    lastRotate = lastRotate == null && currentRecord != null
+                 ? timestampExtractor.extract(currentRecord)
+                 : lastRotate;
+
+    boolean periodicRotation = rotateIntervalMs > 0
+        && currentTimestamp != null
+        && lastRotate != null
+        && currentTimestamp - lastRotate >= rotateIntervalMs;
     boolean scheduledRotation = rotateScheduleIntervalMs > 0 && now >= nextScheduledRotate;
     boolean messageSizeRotation = recordCounter >= flushSize;
 
