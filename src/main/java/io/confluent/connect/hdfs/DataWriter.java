@@ -545,7 +545,7 @@ public class DataWriter {
   }
 
   public static class PartitionerWrapper implements Partitioner {
-    io.confluent.connect.storage.partitioner.Partitioner<FieldSchema>  partitioner;
+    public final io.confluent.connect.storage.partitioner.Partitioner<FieldSchema>  partitioner;
 
     public PartitionerWrapper(
         io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> partitioner
