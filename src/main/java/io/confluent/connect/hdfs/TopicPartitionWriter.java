@@ -42,6 +42,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
+import io.confluent.common.utils.Time;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
 import io.confluent.connect.hdfs.filter.CommittedFileFilter;
@@ -62,6 +63,8 @@ public class TopicPartitionWriter {
       newWriterProvider;
   private final String zeroPadOffsetFormat;
   private final boolean hiveIntegration;
+  private final Time time;
+  private final HdfsStorage storage;
   private WAL wal;
   private Map<String, String> tempFiles;
   private Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
@@ -72,7 +75,6 @@ public class TopicPartitionWriter {
   private State state;
   private Queue<SinkRecord> buffer;
   private boolean recovered;
-  private HdfsStorage storage;
   private SinkTaskContext context;
   private int recordCounter;
   private int flushSize;
@@ -116,7 +118,8 @@ public class TopicPartitionWriter {
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
-      AvroData avroData
+      AvroData avroData,
+      Time time
   ) {
     this(
         tp,
@@ -131,7 +134,8 @@ public class TopicPartitionWriter {
         null,
         null,
         null,
-        null
+        null,
+        time
     );
   }
 
@@ -150,8 +154,10 @@ public class TopicPartitionWriter {
       io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
           schemaFileReader,
       ExecutorService executorService,
-      Queue<Future<Void>> hiveUpdateFutures
+      Queue<Future<Void>> hiveUpdateFutures,
+      Time time
   ) {
+    this.time = time;
     this.tp = tp;
     this.context = context;
     this.avroData = avroData;
@@ -253,7 +259,7 @@ public class TopicPartitionWriter {
   }
 
   private void updateRotationTimers() {
-    lastRotate = System.currentTimeMillis();
+    lastRotate = time.milliseconds();
     if (log.isDebugEnabled() && rotateIntervalMs > 0) {
       log.debug(
           "Update last rotation timer. Next rotation for {} will be in {}ms",
@@ -279,7 +285,7 @@ public class TopicPartitionWriter {
 
   @SuppressWarnings("fallthrough")
   public void write() {
-    long now = System.currentTimeMillis();
+    long now = time.milliseconds();
     if (failureTime > 0 && now - failureTime < timeoutMs) {
       return;
     }
@@ -366,7 +372,7 @@ public class TopicPartitionWriter {
         throw new RuntimeException(e);
       } catch (ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
-        failureTime = System.currentTimeMillis();
+        failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
         break;
       }
@@ -387,7 +393,7 @@ public class TopicPartitionWriter {
           commitFile();
         } catch (ConnectException e) {
           log.error("Exception on topic partition {}: ", tp, e);
-          failureTime = System.currentTimeMillis();
+          failureTime = time.milliseconds();
           setRetryTimeout(timeoutMs);
         }
       }

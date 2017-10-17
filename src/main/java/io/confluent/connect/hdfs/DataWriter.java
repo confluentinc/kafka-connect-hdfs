@@ -17,6 +17,7 @@ package io.confluent.connect.hdfs;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.kafka.common.TopicPartition;
@@ -46,6 +47,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import io.confluent.common.utils.SystemTime;
+import io.confluent.common.utils.Time;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.filter.CommittedFileFilter;
 import io.confluent.connect.hdfs.filter.TopicCommittedFileFilter;
@@ -61,6 +64,7 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class DataWriter {
   private static final Logger log = LoggerFactory.getLogger(DataWriter.class);
+  private static final Time SYSTEM_TIME = new SystemTime();
 
   private Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
@@ -309,7 +313,8 @@ public class DataWriter {
             hive,
             schemaFileReader,
             executorService,
-            hiveUpdateFutures
+            hiveUpdateFutures,
+            SYSTEM_TIME
         );
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
@@ -417,7 +422,8 @@ public class DataWriter {
           hive,
           schemaFileReader,
           executorService,
-          hiveUpdateFutures
+          hiveUpdateFutures,
+          SYSTEM_TIME
       );
       topicPartitionWriters.put(tp, topicPartitionWriter);
       // We need to immediately start recovery to ensure we pause consumption of messages for the
@@ -518,13 +524,54 @@ public class DataWriter {
   private Partitioner newPartitioner(HdfsSinkConnectorConfig config)
       throws ClassNotFoundException, IllegalAccessException, InstantiationException {
 
-    @SuppressWarnings("unchecked")
-    Class<? extends Partitioner> partitionerClass =
-        (Class<? extends Partitioner>) config.getClass(PartitionerConfig.PARTITIONER_CLASS_CONFIG);
+    Partitioner partitioner;
+    try {
+      @SuppressWarnings("unchecked")
+      Class<? extends Partitioner> partitionerClass =
+          (Class<? extends Partitioner>)
+              config.getClass(PartitionerConfig.PARTITIONER_CLASS_CONFIG);
+      partitioner = partitionerClass.newInstance();
+    } catch (ClassCastException e) {
+      @SuppressWarnings("unchecked")
+      Class<? extends io.confluent.connect.storage.partitioner.Partitioner<FieldSchema>>
+          partitionerClass =
+          (Class<? extends io.confluent.connect.storage.partitioner.Partitioner<FieldSchema>>)
+              config.getClass(PartitionerConfig.PARTITIONER_CLASS_CONFIG);
+      partitioner = new PartitionerWrapper(partitionerClass.newInstance());
+    }
 
-    Partitioner partitioner = partitionerClass.newInstance();
     partitioner.configure(new HashMap<>(config.plainValues()));
     return partitioner;
+  }
+
+  public static class PartitionerWrapper implements Partitioner {
+    public final io.confluent.connect.storage.partitioner.Partitioner<FieldSchema>  partitioner;
+
+    public PartitionerWrapper(
+        io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> partitioner
+    ) {
+      this.partitioner = partitioner;
+    }
+
+    @Override
+    public void configure(Map<String, Object> config) {
+      partitioner.configure(config);
+    }
+
+    @Override
+    public String encodePartition(SinkRecord sinkRecord) {
+      return partitioner.encodePartition(sinkRecord);
+    }
+
+    @Override
+    public String generatePartitionedPath(String topic, String encodedPartition) {
+      return partitioner.generatePartitionedPath(topic, encodedPartition);
+    }
+
+    @Override
+    public List<FieldSchema> partitionFields() {
+      return partitioner.partitionFields();
+    }
   }
 
   private String getPartitionValue(String path) {

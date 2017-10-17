@@ -30,8 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.confluent.common.utils.MockTime;
 import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.Format;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.RecordWriterProvider;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
@@ -45,7 +45,6 @@ import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageFactory;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.hive.schema.TimeBasedSchemaGenerator;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.junit.Assert.assertEquals;
@@ -57,6 +56,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
       newWriterProvider;
   private HdfsStorage storage;
   private Map<String, String> localProps = new HashMap<>();
+  private MockTime time;
 
   @Override
   protected Map<String, String> createProps() {
@@ -68,6 +68,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     super.setUp();
+    time = new MockTime();
 
     @SuppressWarnings("unchecked")
     Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>)
@@ -107,7 +108,8 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         partitioner,
         connectorConfig,
         context,
-        avroData
+        avroData,
+        time
     );
 
     Schema schema = createSchema();
@@ -153,7 +155,8 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         partitioner,
         connectorConfig,
         context,
-        avroData
+        avroData,
+        time
     );
 
     Schema schema = createSchema();
@@ -203,7 +206,8 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         partitioner,
         connectorConfig,
         context,
-        avroData
+        avroData,
+        time
     );
 
     Schema schema = createSchema();
