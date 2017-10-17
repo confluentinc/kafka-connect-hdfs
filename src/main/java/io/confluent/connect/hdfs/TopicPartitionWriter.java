@@ -287,7 +287,7 @@ public class TopicPartitionWriter {
     long now = time.milliseconds();
     // Wallclock-based partitioners should be independent of the record argument.
     lastRotate = isWallclockBased
-                 ? timestampExtractor.extract(null)
+                 ? (Long) now
                  : currentRecord != null ? timestampExtractor.extract(currentRecord) : null;
     if (log.isDebugEnabled() && rotateIntervalMs > 0) {
       log.debug(
