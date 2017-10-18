@@ -88,8 +88,6 @@ public class TopicPartitionWriter {
   private Long lastRotate;
   private final long rotateScheduleIntervalMs;
   private long nextScheduledRotate;
-  private Long currentTimestamp;
-  private SinkRecord currentRecord;
   // This is one case where we cannot simply wrap the old or new RecordWriterProvider with the
   // other because they have incompatible requirements for some methods -- one requires the Hadoop
   // config + extra parameters, the other requires the ConnectorConfig and doesn't get the other
@@ -243,7 +241,7 @@ public class TopicPartitionWriter {
     }
 
     // Initialize rotation timers
-    updateRotationTimers();
+    updateRotationTimers(null);
   }
 
   @SuppressWarnings("fallthrough")
@@ -283,7 +281,7 @@ public class TopicPartitionWriter {
     return true;
   }
 
-  private void updateRotationTimers() {
+  private void updateRotationTimers(SinkRecord currentRecord) {
     long now = time.milliseconds();
     // Wallclock-based partitioners should be independent of the record argument.
     lastRotate = isWallclockBased
@@ -315,6 +313,7 @@ public class TopicPartitionWriter {
   @SuppressWarnings("fallthrough")
   public void write() {
     long now = time.milliseconds();
+    SinkRecord currentRecord = null;
     if (failureTime > 0 && now - failureTime < timeoutMs) {
       return;
     }
@@ -323,7 +322,7 @@ public class TopicPartitionWriter {
       if (!success) {
         return;
       }
-      updateRotationTimers();
+      updateRotationTimers(null);
     }
     while (!buffer.isEmpty()) {
       try {
@@ -365,7 +364,7 @@ public class TopicPartitionWriter {
                 break;
               }
             } else {
-              if (shouldRotateAndMaybeUpdateTimers(now)) {
+              if (shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
                 log.info(
                     "Starting commit and rotation for topic partition {} with start offsets {} "
                         + "and end offsets {}",
@@ -383,7 +382,7 @@ public class TopicPartitionWriter {
               }
             }
           case SHOULD_ROTATE:
-            updateRotationTimers();
+            updateRotationTimers(currentRecord);
             closeTempFile();
             nextState();
           case TEMP_FILE_CLOSED:
@@ -410,12 +409,12 @@ public class TopicPartitionWriter {
     if (buffer.isEmpty()) {
       // committing files after waiting for rotateIntervalMs time but less than flush.size
       // records available
-      if (recordCounter > 0 && shouldRotateAndMaybeUpdateTimers(now)) {
+      if (recordCounter > 0 && shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
         log.info(
             "committing files after waiting for rotateIntervalMs time but less than flush.size "
                 + "records available."
         );
-        updateRotationTimers();
+        updateRotationTimers(currentRecord);
 
         try {
           closeTempFile();
@@ -505,7 +504,8 @@ public class TopicPartitionWriter {
     this.state = state;
   }
 
-  private boolean shouldRotateAndMaybeUpdateTimers(long now) {
+  private boolean shouldRotateAndMaybeUpdateTimers(SinkRecord currentRecord, long now) {
+    Long currentTimestamp = null;
     if (isWallclockBased) {
       currentTimestamp = now;
     } else if (currentRecord != null) {
