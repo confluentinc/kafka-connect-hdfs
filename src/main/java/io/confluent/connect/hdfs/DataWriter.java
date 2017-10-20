@@ -65,6 +65,7 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 public class DataWriter {
   private static final Logger log = LoggerFactory.getLogger(DataWriter.class);
   private static final Time SYSTEM_TIME = new SystemTime();
+  private final Time time;
 
   private Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
@@ -97,6 +98,17 @@ public class DataWriter {
       SinkTaskContext context,
       AvroData avroData
   ) {
+    this(connectorConfig, context, avroData, SYSTEM_TIME);
+
+  }
+
+  public DataWriter(
+      HdfsSinkConnectorConfig connectorConfig,
+      SinkTaskContext context,
+      AvroData avroData,
+      Time time
+  ) {
+    this.time = time;
     try {
       String hadoopHome = connectorConfig.getString(HdfsSinkConnectorConfig.HADOOP_HOME_CONFIG);
       System.setProperty("hadoop.home.dir", hadoopHome);
@@ -314,7 +326,7 @@ public class DataWriter {
             schemaFileReader,
             executorService,
             hiveUpdateFutures,
-            SYSTEM_TIME
+            time
         );
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
@@ -423,7 +435,7 @@ public class DataWriter {
           schemaFileReader,
           executorService,
           hiveUpdateFutures,
-          SYSTEM_TIME
+          time
       );
       topicPartitionWriters.put(tp, topicPartitionWriter);
       // We need to immediately start recovery to ensure we pause consumption of messages for the
