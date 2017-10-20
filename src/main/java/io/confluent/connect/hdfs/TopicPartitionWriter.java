@@ -54,60 +54,66 @@ import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
+import io.confluent.connect.storage.partitioner.TimestampExtractor;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
+  private static final TimestampExtractor WALLCLOCK =
+      new TimeBasedPartitioner.WallclockTimestampExtractor();
   private final io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
       newWriterProvider;
   private final String zeroPadOffsetFormat;
   private final boolean hiveIntegration;
   private final Time time;
   private final HdfsStorage storage;
-  private WAL wal;
-  private Map<String, String> tempFiles;
-  private Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
-  private TopicPartition tp;
-  private Partitioner partitioner;
-  private String url;
-  private String topicsDir;
+  private final WAL wal;
+  private final Map<String, String> tempFiles;
+  private final Map<String, io.confluent.connect.storage.format.RecordWriter> writers;
+  private final TopicPartition tp;
+  private final Partitioner partitioner;
+  private final TimestampExtractor timestampExtractor;
+  private final boolean isWallclockBased;
+  private final String url;
+  private final String topicsDir;
   private State state;
-  private Queue<SinkRecord> buffer;
+  private final Queue<SinkRecord> buffer;
   private boolean recovered;
-  private SinkTaskContext context;
+  private final SinkTaskContext context;
   private int recordCounter;
-  private int flushSize;
-  private long rotateIntervalMs;
-  private long lastRotate;
-  private long rotateScheduleIntervalMs;
+  private final int flushSize;
+  private final long rotateIntervalMs;
+  private Long lastRotate;
+  private final long rotateScheduleIntervalMs;
   private long nextScheduledRotate;
   // This is one case where we cannot simply wrap the old or new RecordWriterProvider with the
   // other because they have incompatible requirements for some methods -- one requires the Hadoop
   // config + extra parameters, the other requires the ConnectorConfig and doesn't get the other
   // extra parameters. Instead, we have to (optionally) store one of each and use whichever one is
   // non-null.
-  private RecordWriterProvider writerProvider;
-  private HdfsSinkConnectorConfig connectorConfig;
-  private AvroData avroData;
-  private Set<String> appended;
+  private final RecordWriterProvider writerProvider;
+  private final HdfsSinkConnectorConfig connectorConfig;
+  private final AvroData avroData;
+  private final Set<String> appended;
   private long offset;
-  private Map<String, Long> startOffsets;
-  private Map<String, Long> offsets;
-  private long timeoutMs;
+  private final Map<String, Long> startOffsets;
+  private final Map<String, Long> offsets;
+  private final long timeoutMs;
   private long failureTime;
-  private StorageSchemaCompatibility compatibility;
+  private final StorageSchemaCompatibility compatibility;
   private Schema currentSchema;
-  private String extension;
-  private DateTimeZone timeZone;
-  private String hiveDatabase;
-  private HiveMetaStore hiveMetaStore;
-  private io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
+  private final String extension;
+  private final DateTimeZone timeZone;
+  private final String hiveDatabase;
+  private final HiveMetaStore hiveMetaStore;
+  private final io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
       schemaFileReader;
-  private HiveUtil hive;
-  private ExecutorService executorService;
-  private Queue<Future<Void>> hiveUpdateFutures;
-  private Set<String> hivePartitions;
+  private final HiveUtil hive;
+  private final ExecutorService executorService;
+  private final Queue<Future<Void>> hiveUpdateFutures;
+  private final Set<String> hivePartitions;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -165,6 +171,18 @@ public class TopicPartitionWriter {
     this.writerProvider = writerProvider;
     this.newWriterProvider = newWriterProvider;
     this.partitioner = partitioner;
+    TimestampExtractor timestampExtractor = null;
+    if (partitioner instanceof DataWriter.PartitionerWrapper) {
+      io.confluent.connect.storage.partitioner.Partitioner<?> inner =
+          ((DataWriter.PartitionerWrapper) partitioner).partitioner;
+      if (TimeBasedPartitioner.class.isAssignableFrom(inner.getClass())) {
+        timestampExtractor = ((TimeBasedPartitioner) inner).getTimestampExtractor();
+      }
+    }
+    this.timestampExtractor = timestampExtractor != null ? timestampExtractor : WALLCLOCK;
+    this.isWallclockBased = TimeBasedPartitioner.WallclockTimestampExtractor.class.isAssignableFrom(
+        this.timestampExtractor.getClass()
+    );
     this.url = storage.url();
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
@@ -206,19 +224,24 @@ public class TopicPartitionWriter {
     hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
     if (hiveIntegration) {
       hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
-      this.hiveMetaStore = hiveMetaStore;
-      this.hive = hive;
-      this.executorService = executorService;
-      this.hiveUpdateFutures = hiveUpdateFutures;
-      hivePartitions = new HashSet<>();
+    } else {
+      hiveDatabase = null;
     }
+
+    this.hiveMetaStore = hiveMetaStore;
+    this.hive = hive;
+    this.executorService = executorService;
+    this.hiveUpdateFutures = hiveUpdateFutures;
+    hivePartitions = new HashSet<>();
 
     if (rotateScheduleIntervalMs > 0) {
       timeZone = DateTimeZone.forID(connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG));
+    } else {
+      timeZone = null;
     }
 
     // Initialize rotation timers
-    updateRotationTimers();
+    updateRotationTimers(null);
   }
 
   @SuppressWarnings("fallthrough")
@@ -258,8 +281,12 @@ public class TopicPartitionWriter {
     return true;
   }
 
-  private void updateRotationTimers() {
-    lastRotate = time.milliseconds();
+  private void updateRotationTimers(SinkRecord currentRecord) {
+    long now = time.milliseconds();
+    // Wallclock-based partitioners should be independent of the record argument.
+    lastRotate = isWallclockBased
+                 ? (Long) now
+                 : currentRecord != null ? timestampExtractor.extract(currentRecord) : null;
     if (log.isDebugEnabled() && rotateIntervalMs > 0) {
       log.debug(
           "Update last rotation timer. Next rotation for {} will be in {}ms",
@@ -269,7 +296,7 @@ public class TopicPartitionWriter {
     }
     if (rotateScheduleIntervalMs > 0) {
       nextScheduledRotate = DateTimeUtils.getNextTimeAdjustedByDay(
-          lastRotate,
+          now,
           rotateScheduleIntervalMs,
           timeZone
       );
@@ -286,6 +313,7 @@ public class TopicPartitionWriter {
   @SuppressWarnings("fallthrough")
   public void write() {
     long now = time.milliseconds();
+    SinkRecord currentRecord = null;
     if (failureTime > 0 && now - failureTime < timeoutMs) {
       return;
     }
@@ -294,7 +322,7 @@ public class TopicPartitionWriter {
       if (!success) {
         return;
       }
-      updateRotationTimers();
+      updateRotationTimers(null);
     }
     while (!buffer.isEmpty()) {
       try {
@@ -321,6 +349,7 @@ public class TopicPartitionWriter {
               }
             }
             SinkRecord record = buffer.peek();
+            currentRecord = record;
             Schema valueSchema = record.valueSchema();
             if ((recordCounter <= 0 && currentSchema == null && valueSchema != null)
                 || compatibility.shouldChangeSchema(record, null, currentSchema)) {
@@ -335,10 +364,7 @@ public class TopicPartitionWriter {
                 break;
               }
             } else {
-              SinkRecord projectedRecord = compatibility.project(record, null, currentSchema);
-              writeRecord(projectedRecord);
-              buffer.poll();
-              if (shouldRotate(now)) {
+              if (shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
                 log.info(
                     "Starting commit and rotation for topic partition {} with start offsets {} "
                         + "and end offsets {}",
@@ -349,11 +375,14 @@ public class TopicPartitionWriter {
                 nextState();
                 // Fall through and try to rotate immediately
               } else {
+                SinkRecord projectedRecord = compatibility.project(record, null, currentSchema);
+                writeRecord(projectedRecord);
+                buffer.poll();
                 break;
               }
             }
           case SHOULD_ROTATE:
-            updateRotationTimers();
+            updateRotationTimers(currentRecord);
             closeTempFile();
             nextState();
           case TEMP_FILE_CLOSED:
@@ -380,12 +409,12 @@ public class TopicPartitionWriter {
     if (buffer.isEmpty()) {
       // committing files after waiting for rotateIntervalMs time but less than flush.size
       // records available
-      if (recordCounter > 0 && shouldRotate(now)) {
+      if (recordCounter > 0 && shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
         log.info(
             "committing files after waiting for rotateIntervalMs time but less than flush.size "
                 + "records available."
         );
-        updateRotationTimers();
+        updateRotationTimers(currentRecord);
 
         try {
           closeTempFile();
@@ -475,8 +504,19 @@ public class TopicPartitionWriter {
     this.state = state;
   }
 
-  private boolean shouldRotate(long now) {
-    boolean periodicRotation = rotateIntervalMs > 0 && now - lastRotate >= rotateIntervalMs;
+  private boolean shouldRotateAndMaybeUpdateTimers(SinkRecord currentRecord, long now) {
+    Long currentTimestamp = null;
+    if (isWallclockBased) {
+      currentTimestamp = now;
+    } else if (currentRecord != null) {
+      currentTimestamp = timestampExtractor.extract(currentRecord);
+      lastRotate = lastRotate == null ? currentTimestamp : lastRotate;
+    }
+
+    boolean periodicRotation = rotateIntervalMs > 0
+        && currentTimestamp != null
+        && lastRotate != null
+        && currentTimestamp - lastRotate >= rotateIntervalMs;
     boolean scheduledRotation = rotateScheduleIntervalMs > 0 && now >= nextScheduledRotate;
     boolean messageSizeRotation = recordCounter >= flushSize;
 

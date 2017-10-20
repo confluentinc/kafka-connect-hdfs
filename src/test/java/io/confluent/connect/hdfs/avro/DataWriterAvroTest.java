@@ -26,7 +26,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import io.confluent.common.utils.MockTime;
+import io.confluent.common.utils.Time;
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -34,6 +37,8 @@ import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
 import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -355,23 +360,33 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, FLUSH_SIZE_CONFIG);
     props.put(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG, ROTATE_INTERVAL_MS_CONFIG);
+    props.put(
+        PartitionerConfig.PARTITION_DURATION_MS_CONFIG,
+        String.valueOf(TimeUnit.DAYS.toMillis(1))
+    );
+    props.put(
+        PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG,
+        TopicPartitionWriterTest.MockedWallclockTimestampExtractor.class.getName()
+    );
+    props.put(
+        PartitionerConfig.PARTITIONER_CLASS_CONFIG,
+        TimeBasedPartitioner.class.getName()
+    );
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
     context.assignment().add(TOPIC_PARTITION);
 
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    Time time = TopicPartitionWriterTest.MockedWallclockTimestampExtractor.TIME;
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
     partitioner = hdfsWriter.getPartitioner();
+
     hdfsWriter.recover(TOPIC_PARTITION);
 
     List<SinkRecord> sinkRecords = createSinkRecords(NUMBER_OF_RECORDS);
     hdfsWriter.write(sinkRecords);
 
-    // wait for rotation to happen
-    long start = System.currentTimeMillis();
-    long end = start + WAIT_TIME;
-    while(System.currentTimeMillis() < end) {
-      List<SinkRecord> messageBatch = new ArrayList<>();
-      hdfsWriter.write(messageBatch);
-    }
+    time.sleep(WAIT_TIME);
+
+    hdfsWriter.write(new ArrayList<SinkRecord>());
 
     Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));

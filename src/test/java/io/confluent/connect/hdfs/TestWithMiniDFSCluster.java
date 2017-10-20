@@ -22,6 +22,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.SchemaProjector;
@@ -214,6 +215,32 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
           break;
         }
       }
+    }
+    return sinkRecords;
+  }
+
+  // Given a list of records, create a list of sink records with contiguous offsets.
+  protected List<SinkRecord> createSinkRecordsWithTimestamp(
+      List<Struct> records,
+      Schema schema,
+      int startOffset,
+      long startTime,
+      long timeStep
+  ) {
+    String key = "key";
+    ArrayList<SinkRecord> sinkRecords = new ArrayList<>();
+    for (int i = 0, offset = startOffset; i < records.size(); ++i, ++offset) {
+      sinkRecords.add(new SinkRecord(
+          TOPIC,
+          PARTITION,
+          Schema.STRING_SCHEMA,
+          key,
+          schema,
+          records.get(i),
+          offset,
+          startTime + offset * timeStep,
+          TimestampType.CREATE_TIME
+      ));
     }
     return sinkRecords;
   }
