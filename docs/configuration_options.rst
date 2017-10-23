@@ -178,7 +178,7 @@ Connector
   * Importance: medium
 
 ``partitioner.class``
-  The partitioner to use when writing data to HDFS. You can use ``DefaultPartitioner``, which preserves the Kafka partitions; ``FieldPartitioner``, which partitions the data to different directories according to the value of the partitioning field specified in ``partition.field.name``; ``TimebasedPartitioner``, which partitions data according to the time ingested to HDFS.
+  The partitioner to use when writing data to HDFS. You can use ``DefaultPartitioner``, which preserves the Kafka partitions; ``FieldPartitioner``, which partitions the data to different directories according to the value of the partitioning field specified in ``partition.field.name``; ``TimeBasedPartitioner``, which partitions data according to the time ingested to HDFS.
 
   * Type: string
   * Default: io.confluent.connect.hdfs.partitioner.DefaultPartitioner
@@ -193,7 +193,7 @@ Connector
   * Importance: medium
 
 ``partition.duration.ms``
-  The duration of a partition milliseconds used by ``TimeBasedPartitioner``. The default value -1 means that we are not using ``TimebasedPartitioner``.
+  The duration of a partition milliseconds used by ``TimeBasedPartitioner``. The default value -1 means that we are not using ``TimeBasedPartitioner``.
 
   * Type: long
   * Default: -1
