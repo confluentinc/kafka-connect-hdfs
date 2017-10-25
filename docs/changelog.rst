@@ -3,6 +3,14 @@
 Changelog
 =========
 
+Version 3.3.1
+-------------
+
+* `PR-235 <https://github.com/confluentinc/kafka-connect-hdfs/pull/235>`_ - CC-1172: Fix memory leak in TopicPartitionerWriter
+* `PR-227 <https://github.com/confluentinc/kafka-connect-hdfs/pull/227>`_ - Specify a nodeLabel for Jenkins that doesn't die during the HDFS connector tests.
+* `PR-226 <https://github.com/confluentinc/kafka-connect-hdfs/pull/226>`_ - Add upstream project so builds will be triggered automatically
+* `PR-217 <https://github.com/confluentinc/kafka-connect-hdfs/pull/217>`_ - Update quickstart to use Confluent CLI
+
 Version 3.3.0
 -------------
 
