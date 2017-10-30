@@ -18,6 +18,7 @@ Version 4.0.0
 * `PR-188 <https://github.com/confluentinc/kafka-connect-hdfs/pull/188>`_ - CC-397: Refactoring on top of storage-common
 * `PR-214 <https://github.com/confluentinc/kafka-connect-hdfs/pull/214>`_ - fix TimeBasedPartitionerTest by defining the expected locale
 * `PR-212 <https://github.com/confluentinc/kafka-connect-hdfs/pull/212>`_ - Remove invalid offset check.
+* `PR-44 <https://github.com/confluentinc/kafka-connect-storage-common/pull/44>`_ - HOTFIX: Remove unused parameter in newConfigDef for PartitionerConfig.
 * `PR-41 <https://github.com/confluentinc/kafka-connect-storage-common/pull/41>`_ - HOTFIX: Update dependencies
 * `PR-40 <https://github.com/confluentinc/kafka-connect-storage-common/pull/40>`_ - HOTFIX: Make specific dependencies explicit.
 * `PR-37 <https://github.com/confluentinc/kafka-connect-storage-common/pull/37>`_ - Remove unused imports
