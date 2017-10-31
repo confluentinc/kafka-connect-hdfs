@@ -30,4 +30,11 @@ find share/ -type f | grep -v README[.]rpm | xargs -I XXX ${INSTALL} -o root -g 
 pushd etc/kafka-connect-hdfs/
 find . -type f | grep -v README[.]rpm | xargs -I XXX ${INSTALL} -o root -g root XXX ${DESTDIR}${SYSCONFDIR}/XXX
 popd
+
+major_version="$(echo ${VERSION} | cut -f 1 -d '.')"
+if [[ ${major_version} -ge 4 ]]; then
+  pushd ${DESTDIR}${LIBPATH}
+  ln -s ../kafka-connect-storage-common storage-common
+  popd
+fi
 popd
