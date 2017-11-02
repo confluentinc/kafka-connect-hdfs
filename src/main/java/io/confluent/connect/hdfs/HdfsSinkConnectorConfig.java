@@ -373,6 +373,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     Map<String, ConfigDef.ConfigKey> everything = new HashMap<>(newConfigDef().configKeys());
     everything.putAll(StorageCommonConfig.newConfigDef(STORAGE_CLASS_RECOMMENDER).configKeys());
     everything.putAll(PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER).configKeys());
+    everything.putAll((HiveConfig.getConfig().configKeys()));
 
     Set<String> skip = new HashSet<>();
     skip.add(STORAGE_CLASS_CONFIG);
@@ -414,4 +415,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
     return visible;
   }
+
+  public static void main(String[] args) {
+    System.out.println(getConfig().toEnrichedRst());
+  }
+
 }
