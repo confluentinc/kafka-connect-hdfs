@@ -3,6 +3,28 @@
 Changelog
 =========
 
+Version 4.0.0
+-------------
+
+* `PR-247 <https://github.com/confluentinc/kafka-connect-hdfs/pull/247>`_ - MINOR: Exclude storage common dependencies.
+* `PR-246 <https://github.com/confluentinc/kafka-connect-hdfs/pull/246>`_ - CC-1213: Enable record based timebased partitioners in HDFS connector
+* `PR-245 <https://github.com/confluentinc/kafka-connect-hdfs/pull/245>`_ - CC-1212: Accept partitioners implementing the new partitioner interface
+* `PR-243 <https://github.com/confluentinc/kafka-connect-hdfs/pull/243>`_ - CC-1168: Recommenders for HDFS connector's class type properties
+* `PR-237 <https://github.com/confluentinc/kafka-connect-hdfs/pull/237>`_ - Remove unused imports
+* `PR-196 <https://github.com/confluentinc/kafka-connect-hdfs/pull/196>`_ - CC-492: Add JsonFormat to HDFS Connector
+* `PR-142 <https://github.com/confluentinc/kafka-connect-hdfs/pull/142>`_ - not trying to hold leases on WAL files if we are holding them already.
+* `PR-220 <https://github.com/confluentinc/kafka-connect-hdfs/pull/220>`_ - HOTFIX: Enable default for format and storage classes in hdfs connector
+* `PR-219 <https://github.com/confluentinc/kafka-connect-hdfs/pull/219>`_ - Move to common pom
+* `PR-188 <https://github.com/confluentinc/kafka-connect-hdfs/pull/188>`_ - CC-397: Refactoring on top of storage-common
+* `PR-214 <https://github.com/confluentinc/kafka-connect-hdfs/pull/214>`_ - fix TimeBasedPartitionerTest by defining the expected locale
+* `PR-212 <https://github.com/confluentinc/kafka-connect-hdfs/pull/212>`_ - Remove invalid offset check.
+* `PR-44 <https://github.com/confluentinc/kafka-connect-storage-common/pull/44>`_ - HOTFIX: Remove unused parameter in newConfigDef for PartitionerConfig.
+* `PR-41 <https://github.com/confluentinc/kafka-connect-storage-common/pull/41>`_ - HOTFIX: Update dependencies
+* `PR-40 <https://github.com/confluentinc/kafka-connect-storage-common/pull/40>`_ - HOTFIX: Make specific dependencies explicit.
+* `PR-37 <https://github.com/confluentinc/kafka-connect-storage-common/pull/37>`_ - Remove unused imports
+* `PR-35 <https://github.com/confluentinc/kafka-connect-storage-common/pull/35>`_ - Add missing modules to the dependencyManagement pom section so downstream projects will inherit the right version automatically.
+* `PR-31 <https://github.com/confluentinc/kafka-connect-storage-common/pull/31>`_ - Remove schema.generator.class config and have Formats specify their own SchemaGenerator internally
+
 Version 3.3.1
 -------------
 
