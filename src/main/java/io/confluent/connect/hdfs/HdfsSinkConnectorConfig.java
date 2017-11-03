@@ -25,6 +25,7 @@ import org.apache.kafka.common.config.ConfigException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -370,7 +371,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   public static ConfigDef getConfig() {
-    Map<String, ConfigDef.ConfigKey> everything = new HashMap<>(newConfigDef().configKeys());
+    Map<String, ConfigDef.ConfigKey> everything = new LinkedHashMap<>(newConfigDef().configKeys());
     everything.putAll(StorageCommonConfig.newConfigDef(STORAGE_CLASS_RECOMMENDER).configKeys());
     everything.putAll(PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER).configKeys());
     everything.putAll((HiveConfig.getConfig().configKeys()));
