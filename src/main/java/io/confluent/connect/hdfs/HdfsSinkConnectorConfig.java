@@ -25,7 +25,6 @@ import org.apache.kafka.common.config.ConfigException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -142,7 +141,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   public static ConfigDef newConfigDef() {
-    ConfigDef configDef = StorageSinkConnectorConfig.newConfigDef(FORMAT_CLASS_RECOMMENDER);
+    ConfigDef configDef = new ConfigDef();
     // Define HDFS configuration group
     {
       final String group = "HDFS";
@@ -273,6 +272,11 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           hdfsAuthenticationKerberosDependentsRecommender
       );
     }
+    // Put the storage group(s) last ...
+    ConfigDef storageConfigDef = StorageSinkConnectorConfig.newConfigDef(FORMAT_CLASS_RECOMMENDER);
+    for (ConfigDef.ConfigKey key : storageConfigDef.configKeys().values()) {
+      configDef.define(key);
+    }
     return configDef;
   }
 
@@ -371,17 +375,19 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   public static ConfigDef getConfig() {
-    Map<String, ConfigDef.ConfigKey> everything = new LinkedHashMap<>(newConfigDef().configKeys());
-    everything.putAll(StorageCommonConfig.newConfigDef(STORAGE_CLASS_RECOMMENDER).configKeys());
-    everything.putAll(PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER).configKeys());
-    everything.putAll((HiveConfig.getConfig().configKeys()));
-
+    // Define the names of the configurations we're going to override
     Set<String> skip = new HashSet<>();
     skip.add(STORAGE_CLASS_CONFIG);
     skip.add(FORMAT_CLASS_CONFIG);
 
+    // Order added is important, so that group order is maintained
     ConfigDef visible = new ConfigDef();
+    addAllConfigKeys(visible, newConfigDef(), skip);
+    addAllConfigKeys(visible, StorageCommonConfig.newConfigDef(STORAGE_CLASS_RECOMMENDER), skip);
+    addAllConfigKeys(visible, PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER), skip);
+    addAllConfigKeys(visible, HiveConfig.getConfig(), skip);
 
+    // Add the overridden configurations
     visible.define(
         STORAGE_CLASS_CONFIG,
         Type.CLASS,
@@ -408,13 +414,15 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         FORMAT_CLASS_RECOMMENDER
     );
 
-    for (ConfigDef.ConfigKey key : everything.values()) {
-      if (!skip.contains(key.name)) {
-        visible.define(key);
+    return visible;
+  }
+
+  private static void addAllConfigKeys(ConfigDef container, ConfigDef other, Set<String> skip) {
+    for (ConfigDef.ConfigKey key : other.configKeys().values()) {
+      if (skip != null && !skip.contains(key.name)) {
+        container.define(key);
       }
     }
-
-    return visible;
   }
 
   public static void main(String[] args) {
