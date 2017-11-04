@@ -6,6 +6,7 @@ Changelog
 Version 4.0.0
 -------------
 
+* `PR-251 <https://github.com/confluentinc/kafka-connect-hdfs/pull/251>`_ - CC-1270: Reinstantiate HiveConfig properties in getConfig.
 * `PR-247 <https://github.com/confluentinc/kafka-connect-hdfs/pull/247>`_ - MINOR: Exclude storage common dependencies.
 * `PR-246 <https://github.com/confluentinc/kafka-connect-hdfs/pull/246>`_ - CC-1213: Enable record based timebased partitioners in HDFS connector
 * `PR-245 <https://github.com/confluentinc/kafka-connect-hdfs/pull/245>`_ - CC-1212: Accept partitioners implementing the new partitioner interface
