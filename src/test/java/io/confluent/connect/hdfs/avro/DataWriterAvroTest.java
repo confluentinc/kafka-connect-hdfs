@@ -14,12 +14,23 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.DataFileStream;
+import org.apache.avro.file.SeekableByteArrayInput;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.DatumReader;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,7 +39,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import io.confluent.common.utils.MockTime;
 import io.confluent.common.utils.Time;
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.FileUtils;
@@ -46,6 +56,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DataWriterAvroTest extends TestWithMiniDFSCluster {
+
+  private static final Logger log = LoggerFactory.getLogger(DataWriterAvroTest.class);
 
   @Before
   public void setUp() throws Exception {
@@ -69,6 +81,42 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsets = {0, 3, 6};
     verify(sinkRecords, validOffsets);
+  }
+
+  @Test
+  public void testWriteAndReadRecords() throws Exception {
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    List<SinkRecord> sinkRecords = createSinkRecords(7);
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    long[] validOffsets = {0, 3, 6};
+    List<String> filename = getExpectedFiles(validOffsets, TOPIC_PARTITION);
+    for (String s : filename) {
+      Path p = new Path(s);
+      try (FSDataInputStream stream = fs.open(p)) {
+        int size = (int) fs.getFileStatus(p).getLen();
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        int read = stream.read(buffer);
+        log.info("Read " + read + " bytes");
+        log.info("Data found: " + new String(buffer.array()));
+        DatumReader<GenericRecord> datumReader = new GenericDatumReader<>();
+        DataFileReader<GenericRecord> dataFileReader = new DataFileReader<>(new
+            SeekableByteArrayInput(buffer.array()), datumReader);
+        Schema schema = dataFileReader.getSchema();
+        log.info("Schema = " + schema);
+        DataFileStream.Header header = dataFileReader.getHeader();
+        log.info("Header = " + header);
+        for (Object datum: dataFileReader) {
+          log.info("Read " + datum);
+        }
+      }
+    }
   }
 
   @Test

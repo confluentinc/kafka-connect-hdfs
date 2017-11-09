@@ -79,6 +79,13 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String LOGS_DIR_DEFAULT = "logs";
   public static final String LOGS_DIR_DISPLAY = "Logs directory";
 
+  public static final String AVRO_CODEC_CONFIG = "avro.codec";
+  public static final String AVRO_CODEC_DEFAULT = "null";
+  public static final String AVRO_CODEC_DISPLAY = "Avro Compression Codec";
+  public static final String AVRO_CODEC_DOC = "The Avro compression codec to be used for "
+      + "output files. Available values: null, deflate, "
+      + "snappy and bzip2 (CodecSource is org.apache.avro.file.CodecFactory)";
+
   // Security group
   public static final String HDFS_AUTHENTICATION_KERBEROS_CONFIG = "hdfs.authentication.kerberos";
   private static final String HDFS_AUTHENTICATION_KERBEROS_DOC =
@@ -195,6 +202,16 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           ++orderInGroup,
           Width.SHORT,
           LOGS_DIR_DISPLAY
+      );
+
+      // define avro codec
+      configDef.define(AVRO_CODEC_CONFIG,
+          Type.STRING,
+          AVRO_CODEC_DEFAULT,
+          Importance.LOW,
+          AVRO_CODEC_DOC,
+          group, ++orderInGroup, Width.LONG,
+          AVRO_CODEC_DISPLAY
       );
     }
 
@@ -353,6 +370,10 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       map.putAll(config.values());
     }
     return map;
+  }
+
+  public String getAvroCodec() {
+    return getString(AVRO_CODEC_CONFIG);
   }
 
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
