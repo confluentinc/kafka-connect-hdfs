@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -56,6 +57,11 @@ public class AvroRecordWriterProvider
       final Path path = new Path(filename);
       Schema schema = null;
 
+      public io.confluent.connect.storage.format.RecordWriter init() {
+        writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
+        return this;
+      }
+
       @Override
       public void write(SinkRecord record) {
         if (schema == null) {
@@ -71,7 +77,7 @@ public class AvroRecordWriterProvider
           }
         }
 
-        log.trace("Sink record: {}", record.toString());
+        log.trace("Sink record: {}", record);
         Object value = avroData.fromConnectData(schema, record.value());
         try {
           // AvroData wraps primitive types so their schema can be included. We need to unwrap
@@ -97,6 +103,6 @@ public class AvroRecordWriterProvider
 
       @Override
       public void commit() {}
-    };
+    }.init();
   }
 }

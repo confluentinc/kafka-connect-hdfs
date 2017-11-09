@@ -57,7 +57,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
   protected String extension;
   // The default based on default configuration of 10
   protected String zeroPadFormat = "%010d";
-  private Map<String, String> localProps = new HashMap<>();
+  protected Map<String, String> localProps = new HashMap<>();
 
   @Override
   protected Map<String, String> createProps() {
