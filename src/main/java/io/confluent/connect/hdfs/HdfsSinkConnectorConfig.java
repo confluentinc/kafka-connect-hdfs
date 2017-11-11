@@ -210,7 +210,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           AVRO_CODEC_DEFAULT,
           Importance.LOW,
           AVRO_CODEC_DOC,
-          group, ++orderInGroup, Width.LONG,
+          group,
+          ++orderInGroup,
+          Width.LONG,
           AVRO_CODEC_DISPLAY
       );
     }

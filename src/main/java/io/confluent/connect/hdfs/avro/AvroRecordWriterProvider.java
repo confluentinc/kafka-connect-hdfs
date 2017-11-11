@@ -53,14 +53,10 @@ public class AvroRecordWriterProvider
       final String filename
   ) {
     return new io.confluent.connect.storage.format.RecordWriter() {
-      final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
+      final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>())
+          .setCodec(CodecFactory.fromString(conf.getAvroCodec()));
       final Path path = new Path(filename);
       Schema schema = null;
-
-      public io.confluent.connect.storage.format.RecordWriter init() {
-        writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
-        return this;
-      }
 
       @Override
       public void write(SinkRecord record) {
@@ -103,6 +99,6 @@ public class AvroRecordWriterProvider
 
       @Override
       public void commit() {}
-    }.init();
+    };
   }
 }
