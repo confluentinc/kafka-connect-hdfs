@@ -149,73 +149,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   public static ConfigDef newConfigDef() {
     ConfigDef configDef = new ConfigDef();
-    // Define HDFS configuration group
-    {
-      final String group = "HDFS";
-      int orderInGroup = 0;
 
-      // HDFS_URL_CONFIG property is retained for backwards compatibility with HDFS connector and
-      // will be removed in future versions.
-      configDef.define(
-          HDFS_URL_CONFIG,
-          Type.STRING,
-          HDFS_URL_DEFAULT,
-          Importance.HIGH,
-          HDFS_URL_DOC,
-          group,
-          ++orderInGroup,
-          Width.MEDIUM,
-          HDFS_URL_DISPLAY
-      );
-
-      configDef.define(
-          HADOOP_CONF_DIR_CONFIG,
-          Type.STRING,
-          HADOOP_CONF_DIR_DEFAULT,
-          Importance.HIGH,
-          HADOOP_CONF_DIR_DOC,
-          group,
-          ++orderInGroup,
-          Width.MEDIUM,
-          HADOOP_CONF_DIR_DISPLAY
-      );
-
-      configDef.define(
-          HADOOP_HOME_CONFIG,
-          Type.STRING,
-          HADOOP_HOME_DEFAULT,
-          Importance.HIGH,
-          HADOOP_HOME_DOC,
-          group,
-          ++orderInGroup,
-          Width.SHORT,
-          HADOOP_HOME_DISPLAY
-      );
-
-      configDef.define(
-          LOGS_DIR_CONFIG,
-          Type.STRING,
-          LOGS_DIR_DEFAULT,
-          Importance.HIGH,
-          LOGS_DIR_DOC,
-          group,
-          ++orderInGroup,
-          Width.SHORT,
-          LOGS_DIR_DISPLAY
-      );
-
-      // define avro codec
-      configDef.define(AVRO_CODEC_CONFIG,
-          Type.STRING,
-          AVRO_CODEC_DEFAULT,
-          Importance.LOW,
-          AVRO_CODEC_DOC,
-          group,
-          ++orderInGroup,
-          Width.LONG,
-          AVRO_CODEC_DISPLAY
-      );
-    }
+    //setup Hadoop config
+    newHadoopDef(configDef);
 
     {
       final String group = "Security";
@@ -297,6 +233,76 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       configDef.define(key);
     }
     return configDef;
+  }
+
+  /**
+   * Define HDFS configuration group
+   */
+  private static void newHadoopDef(ConfigDef configDef) {
+    final String group = "HDFS";
+    int orderInGroup = 0;
+
+    // HDFS_URL_CONFIG property is retained for backwards compatibility with HDFS connector and
+    // will be removed in future versions.
+    configDef.define(
+        HDFS_URL_CONFIG,
+        Type.STRING,
+        HDFS_URL_DEFAULT,
+        Importance.HIGH,
+        HDFS_URL_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        HDFS_URL_DISPLAY
+    );
+
+    configDef.define(
+        HADOOP_CONF_DIR_CONFIG,
+        Type.STRING,
+        HADOOP_CONF_DIR_DEFAULT,
+        Importance.HIGH,
+        HADOOP_CONF_DIR_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        HADOOP_CONF_DIR_DISPLAY
+    );
+
+    configDef.define(
+        HADOOP_HOME_CONFIG,
+        Type.STRING,
+        HADOOP_HOME_DEFAULT,
+        Importance.HIGH,
+        HADOOP_HOME_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        HADOOP_HOME_DISPLAY
+    );
+
+    configDef.define(
+        LOGS_DIR_CONFIG,
+        Type.STRING,
+        LOGS_DIR_DEFAULT,
+        Importance.HIGH,
+        LOGS_DIR_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        LOGS_DIR_DISPLAY
+    );
+
+    // define avro codec
+    configDef.define(AVRO_CODEC_CONFIG,
+        Type.STRING,
+        AVRO_CODEC_DEFAULT,
+        Importance.LOW,
+        AVRO_CODEC_DOC,
+        group,
+        ++orderInGroup,
+        Width.LONG,
+        AVRO_CODEC_DISPLAY
+    );
   }
 
   private final String name;
