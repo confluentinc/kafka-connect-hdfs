@@ -17,12 +17,15 @@
 package io.confluent.connect.hdfs;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -65,6 +68,25 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
     assertNull(connectorConfig.getString(StorageCommonConfig.STORE_URL_CONFIG));
+  }
+
+  @Test
+  public void testAvroCompressionSettings() {
+    for (String codec : HdfsSinkConnectorConfig.AVRO_SUPPORTED_CODECS) {
+      Map<String, String> props = new HashMap<>(this.properties);
+      props.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, codec);
+      HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
+      Assert.assertNotNull(config.getAvroCodec());
+    }
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testUnsupportedAvroCompressionSettings() {
+    // test for an unsupported codec.
+    this.properties.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, "abc");
+
+    new HdfsSinkConnectorConfig(properties);
+    Assert.assertTrue("Expected the constructor to throw an exception",false);
   }
 
   @Test
