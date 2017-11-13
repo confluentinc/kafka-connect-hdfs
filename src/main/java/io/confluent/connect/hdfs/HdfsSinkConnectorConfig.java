@@ -303,7 +303,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         AVRO_CODEC_DOC,
         group,
         ++orderInGroup,
-        Width.LONG,
+        Width.MEDIUM,
         AVRO_CODEC_DISPLAY
     );
   }
