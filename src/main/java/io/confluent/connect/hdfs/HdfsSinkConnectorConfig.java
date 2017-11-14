@@ -38,6 +38,7 @@ import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.ComposableConfig;
 import io.confluent.connect.storage.common.GenericRecommender;
+import io.confluent.connect.storage.common.ParentValueRecommender;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.DailyPartitioner;
@@ -79,15 +80,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String LOGS_DIR_DEFAULT = "logs";
   public static final String LOGS_DIR_DISPLAY = "Logs directory";
 
-  public static final String AVRO_CODEC_CONFIG = "avro.codec";
-  public static final String AVRO_CODEC_DEFAULT = "null";
-  public static final String AVRO_CODEC_DISPLAY = "Avro Compression Codec";
-  public static final String AVRO_CODEC_DOC = "The Avro compression codec to be used for output  "
-      + "files. Available values: null, deflate, snappy and bzip2 (CodecSource is org.apache"
-      + ".avro.file.CodecFactory)";
-  public static final String[] AVRO_SUPPORTED_CODECS = new String[]{"null", "deflate", "snappy",
-      "bzip2"};
-
   // Security group
   public static final String HDFS_AUTHENTICATION_KERBEROS_CONFIG = "hdfs.authentication.kerberos";
   private static final String HDFS_AUTHENTICATION_KERBEROS_DOC =
@@ -128,6 +120,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final GenericRecommender STORAGE_CLASS_RECOMMENDER = new GenericRecommender();
   private static final GenericRecommender FORMAT_CLASS_RECOMMENDER = new GenericRecommender();
   private static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
+  private static final ParentValueRecommender AVRO_COMPRESSION_RECOMMENDER
+      = new ParentValueRecommender(FORMAT_CLASS_CONFIG, AvroFormat.class);
 
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
@@ -151,9 +145,61 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   public static ConfigDef newConfigDef() {
     ConfigDef configDef = new ConfigDef();
+    // Define HDFS configuration group
+    {
+      final String group = "HDFS";
+      int orderInGroup = 0;
 
-    //setup Hadoop config
-    newHadoopDef(configDef);
+      // HDFS_URL_CONFIG property is retained for backwards compatibility with HDFS connector and
+      // will be removed in future versions.
+      configDef.define(
+          HDFS_URL_CONFIG,
+          Type.STRING,
+          HDFS_URL_DEFAULT,
+          Importance.HIGH,
+          HDFS_URL_DOC,
+          group,
+          ++orderInGroup,
+          Width.MEDIUM,
+          HDFS_URL_DISPLAY
+      );
+
+      configDef.define(
+          HADOOP_CONF_DIR_CONFIG,
+          Type.STRING,
+          HADOOP_CONF_DIR_DEFAULT,
+          Importance.HIGH,
+          HADOOP_CONF_DIR_DOC,
+          group,
+          ++orderInGroup,
+          Width.MEDIUM,
+          HADOOP_CONF_DIR_DISPLAY
+      );
+
+      configDef.define(
+          HADOOP_HOME_CONFIG,
+          Type.STRING,
+          HADOOP_HOME_DEFAULT,
+          Importance.HIGH,
+          HADOOP_HOME_DOC,
+          group,
+          ++orderInGroup,
+          Width.SHORT,
+          HADOOP_HOME_DISPLAY
+      );
+
+      configDef.define(
+          LOGS_DIR_CONFIG,
+          Type.STRING,
+          LOGS_DIR_DEFAULT,
+          Importance.HIGH,
+          LOGS_DIR_DOC,
+          group,
+          ++orderInGroup,
+          Width.SHORT,
+          LOGS_DIR_DISPLAY
+      );
+    }
 
     {
       final String group = "Security";
@@ -230,82 +276,14 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       );
     }
     // Put the storage group(s) last ...
-    ConfigDef storageConfigDef = StorageSinkConnectorConfig.newConfigDef(FORMAT_CLASS_RECOMMENDER);
+    ConfigDef storageConfigDef = StorageSinkConnectorConfig.newConfigDef(
+        FORMAT_CLASS_RECOMMENDER,
+        AVRO_COMPRESSION_RECOMMENDER);
+
     for (ConfigDef.ConfigKey key : storageConfigDef.configKeys().values()) {
       configDef.define(key);
     }
     return configDef;
-  }
-
-  /**
-   * Define HDFS configuration group
-   */
-  private static void newHadoopDef(ConfigDef configDef) {
-    final String group = "HDFS";
-    int orderInGroup = 0;
-
-    // HDFS_URL_CONFIG property is retained for backwards compatibility with HDFS connector and
-    // will be removed in future versions.
-    configDef.define(
-        HDFS_URL_CONFIG,
-        Type.STRING,
-        HDFS_URL_DEFAULT,
-        Importance.HIGH,
-        HDFS_URL_DOC,
-        group,
-        ++orderInGroup,
-        Width.MEDIUM,
-        HDFS_URL_DISPLAY
-    );
-
-    configDef.define(
-        HADOOP_CONF_DIR_CONFIG,
-        Type.STRING,
-        HADOOP_CONF_DIR_DEFAULT,
-        Importance.HIGH,
-        HADOOP_CONF_DIR_DOC,
-        group,
-        ++orderInGroup,
-        Width.MEDIUM,
-        HADOOP_CONF_DIR_DISPLAY
-    );
-
-    configDef.define(
-        HADOOP_HOME_CONFIG,
-        Type.STRING,
-        HADOOP_HOME_DEFAULT,
-        Importance.HIGH,
-        HADOOP_HOME_DOC,
-        group,
-        ++orderInGroup,
-        Width.SHORT,
-        HADOOP_HOME_DISPLAY
-    );
-
-    configDef.define(
-        LOGS_DIR_CONFIG,
-        Type.STRING,
-        LOGS_DIR_DEFAULT,
-        Importance.HIGH,
-        LOGS_DIR_DOC,
-        group,
-        ++orderInGroup,
-        Width.SHORT,
-        LOGS_DIR_DISPLAY
-    );
-
-    // define avro codec
-    configDef.define(AVRO_CODEC_CONFIG,
-        Type.STRING,
-        AVRO_CODEC_DEFAULT,
-        ConfigDef.ValidString.in(AVRO_SUPPORTED_CODECS),
-        Importance.LOW,
-        AVRO_CODEC_DOC,
-        group,
-        ++orderInGroup,
-        Width.MEDIUM,
-        AVRO_CODEC_DISPLAY
-    );
   }
 
   private final String name;
@@ -381,10 +359,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       map.putAll(config.values());
     }
     return map;
-  }
-
-  public String getAvroCodec() {
-    return getString(AVRO_CODEC_CONFIG);
   }
 
   private static class BooleanParentRecommender implements ConfigDef.Recommender {

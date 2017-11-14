@@ -53,8 +53,7 @@ public class AvroRecordWriterProvider
       final String filename
   ) {
     return new io.confluent.connect.storage.format.RecordWriter() {
-      final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>())
-          .setCodec(CodecFactory.fromString(conf.getAvroCodec()));
+      final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
       final Path path = new Path(filename);
       Schema schema = null;
 
@@ -67,6 +66,7 @@ public class AvroRecordWriterProvider
             final FSDataOutputStream out = path.getFileSystem(conf.getHadoopConfiguration())
                 .create(path);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+            writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
             writer.create(avroSchema, out);
           } catch (IOException e) {
             throw new ConnectException(e);
