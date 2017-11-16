@@ -121,7 +121,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final GenericRecommender FORMAT_CLASS_RECOMMENDER = new GenericRecommender();
   private static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
   private static final ParentValueRecommender AVRO_COMPRESSION_RECOMMENDER
-      = new ParentValueRecommender(FORMAT_CLASS_CONFIG, AvroFormat.class);
+      = new ParentValueRecommender(FORMAT_CLASS_CONFIG, AvroFormat.class, AVRO_SUPPORTED_CODECS);
 
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
