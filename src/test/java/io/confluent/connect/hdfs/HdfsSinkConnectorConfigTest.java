@@ -86,7 +86,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     this.properties.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, "abc");
 
     new HdfsSinkConnectorConfig(properties);
-    Assert.assertTrue("Expected the constructor to throw an exception",false);
+    Assert.assertTrue("Expected the constructor to throw an exception", false);
   }
 
   @Test
