@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -65,13 +66,14 @@ public class AvroRecordWriterProvider
             final FSDataOutputStream out = path.getFileSystem(conf.getHadoopConfiguration())
                 .create(path);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
+            writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
             writer.create(avroSchema, out);
           } catch (IOException e) {
             throw new ConnectException(e);
           }
         }
 
-        log.trace("Sink record: {}", record.toString());
+        log.trace("Sink record: {}", record);
         Object value = avroData.fromConnectData(schema, record.value());
         try {
           // AvroData wraps primitive types so their schema can be included. We need to unwrap

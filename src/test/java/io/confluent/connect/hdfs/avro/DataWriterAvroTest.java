@@ -14,12 +14,16 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,7 +32,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import io.confluent.common.utils.MockTime;
 import io.confluent.common.utils.Time;
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.FileUtils;
@@ -46,6 +49,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DataWriterAvroTest extends TestWithMiniDFSCluster {
+
+  private static final Logger log = LoggerFactory.getLogger(DataWriterAvroTest.class);
 
   @Before
   public void setUp() throws Exception {
@@ -397,5 +402,43 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     hdfsWriter.stop();
   }
 
+  @Test
+  public void testAvroCompression() throws Exception {
+    //set compression codec to Snappy
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, "snappy");
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    List<SinkRecord> sinkRecords = createSinkRecords(7);
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    long[] validOffsets = {0, 3, 6};
+    verify(sinkRecords, validOffsets);
+
+    // check if the raw bytes have a "avro.codec" entry followed by "snappy"
+    List<String> filenames = getExpectedFiles(validOffsets, TOPIC_PARTITION);
+    for (String filename : filenames) {
+      Path p = new Path(filename);
+      try (FSDataInputStream stream = fs.open(p)) {
+        int size = (int) fs.getFileStatus(p).getLen();
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        if (stream.read(buffer) <= 0) {
+          log.error("Could not read file {}", filename);
+        }
+
+        String fileContents = new String(buffer.array());
+        int index;
+        assertTrue((index = fileContents.indexOf("avro.codec")) > 0
+            && fileContents.indexOf("snappy", index) > 0);
+      }
+    }
+  }
 }
 
