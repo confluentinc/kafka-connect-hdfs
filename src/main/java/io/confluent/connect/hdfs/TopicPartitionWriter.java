@@ -513,14 +513,13 @@ public class TopicPartitionWriter {
       lastRotate = lastRotate == null ? currentTimestamp : lastRotate;
     }
 
-    boolean periodicRotation = rotateIntervalMs > 0
-        && currentTimestamp != null
-        && lastRotate != null
-        && currentTimestamp - lastRotate >= rotateIntervalMs;
+    boolean checked = rotateIntervalMs > 0 && currentTimestamp != null && lastRotate != null;
+    boolean periodicRotation = checked && currentTimestamp - lastRotate >= rotateIntervalMs;
+    boolean lateMessageRotation = checked && currentTimestamp < lastRotate;
     boolean scheduledRotation = rotateScheduleIntervalMs > 0 && now >= nextScheduledRotate;
     boolean messageSizeRotation = recordCounter >= flushSize;
 
-    return periodicRotation || scheduledRotation || messageSizeRotation;
+    return periodicRotation || lateMessageRotation || scheduledRotation || messageSizeRotation;
   }
 
   private void readOffset() throws ConnectException {

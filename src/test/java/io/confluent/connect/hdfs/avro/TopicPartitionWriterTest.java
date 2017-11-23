@@ -344,6 +344,94 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   }
 
   @Test
+  public void testWriteRecordTimeBasedPartitionFieldTimestampHoursLateMessage() throws Exception {
+    // Do not roll on size, only based on time.
+    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "1000");
+    localProps.put(
+        HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
+        String.valueOf(TimeUnit.MINUTES.toMillis(1))
+    );
+    setUp();
+
+    // Define the partitioner
+    partitioner = new DataWriter.PartitionerWrapper(new HourlyPartitioner<FieldSchema>());
+    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "RecordField");
+    partitioner.configure(parsedConfig);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+        TOPIC_PARTITION,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData,
+        time
+    );
+
+    Schema schema = createSchemaWithTimestampField();
+
+    DateTime first = new DateTime(2017, 3, 2, 10, 0, DateTimeZone.forID("America/Los_Angeles"));
+    // One record every 20 sec, puts 3 records every minute/rotate interval
+    long advanceMs = 20000;
+    long timestampFirst = first.getMillis();
+    int size = 18;
+
+    ArrayList<Struct> records = new ArrayList<>(size);
+    for (int i = 0; i < size / 2; ++i) {
+      records.add(createRecordWithTimestampField(schema, timestampFirst));
+      timestampFirst += advanceMs;
+    }
+    Collection<SinkRecord> sinkRecords = createSinkRecords(records.subList(0, 9), schema);
+
+    long timestampLater = first.minusHours(2).getMillis();
+    for (int i = size / 2; i < size; ++i) {
+      records.add(createRecordWithTimestampField(schema, timestampLater));
+      timestampLater += advanceMs;
+    }
+    sinkRecords.addAll(createSinkRecords(
+        records.subList(9, 18),
+        schema,
+        9,
+        Collections.singleton(new TopicPartition(TOPIC, PARTITION))
+    ));
+
+    // And one last record to flush the previous ones.
+    long timestampMuchLater = first.minusHours(6).getMillis();
+    Struct lastOne = createRecordWithTimestampField(schema, timestampMuchLater);
+    sinkRecords.addAll(createSinkRecords(
+        Collections.singletonList(lastOne),
+        schema,
+        19,
+        Collections.singleton(new TopicPartition(TOPIC, PARTITION))
+    ));
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.recover();
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+    String encodedPartitionFirst = getTimebasedEncodedPartition(timestampFirst);
+    String encodedPartitionLater = getTimebasedEncodedPartition(timestampLater);
+
+    String dirPrefixFirst = partitioner.generatePartitionedPath(TOPIC, encodedPartitionFirst);
+    Set<Path> expectedFiles = new HashSet<>();
+    for (int i : new int[] {0, 3, 6}) {
+      expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixFirst, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
+    }
+
+    String dirPrefixLater = partitioner.generatePartitionedPath(TOPIC, encodedPartitionLater);
+    for (int i : new int[] {9, 12, 15}) {
+      expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixLater, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
+    }
+    verify(expectedFiles, 3, records, schema);
+  }
+
+  @Test
   public void testWriteRecordTimeBasedPartitionRecordTimestampHours() throws Exception {
     // Do not roll on size, only based on time.
     localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "1000");
