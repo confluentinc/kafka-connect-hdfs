@@ -88,11 +88,11 @@ public class FileUtils {
     int partition = topicPart.partition();
     StringBuilder sb = new StringBuilder();
     sb.append(topic);
-    sb.append(HdfsSinkConnectorConstants.COMMMITTED_FILENAME_SEPARATOR);
+    sb.append(HdfsSinkConnectorConstants.COMMITTED_FILENAME_SEPARATOR);
     sb.append(partition);
-    sb.append(HdfsSinkConnectorConstants.COMMMITTED_FILENAME_SEPARATOR);
+    sb.append(HdfsSinkConnectorConstants.COMMITTED_FILENAME_SEPARATOR);
     sb.append(String.format(zeroPadFormat, startOffset));
-    sb.append(HdfsSinkConnectorConstants.COMMMITTED_FILENAME_SEPARATOR);
+    sb.append(HdfsSinkConnectorConstants.COMMITTED_FILENAME_SEPARATOR);
     sb.append(String.format(zeroPadFormat, endOffset));
     sb.append(extension);
     String name = sb.toString();

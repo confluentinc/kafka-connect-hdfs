@@ -18,12 +18,12 @@ import java.util.regex.Pattern;
 
 public class HdfsSinkConnectorConstants {
 
-  public static final String COMMMITTED_FILENAME_SEPARATOR = "+";
+  public static final String COMMITTED_FILENAME_SEPARATOR = "+";
 
   // groups: topic, partition, start offset, end offset, extension
   // Also see legalChars in Topic.scala
   public static final Pattern COMMITTED_FILENAME_PATTERN = Pattern.compile(
-      "([a-zA-Z0-9\\._\\-]+)\\+(\\d+)\\+(\\d+)\\+(\\d+)(.\\w+)?"
+      "([a-zA-Z0-9._\\-]+)\\+(\\d+)\\+(\\d+)\\+(\\d+)(.\\w+)?"
   );
   public static final int PATTERN_TOPIC_GROUP = 1;
   public static final int PATTERN_PARTITION_GROUP = 2;
