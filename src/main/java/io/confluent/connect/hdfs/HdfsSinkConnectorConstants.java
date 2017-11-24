@@ -31,5 +31,5 @@ public class HdfsSinkConnectorConstants {
   public static final int PATTERN_END_OFFSET_GROUP = 4;
 
   // +tmp is a invalid topic name, naming the tmp directory this way to avoid conflicts.
-  public static final String TEMPFILE_DIRECTORY = "/+tmp/";
+  public static final String TEMPFILE_DIRECTORY = "+tmp/";
 }
