@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
@@ -40,7 +41,8 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
   private static final Logger log = LoggerFactory.getLogger(JsonRecordWriterProvider.class);
   private static final String EXTENSION = ".json";
   private static final String LINE_SEPARATOR = System.lineSeparator();
-  private static final byte[] LINE_SEPARATOR_BYTES = LINE_SEPARATOR.getBytes();
+  private static final byte[] LINE_SEPARATOR_BYTES
+      = LINE_SEPARATOR.getBytes(StandardCharsets.UTF_8);
   private final HdfsStorage storage;
   private final ObjectMapper mapper;
   private final JsonConverter converter;
