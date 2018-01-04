@@ -14,12 +14,14 @@
 
 package io.confluent.connect.hdfs.hive;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
 
 import org.apache.hadoop.conf.Configuration;
 
 @Deprecated
+@SuppressFBWarnings("NM_SAME_SIMPLE_NAME_AS_SUPERCLASS")
 public class HiveMetaStore extends io.confluent.connect.storage.hive.HiveMetaStore {
 
   public HiveMetaStore(

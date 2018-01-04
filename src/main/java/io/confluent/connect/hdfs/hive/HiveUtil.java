@@ -17,12 +17,14 @@ package io.confluent.connect.hdfs.hive;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.kafka.connect.data.Schema;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 
 // NOTE: DO NOT add or modify this class as it is maintained for compatibility
 @Deprecated
+@SuppressFBWarnings("NM_SAME_SIMPLE_NAME_AS_SUPERCLASS")
 public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUtil {
 
   public HiveUtil(HdfsSinkConnectorConfig connectorConfig, HiveMetaStore hiveMetaStore) {

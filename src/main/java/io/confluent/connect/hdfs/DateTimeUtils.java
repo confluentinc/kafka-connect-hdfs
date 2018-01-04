@@ -14,5 +14,8 @@
 
 package io.confluent.connect.hdfs;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 @Deprecated
+@SuppressFBWarnings("NM_SAME_SIMPLE_NAME_AS_SUPERCLASS")
 public class DateTimeUtils extends io.confluent.connect.storage.util.DateTimeUtils {}

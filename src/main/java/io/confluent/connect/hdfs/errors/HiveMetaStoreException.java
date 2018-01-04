@@ -14,7 +14,10 @@
 
 package io.confluent.connect.hdfs.errors;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 @Deprecated
+@SuppressFBWarnings("NM_SAME_SIMPLE_NAME_AS_SUPERCLASS")
 public class HiveMetaStoreException
     extends io.confluent.connect.storage.errors.HiveMetaStoreException {
 
