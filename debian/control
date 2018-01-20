@@ -9,7 +9,7 @@ Homepage: http://confluent.io
 
 Package: confluent-kafka-connect-hdfs
 Architecture: all
-Depends: confluent-common
+Depends: confluent-kafka-connect-storage-common
 Description: Kafka Connect connector for copying data between Kafka and Hadoop HDFS
  Kafka Connect HDFS is a Kafka Connector for copying data between Kafka and Hadoop
  HDFS.
