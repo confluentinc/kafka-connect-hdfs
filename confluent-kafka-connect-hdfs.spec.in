@@ -11,7 +11,7 @@ Vendor: Confluent, Inc.
 Packager: Confluent Packaging <packages@confluent.io>
 BuildArch: noarch
 
-Requires: confluent-common
+Requires: confluent-kafka-connect-storage-common
 
 %description
 
