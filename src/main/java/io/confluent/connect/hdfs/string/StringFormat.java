@@ -53,7 +53,7 @@ public class StringFormat implements Format<HdfsSinkConnectorConfig, Path> {
   @Override
   public HiveFactory getHiveFactory() {
     throw new UnsupportedOperationException("Hive integration is not currently supported with "
-        + "JSON format");
+        + "String format");
   }
 
 }
