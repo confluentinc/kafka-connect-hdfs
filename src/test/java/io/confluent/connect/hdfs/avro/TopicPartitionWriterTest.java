@@ -154,9 +154,10 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     Partitioner partitioner = new FieldPartitioner();
     partitioner.configure(parsedConfig);
 
-    String partitionField = (String) parsedConfig.get(
+    List<String> partitionFields = (List<String>) parsedConfig.get(
         PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
     );
+    String partitionField = partitionFields.get(0);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION,

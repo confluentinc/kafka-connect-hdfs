@@ -19,6 +19,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ public class HdfsSinkTaskTestWithSecureHDFS extends TestWithSecureMiniDFSCluster
   private static final String ZERO_PAD_FMT = "%010d";
   private final DataFileReader schemaFileReader = new AvroDataFileReader();
 
+  @Ignore
   @Test
   public void testSinkTaskPut() throws Exception {
     setUp();
