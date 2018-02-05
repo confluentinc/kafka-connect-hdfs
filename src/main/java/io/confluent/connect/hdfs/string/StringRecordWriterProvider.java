@@ -14,8 +14,6 @@
 
 package io.confluent.connect.hdfs.string;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.format.RecordWriter;
@@ -28,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 
 /**
  * Provider of a text record writer.
@@ -38,7 +37,6 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
   private static final String EXTENSION = ".txt";
   private static final String LINE_SEPARATOR = System.lineSeparator();
   private final HdfsStorage storage;
-  private final ObjectMapper mapper;
 
   /**
    * Constructor.
@@ -47,7 +45,6 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
    */
   StringRecordWriterProvider(HdfsStorage storage) {
     this.storage = storage;
-    this.mapper = new ObjectMapper();
   }
 
   @Override
@@ -61,9 +58,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
       return new RecordWriter() {
         final Path path = new Path(filename);
         final OutputStream out = path.getFileSystem(conf.getHadoopConfiguration()).create(path);
-        final JsonGenerator writer = mapper.getFactory()
-            .createGenerator(out)
-            .setRootValueSeparator(null);
+        final OutputStreamWriter writer = new OutputStreamWriter(out);
 
         @Override
         public void write(SinkRecord record) {
@@ -71,8 +66,8 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
           try {
             String value = (String) record.value();
 
-            writer.writeRawValue(value);
-            writer.writeRaw(LINE_SEPARATOR);
+            writer.write(value);
+            writer.write(LINE_SEPARATOR);
 
           } catch (IOException e) {
             throw new ConnectException(e);
