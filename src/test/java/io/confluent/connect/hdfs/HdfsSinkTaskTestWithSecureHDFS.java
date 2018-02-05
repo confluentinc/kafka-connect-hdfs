@@ -38,7 +38,6 @@ public class HdfsSinkTaskTestWithSecureHDFS extends TestWithSecureMiniDFSCluster
   private static final String ZERO_PAD_FMT = "%010d";
   private final DataFileReader schemaFileReader = new AvroDataFileReader();
 
-  @Ignore
   @Test
   public void testSinkTaskPut() throws Exception {
     setUp();
