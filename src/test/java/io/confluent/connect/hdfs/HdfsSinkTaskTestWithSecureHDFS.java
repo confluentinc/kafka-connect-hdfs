@@ -19,7 +19,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
