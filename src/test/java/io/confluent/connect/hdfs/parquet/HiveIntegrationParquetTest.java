@@ -18,6 +18,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
@@ -206,6 +207,85 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
+    for (int i = 0; i < rows.length; ++i) {
+      String[] parts = HiveTestUtils.parseOutput(rows[i]);
+      int j = 0;
+      for (String expectedValue : expectedResults.get(i)) {
+        assertEquals(expectedValue, parts[j++]);
+      }
+    }
+  }
+
+  @Test
+  public void testHiveIntegrationFieldPartitionerParquetMultiple() throws Exception {
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
+    localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "country,state");
+    setUp();
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+
+    Schema schema = SchemaBuilder.struct()
+        .field("count", Schema.INT64_SCHEMA)
+        .field("country", Schema.STRING_SCHEMA)
+        .field("state", Schema.OPTIONAL_STRING_SCHEMA)
+        .build();
+
+    List<Struct> records = Arrays.asList(
+        new Struct(schema)
+            .put("count", 1L)
+            .put("country", "us")
+            .put("state", "tx"),
+        new Struct(schema)
+            .put("count", 1L)
+            .put("country", "us")
+            .put("state", "ca"),
+        new Struct(schema)
+            .put("count", 1L)
+            .put("country", "mx")
+            .put("state", null)
+    );
+    List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+
+    List<String> expectedColumnNames = new ArrayList<>();
+    for (Field field : schema.fields()) {
+      expectedColumnNames.add(field.name());
+    }
+
+    List<String> actualColumnNames = new ArrayList<>();
+    for (FieldSchema column : table.getSd().getCols()) {
+      actualColumnNames.add(column.getName());
+    }
+    assertEquals(expectedColumnNames, actualColumnNames);
+
+    List<String> expectedPartitions = new ArrayList<>();
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=mx/state=null"));
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=ca"));
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=tx"));
+
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
+
+    assertEquals(expectedPartitions, partitions);
+
+    List<List<String>> expectedResults = Arrays.asList(
+        Arrays.asList("1", "mx", "NULL"),
+        Arrays.asList("1", "us", "ca"),
+        Arrays.asList("1", "us", "tx")
+    );
+
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * FROM " +
+            hiveMetaStore.tableNameConverter(TOPIC) +
+            " order by country, state"
+    );
+    String[] rows = result.split("\n");
+    assertEquals(expectedResults.size(), rows.length);
     for (int i = 0; i < rows.length; ++i) {
       String[] parts = HiveTestUtils.parseOutput(rows[i]);
       int j = 0;
