@@ -18,6 +18,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
@@ -25,6 +26,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -243,10 +245,10 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
-
-    String partitionFieldName = connectorConfig.getString(
+    List<String> partitionFieldNames= connectorConfig.getList(
         PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
     );
+    String partitionFieldName = partitionFieldNames.get(0);
     String directory1 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(16);
     String directory2 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(17);
     String directory3 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(18);
@@ -270,6 +272,99 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     String result = HiveTestUtils.runHive(
         hiveExec,
         "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+    );
+    String[] rows = result.split("\n");
+    assertEquals(9, rows.length);
+    for (int i = 0; i < rows.length; ++i) {
+      String[] parts = HiveTestUtils.parseOutput(rows[i]);
+      for (int j = 0; j < expectedResult.get(i).length; ++j) {
+        assertEquals(expectedResult.get(i)[j], parts[j]);
+      }
+    }
+  }
+
+  @Test
+  public void testHiveIntegrationFieldPartitionerAvroMultiple() throws Exception {
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
+    localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "country,state");
+    setUp();
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+
+    String key = "key";
+    Schema schema = SchemaBuilder.struct()
+        .field("count", Schema.INT64_SCHEMA)
+        .field("country", Schema.STRING_SCHEMA)
+        .field("state", Schema.OPTIONAL_STRING_SCHEMA)
+        .build();
+
+    List<Struct> records = Arrays.asList(
+        new Struct(schema)
+            .put("count", 1L)
+            .put("country", "us")
+            .put("state", "tx"),
+        new Struct(schema)
+            .put("count", 1L)
+            .put("country", "us")
+            .put("state", "ca"),
+        new Struct(schema)
+            .put("count", 1L)
+            .put("country", "mx")
+            .put("state", null)
+    );
+    ArrayList<SinkRecord> sinkRecords = new ArrayList<>();
+    long offset = 0;
+    for (Struct record : records) {
+      for (long count = 0; count < 3; count++) {
+        SinkRecord sinkRecord = new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record,
+            offset + count);
+        sinkRecords.add(sinkRecord);
+      }
+      offset = offset + 3;
+    }
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+
+    List<String> expectedColumnNames = new ArrayList<>();
+    for (Field field : schema.fields()) {
+      expectedColumnNames.add(field.name());
+    }
+
+    List<String> actualColumnNames = new ArrayList<>();
+    for (FieldSchema column : table.getSd().getCols()) {
+      actualColumnNames.add(column.getName());
+    }
+    assertEquals(expectedColumnNames, actualColumnNames);
+
+    List<String> expectedPartitions = new ArrayList<>();
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=mx/state=null"));
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=ca"));
+    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=tx"));
+
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short) -1);
+
+    assertEquals(expectedPartitions, partitions);
+
+    List<String[]> expectedResult = Arrays.asList(
+        new String[]{"1", "mx", "NULL"},
+        new String[]{"1", "mx", "NULL"},
+        new String[]{"1", "mx", "NULL"},
+        new String[]{"1", "us", "ca"},
+        new String[]{"1", "us", "ca"},
+        new String[]{"1", "us", "ca"},
+        new String[]{"1", "us", "tx"},
+        new String[]{"1", "us", "tx"},
+        new String[]{"1", "us", "tx"}
+    );
+
+    String result = HiveTestUtils.runHive(
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC) + " order by country, state"
     );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
