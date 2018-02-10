@@ -1,5 +1,5 @@
 /**
- * Copyright 2017 Confluent Inc.
+ * Copyright 2018 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -24,6 +24,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -35,7 +36,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
 
   private static final Logger log = LoggerFactory.getLogger(StringRecordWriterProvider.class);
   private static final String EXTENSION = ".txt";
-  private static final String LINE_SEPARATOR = System.lineSeparator();
+  private static final int WRITER_BUFFER_SIZE = 128 * 1024;
   private final HdfsStorage storage;
 
   /**
@@ -58,17 +59,16 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
       return new RecordWriter() {
         final Path path = new Path(filename);
         final OutputStream out = path.getFileSystem(conf.getHadoopConfiguration()).create(path);
-        final OutputStreamWriter writer = new OutputStreamWriter(out);
+        final OutputStreamWriter streamWriter = new OutputStreamWriter(out);
+        final BufferedWriter writer = new BufferedWriter(streamWriter, WRITER_BUFFER_SIZE);
 
         @Override
         public void write(SinkRecord record) {
           log.trace("Sink record: {}", record.toString());
           try {
             String value = (String) record.value();
-
             writer.write(value);
-            writer.write(LINE_SEPARATOR);
-
+            writer.newLine();
           } catch (IOException e) {
             throw new ConnectException(e);
           }

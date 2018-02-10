@@ -1,5 +1,5 @@
 /**
- * Copyright 2017 Confluent Inc.
+ * Copyright 2018 Confluent Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -24,9 +24,9 @@ import org.apache.hadoop.fs.Path;
 
 
 /**
- * A storage format implementation that exports JSON records to text files with a '.json'
- * extension. In these files, records are separated by the system's line separator,
- * and therefore store one record per line.
+ * A storage format implementation that exports records to text files with a '.txt'
+ * extension. In these files, records are separated by the BufferedWriter's new line
+ * separator, and therefore store one record per line.
  */
 public class StringFormat implements Format<HdfsSinkConnectorConfig, Path> {
   private final HdfsStorage storage;
