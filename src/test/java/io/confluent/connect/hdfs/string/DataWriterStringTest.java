@@ -75,7 +75,7 @@ public class DataWriterStringTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = new ArrayList<>();
     for (long offset = 0, total = 0; total < size; ++offset) {
       for (TopicPartition tp : partitions) {
-        String record = "Some random text...";
+        String record = "Some random text. Offset: " + offset;
         sinkRecords.add(new SinkRecord(TOPIC, tp.partition(), null, key, null, record, offset));
         if (++total >= size) {
           break;
