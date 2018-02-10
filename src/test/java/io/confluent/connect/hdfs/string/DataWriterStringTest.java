@@ -92,7 +92,7 @@ public class DataWriterStringTest extends TestWithMiniDFSCluster {
       Collection<Object> records
   ) {
     for (Object record : records) {
-      SinkRecord expectedRecord = expectedRecords.get(startIndex++);
+      SinkRecord expectedRecord = expectedRecords.get(2 * startIndex++);
       Object expectedValue = expectedRecord.value();
       assertEquals(expectedValue, record);
     }
