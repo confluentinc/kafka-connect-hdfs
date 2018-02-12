@@ -14,10 +14,6 @@
 
 package io.confluent.connect.hdfs.string;
 
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.storage.format.RecordWriter;
-import io.confluent.connect.storage.format.RecordWriterProvider;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -28,6 +24,12 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.charset.Charset;
+
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.format.RecordWriter;
+import io.confluent.connect.storage.format.RecordWriterProvider;
 
 /**
  * Provider of a text record writer.
@@ -59,7 +61,10 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
       return new RecordWriter() {
         final Path path = new Path(filename);
         final OutputStream out = path.getFileSystem(conf.getHadoopConfiguration()).create(path);
-        final OutputStreamWriter streamWriter = new OutputStreamWriter(out);
+        final OutputStreamWriter streamWriter = new OutputStreamWriter(
+            out,
+            Charset.defaultCharset()
+        );
         final BufferedWriter writer = new BufferedWriter(streamWriter, WRITER_BUFFER_SIZE);
 
         @Override
