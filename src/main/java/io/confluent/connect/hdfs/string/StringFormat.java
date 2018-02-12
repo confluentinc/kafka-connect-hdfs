@@ -25,8 +25,8 @@ import org.apache.hadoop.fs.Path;
 
 /**
  * A storage format implementation that exports records to text files with a '.txt'
- * extension. In these files, records are separated by the BufferedWriter's new line
- * separator, and therefore store one record per line.
+ * extension. In these files, records are separated by the system's line separator, and therefore
+ * store one record per line.
  */
 public class StringFormat implements Format<HdfsSinkConnectorConfig, Path> {
   private final HdfsStorage storage;
