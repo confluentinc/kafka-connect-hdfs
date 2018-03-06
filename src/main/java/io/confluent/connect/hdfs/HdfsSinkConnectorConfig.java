@@ -323,6 +323,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     ConcurrentMap<String, String> propsCopy = new ConcurrentHashMap<>(props);
     propsCopy.putIfAbsent(STORAGE_CLASS_CONFIG, HdfsStorage.class.getName());
     propsCopy.putIfAbsent(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
+    propsCopy.putIfAbsent(FILE_DELIM_CONFIG, FILE_DELIM_DEFAULT);
     return propsCopy;
   }
 

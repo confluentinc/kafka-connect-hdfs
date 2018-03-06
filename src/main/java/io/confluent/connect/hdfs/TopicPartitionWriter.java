@@ -666,6 +666,7 @@ public class TopicPartitionWriter {
     long startOffset = startOffsets.get(encodedPartition);
     long endOffset = offsets.get(encodedPartition);
     String directory = getDirectory(encodedPartition);
+    String fileDelim = connectorConfig.getString(StorageCommonConfig.FILE_DELIM_CONFIG);
     String committedFile = FileUtils.committedFileName(
         url,
         topicsDir,
@@ -674,7 +675,8 @@ public class TopicPartitionWriter {
         startOffset,
         endOffset,
         extension,
-        zeroPadOffsetFormat
+        zeroPadOffsetFormat,
+        fileDelim
     );
     wal.append(tempFile, committedFile);
     appended.add(tempFile);
@@ -715,6 +717,7 @@ public class TopicPartitionWriter {
     long endOffset = offsets.get(encodedPartition);
     String tempFile = tempFiles.get(encodedPartition);
     String directory = getDirectory(encodedPartition);
+    String fileDelim = connectorConfig.getString(StorageCommonConfig.FILE_DELIM_CONFIG);
     String committedFile = FileUtils.committedFileName(
         url,
         topicsDir,
@@ -723,7 +726,8 @@ public class TopicPartitionWriter {
         startOffset,
         endOffset,
         extension,
-        zeroPadOffsetFormat
+        zeroPadOffsetFormat,
+        fileDelim
     );
 
     String directoryName = FileUtils.directoryName(url, topicsDir, directory);
