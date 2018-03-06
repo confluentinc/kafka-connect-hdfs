@@ -18,8 +18,6 @@ import java.util.regex.Pattern;
 
 public class HdfsSinkConnectorConstants {
 
-  public static final String COMMMITTED_FILENAME_SEPARATOR = "_";
-
   // groups: topic, partition, start offset, end offset, extension
   // Also see legalChars in Topic.scala
   public static final Pattern COMMITTED_FILENAME_PATTERN = Pattern.compile(
