@@ -619,13 +619,15 @@ public class TopicPartitionWriter {
       // just want to start at offset 0 or reset to the earliest offset, we specify that
       // explicitly to forcibly override any committed offsets.
       if (offset > 0) {
-        long seekOffset = offset;
-        log.debug("Resetting offset for {} to {}", tp, seekOffset);
-        context.offset(tp, seekOffset);
+        log.debug("Resetting offset for {} to {}", tp, offset);
+        context.offset(tp, offset);
       } else {
-        // The offset was not found, so rather than set the offset to 0 we let the
-        // consumer decide where to start based upon it's `auto.offset.reset` configuration
-        log.debug("Resetting offset for {} based upon consumer's 'auto.offset.reset'", tp);
+        // The offset was not found, so rather than forcibly set the offset to 0 we let the
+        // consumer decide where to start based upon standard consumer offsets (if available)
+        // or the consumer's `auto.offset.reset` configuration
+        log.debug("Resetting offset for {} based upon existing consumer group offsets or, if "
+                  + "there are none, the consumer's 'auto.offset.reset' value.",
+            tp);
       }
       recovered = true;
     }
