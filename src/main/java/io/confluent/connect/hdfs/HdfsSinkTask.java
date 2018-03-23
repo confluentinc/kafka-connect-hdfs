@@ -95,8 +95,12 @@ public class HdfsSinkTask extends SinkTask {
       }
     }
 
-    log.info("Consumer offsets will be obtained from filenames on HDFS. This connector will not "
-        + "commit or use any offsets from the __consumer_offsets topic.");
+    log.info("HDFS connector does not commit consumer offsets to Kafka. Upon startup, HDFS "
+        + "Connector restores offsets from filenames in HDFS. In the absence of files in HDFS, "
+        + "the connector will attempt to find offsets for its consumer group in the "
+        + "'__consumer_offsets' topic. If offsets are not found, the consumer will "
+        + "rely on the reset policy specified in the 'consumer.auto.offset.reset' property to "
+        + "start exporting data to HDFS.");
   }
 
   @Override
