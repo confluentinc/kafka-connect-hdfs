@@ -93,6 +93,9 @@ public class HdfsSinkTask extends SinkTask {
         hdfsWriter.stop();
       }
     }
+
+    log.info("Consumer offsets will be obtained from filenames on HDFS. This connector will not "
+        + "commit or use any offsets from the __consumer_offsets topic.");
   }
 
   @Override
@@ -106,7 +109,8 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
-    // Do nothing as the connector manages the offset
+    // clear the offsets here so we don't commit to __consumer_offsets.
+    offsets.clear();
   }
 
   @Override
