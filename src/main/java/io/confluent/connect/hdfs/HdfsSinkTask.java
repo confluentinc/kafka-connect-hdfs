@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -108,9 +109,16 @@ public class HdfsSinkTask extends SinkTask {
   }
 
   @Override
+  public Map<TopicPartition, OffsetAndMetadata> preCommit(
+      Map<TopicPartition, OffsetAndMetadata> currentOffsets
+  ) {
+    // return an empty map so Connect doesn't commit offsets
+    return Collections.emptyMap();
+  }
+
+  @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
-    // clear the offsets here so we don't commit to __consumer_offsets.
-    offsets.clear();
+    // Do nothing as the connector manages the offset
   }
 
   @Override
