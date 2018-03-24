@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -93,6 +94,13 @@ public class HdfsSinkTask extends SinkTask {
         hdfsWriter.stop();
       }
     }
+
+    log.info("HDFS connector does not commit consumer offsets to Kafka. Upon startup, HDFS "
+        + "Connector restores offsets from filenames in HDFS. In the absence of files in HDFS, "
+        + "the connector will attempt to find offsets for its consumer group in the "
+        + "'__consumer_offsets' topic. If offsets are not found, the consumer will "
+        + "rely on the reset policy specified in the 'consumer.auto.offset.reset' property to "
+        + "start exporting data to HDFS.");
   }
 
   @Override
@@ -102,6 +110,14 @@ public class HdfsSinkTask extends SinkTask {
     } catch (ConnectException e) {
       throw new ConnectException(e);
     }
+  }
+
+  @Override
+  public Map<TopicPartition, OffsetAndMetadata> preCommit(
+      Map<TopicPartition, OffsetAndMetadata> currentOffsets
+  ) {
+    // return an empty map so Connect doesn't commit offsets
+    return Collections.emptyMap();
   }
 
   @Override
