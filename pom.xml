@@ -180,6 +180,8 @@
                                 <tag>hdfs</tag>
                                 <tag>hive</tag>
                             </tags>
+
+                            <confluentControlCenterIntegration>true</confluentControlCenterIntegration>
                         </configuration>
                     </execution>
                 </executions>
