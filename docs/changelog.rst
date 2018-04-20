@@ -3,6 +3,15 @@
 Changelog
 =========
 
+Version 4.0.1
+-------------
+
+* `PR-305 <https://github.com/confluentinc/kafka-connect-hdfs/pull/305>`_ - CC-1669: Disable commit of consumer offsets
+* `PR-299 <https://github.com/confluentinc/kafka-connect-hdfs/pull/299>`_ - CC-1669: Set no offset when no offset was found for topic partition
+* `PR-293 <https://github.com/confluentinc/kafka-connect-hdfs/pull/293>`_ - Explicitly specify Jackson version instead of relying on transitive dependency version.
+* `PR-55 <https://github.com/confluentinc/kafka-connect-storage-common/pull/55>`_ - CC-1489: NPE on records with null timestamp.
+* `PR-45 <https://github.com/confluentinc/kafka-connect-storage-common/pull/45>`_ - HOTFIX: Consider all the properties in AvroDataConfig.
+
 Version 4.0.0
 -------------
 
