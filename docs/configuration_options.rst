@@ -1,5 +1,5 @@
-Configuration Options
----------------------
+HDFS Connector Configuration Options
+------------------------------------
 
 HDFS
 ^^^^
