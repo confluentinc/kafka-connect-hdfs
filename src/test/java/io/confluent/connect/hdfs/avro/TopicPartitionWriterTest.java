@@ -95,6 +95,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         = (Class<io.confluent.connect.storage.format.Format>) connectorConfig.getClass(
         HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG
     );
+    @SuppressWarnings("unchecked")
     io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> format
         = formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
     writerProvider = null;
@@ -154,6 +155,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     Partitioner partitioner = new FieldPartitioner();
     partitioner.configure(parsedConfig);
 
+    @SuppressWarnings("unchecked")
     List<String> partitionFields = (List<String>) parsedConfig.get(
         PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
     );
