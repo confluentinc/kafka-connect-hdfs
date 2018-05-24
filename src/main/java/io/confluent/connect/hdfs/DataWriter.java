@@ -102,6 +102,7 @@ public class DataWriter {
 
   }
 
+  @SuppressWarnings("unchecked")
   public DataWriter(
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
