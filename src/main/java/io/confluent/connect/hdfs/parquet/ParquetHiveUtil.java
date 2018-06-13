@@ -41,10 +41,10 @@ public class ParquetHiveUtil extends HiveUtil {
 
   @Override
   public void createTable(
-          String database,
-          String tableName,
-          Schema schema,
-          Partitioner partitioner
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
   ) throws HiveMetaStoreException {
     Table table = constructParquetTable(database, tableName, schema, partitioner);
     hiveMetaStore.createTable(table);
@@ -68,10 +68,10 @@ public class ParquetHiveUtil extends HiveUtil {
   }
 
   private Table constructParquetTable(
-          String database,
-          String tableName,
-          Schema schema,
-          Partitioner partitioner
+      String database,
+      String tableName,
+      Schema schema,
+      Partitioner partitioner
   ) throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);

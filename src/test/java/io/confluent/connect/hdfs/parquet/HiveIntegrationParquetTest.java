@@ -206,8 +206,8 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     }
 
     String result = HiveTestUtils.runHive(
-            hiveExec,
-            "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
     );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
@@ -359,20 +359,20 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     for (int j = 0; j < 3; ++j) {
       for (int i = 0; i < 3; ++i) {
         List<String> result = Arrays.asList("true",
-                String.valueOf(16 + i),
-                String.valueOf((long) (16 + i)),
-                String.valueOf(12.2f + i),
-                String.valueOf((double) (12.2f + i)),
-                partitionFields.get(0),
-                partitionFields.get(1),
-                partitionFields.get(2));
+                                            String.valueOf(16 + i),
+                                            String.valueOf((long) (16 + i)),
+                                            String.valueOf(12.2f + i),
+                                            String.valueOf((double) (12.2f + i)),
+                                            partitionFields.get(0),
+                                            partitionFields.get(1),
+                                            partitionFields.get(2));
         expectedResults.add(result);
       }
     }
 
     String result = HiveTestUtils.runHive(
-            hiveExec,
-            "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+        hiveExec,
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
     );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
