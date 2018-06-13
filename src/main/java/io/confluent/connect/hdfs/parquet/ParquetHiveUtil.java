@@ -41,10 +41,10 @@ public class ParquetHiveUtil extends HiveUtil {
 
   @Override
   public void createTable(
-      String database,
-      String tableName,
-      Schema schema,
-      Partitioner partitioner
+          String database,
+          String tableName,
+          Schema schema,
+          Partitioner partitioner
   ) throws HiveMetaStoreException {
     Table table = constructParquetTable(database, tableName, schema, partitioner);
     hiveMetaStore.createTable(table);
@@ -54,15 +54,24 @@ public class ParquetHiveUtil extends HiveUtil {
   public void alterSchema(String database, String tableName, Schema schema) {
     Table table = hiveMetaStore.getTable(database, tableName);
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> partitions = table.getPartCols();
+    for (FieldSchema partition : partitions) {
+      for (FieldSchema column : columns) {
+        if (partition.getName().equals(column.getName())) {
+          columns.remove(column);
+          break;
+        }
+      }
+    }
     table.setFields(columns);
     hiveMetaStore.alterTable(table);
   }
 
   private Table constructParquetTable(
-      String database,
-      String tableName,
-      Schema schema,
-      Partitioner partitioner
+          String database,
+          String tableName,
+          Schema schema,
+          Partitioner partitioner
   ) throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
@@ -76,10 +85,19 @@ public class ParquetHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    // convert copycat schema schema to Hive columns
+    // convert copycat schema schema to Hive columns without the partition column (created later)
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> partitions = partitioner.partitionFields();
+    for (FieldSchema partition : partitions) {
+      for (FieldSchema column : columns) {
+        if (partition.getName().equals(column.getName())) {
+          columns.remove(column);
+          break;
+        }
+      }
+    }
     table.setFields(columns);
-    table.setPartCols(partitioner.partitionFields());
+    table.setPartCols(partitions);
     return table;
   }
 
