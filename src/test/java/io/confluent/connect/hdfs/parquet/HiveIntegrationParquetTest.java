@@ -177,7 +177,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     assertEquals(expectedColumnNames, actualColumnNames);
 
     List<String> partitionFieldNames = connectorConfig.getList(
-            PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
+        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
     );
     String partitionFieldName = partitionFieldNames.get(0);
     String directory1 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(16);
@@ -234,10 +234,6 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
             .field("state", Schema.OPTIONAL_STRING_SCHEMA)
             .build();
 
-    List<Field> partitionFields = new ArrayList<>();
-    partitionFields.add(schema.field("country"));
-    partitionFields.add(schema.field("state"));
-
     List<String> partitionFieldNames = new ArrayList<>();
     partitionFieldNames.add("country");
     partitionFieldNames.add("state");
@@ -286,16 +282,16 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     assertEquals(expectedPartitions, partitions);
 
     List<List<String>> expectedResults = Arrays.asList(
-            Arrays.asList("1", "mx", "null"),
-            Arrays.asList("1", "us", "ca"),
-            Arrays.asList("1", "us", "tx")
+        Arrays.asList("1", "mx", "NULL"),
+        Arrays.asList("1", "us", "ca"),
+        Arrays.asList("1", "us", "tx")
     );
 
     String result = HiveTestUtils.runHive(
-            hiveExec,
-            "SELECT * FROM " +
-                    hiveMetaStore.tableNameConverter(TOPIC) +
-                    " order by country, state"
+        hiveExec,
+        "SELECT * FROM " +
+            hiveMetaStore.tableNameConverter(TOPIC) +
+            " order by country, state"
     );
     String[] rows = result.split("\n");
     assertEquals(expectedResults.size(), rows.length);

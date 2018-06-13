@@ -14,19 +14,25 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import io.confluent.common.utils.Time;
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -34,6 +40,8 @@ import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
 import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -41,6 +49,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DataWriterAvroTest extends TestWithMiniDFSCluster {
+
+  private static final Logger log = LoggerFactory.getLogger(DataWriterAvroTest.class);
 
   @Before
   public void setUp() throws Exception {
@@ -355,23 +365,33 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, FLUSH_SIZE_CONFIG);
     props.put(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG, ROTATE_INTERVAL_MS_CONFIG);
+    props.put(
+        PartitionerConfig.PARTITION_DURATION_MS_CONFIG,
+        String.valueOf(TimeUnit.DAYS.toMillis(1))
+    );
+    props.put(
+        PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG,
+        TopicPartitionWriterTest.MockedWallclockTimestampExtractor.class.getName()
+    );
+    props.put(
+        PartitionerConfig.PARTITIONER_CLASS_CONFIG,
+        TimeBasedPartitioner.class.getName()
+    );
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
     context.assignment().add(TOPIC_PARTITION);
 
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    Time time = TopicPartitionWriterTest.MockedWallclockTimestampExtractor.TIME;
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
     partitioner = hdfsWriter.getPartitioner();
+
     hdfsWriter.recover(TOPIC_PARTITION);
 
     List<SinkRecord> sinkRecords = createSinkRecords(NUMBER_OF_RECORDS);
     hdfsWriter.write(sinkRecords);
 
-    // wait for rotation to happen
-    long start = System.currentTimeMillis();
-    long end = start + WAIT_TIME;
-    while(System.currentTimeMillis() < end) {
-      List<SinkRecord> messageBatch = new ArrayList<>();
-      hdfsWriter.write(messageBatch);
-    }
+    time.sleep(WAIT_TIME);
+
+    hdfsWriter.write(new ArrayList<SinkRecord>());
 
     Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
@@ -382,5 +402,43 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     hdfsWriter.stop();
   }
 
+  @Test
+  public void testAvroCompression() throws Exception {
+    //set compression codec to Snappy
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, "snappy");
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    List<SinkRecord> sinkRecords = createSinkRecords(7);
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    long[] validOffsets = {0, 3, 6};
+    verify(sinkRecords, validOffsets);
+
+    // check if the raw bytes have a "avro.codec" entry followed by "snappy"
+    List<String> filenames = getExpectedFiles(validOffsets, TOPIC_PARTITION);
+    for (String filename : filenames) {
+      Path p = new Path(filename);
+      try (FSDataInputStream stream = fs.open(p)) {
+        int size = (int) fs.getFileStatus(p).getLen();
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        if (stream.read(buffer) <= 0) {
+          log.error("Could not read file {}", filename);
+        }
+
+        String fileContents = new String(buffer.array());
+        int index;
+        assertTrue((index = fileContents.indexOf("avro.codec")) > 0
+            && fileContents.indexOf("snappy", index) > 0);
+      }
+    }
+  }
 }
 
