@@ -35,7 +35,7 @@
     </organization>
     <url>http://confluent.io</url>
     <description>
-        A Kafka Connect HDFS connector for copying data between Kafka and Hadoop HDFS.
+        A Kafka Connect HDFS connector for copying data between Kafka and HDFS.
     </description>
 
     <licenses>
