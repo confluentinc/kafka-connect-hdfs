@@ -90,16 +90,15 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
     FileUtil.fullyDelete(baseDir);
   }
 
-  @Before
+  //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
-    super.setUp();
     conf = createSecureConfig("authentication");
     cluster = createDFSCluster(conf);
     cluster.waitActive();
-    url = "hdfs://" + cluster.getNameNode().getClientNamenodeAddress();
     fs = cluster.getFileSystem();
     Map<String, String> props = createProps();
     connectorConfig = new HdfsSinkConnectorConfig(props);
+    super.setUp();
   }
 
   @After
@@ -148,6 +147,7 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
+    url = "hdfs://" + cluster.getNameNode().getClientNamenodeAddress();
     props.put(HdfsSinkConnectorConfig.HDFS_URL_CONFIG, url);
     props.put(HdfsSinkConnectorConfig.HDFS_AUTHENTICATION_KERBEROS_CONFIG, "true");
     // if we use the connect principal to authenticate with secure Hadoop, the following
