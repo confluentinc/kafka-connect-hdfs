@@ -70,7 +70,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     return props;
   }
 
-  //@Before
+  //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     Configuration localConf = new Configuration();
     cluster = createDFSCluster(localConf);
