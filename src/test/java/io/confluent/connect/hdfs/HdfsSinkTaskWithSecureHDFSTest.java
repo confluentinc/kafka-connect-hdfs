@@ -31,7 +31,7 @@ import io.confluent.connect.hdfs.avro.AvroFileReader;
 
 import static org.junit.Assert.assertEquals;
 
-public class HdfsSinkTaskTestWithSecureHDFS extends TestWithSecureMiniDFSCluster {
+public class HdfsSinkTaskWithSecureHDFSTest extends TestWithSecureMiniDFSCluster {
 
   private static final String extension = ".avro";
   private static final String ZERO_PAD_FMT = "%010d";
