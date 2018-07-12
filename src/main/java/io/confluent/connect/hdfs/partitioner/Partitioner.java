@@ -15,10 +15,13 @@
 package io.confluent.connect.hdfs.partitioner;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.List;
 import java.util.Map;
+
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 
 /**
  * Partition incoming records, and generates directories and file names in which to store the
@@ -28,7 +31,17 @@ import java.util.Map;
 public interface Partitioner
     extends io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> {
   @Override
-  void configure(Map<String, Object> config);
+  default ConfigDef.Recommender getPartitionerRecommender() {
+    return HdfsSinkConnectorConfig.PARTITIONER_CLASS_RECOMMENDER;
+  }
+
+  @Override
+  default ConfigDef.Recommender getStorageRecommender() {
+    return HdfsSinkConnectorConfig.STORAGE_CLASS_RECOMMENDER;
+  }
+
+  @Override
+  void configure(Map<String, String> config);
 
   @Override
   String encodePartition(SinkRecord sinkRecord);

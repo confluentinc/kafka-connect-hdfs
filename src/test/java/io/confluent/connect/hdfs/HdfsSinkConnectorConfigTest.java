@@ -206,7 +206,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
 
     Partitioner<?> klass = new Partitioner<FieldSchema>() {
       @Override
-      public void configure(Map<String, Object> config) {}
+      public void configure(Map<String, String> config) {}
 
       @Override
       public String encodePartition(SinkRecord sinkRecord) {
@@ -336,7 +336,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     io.confluent.connect.hdfs.partitioner.Partitioner klass =
         new io.confluent.connect.hdfs.partitioner.Partitioner() {
       @Override
-      public void configure(Map<String, Object> config) {}
+      public void configure(Map<String, String> config) {}
 
       @Override
       public String encodePartition(SinkRecord sinkRecord) {

@@ -14,35 +14,35 @@
 
 package io.confluent.connect.hdfs.partitioner;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.junit.Test;
 
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import io.confluent.connect.hdfs.HdfsSinkConnectorTestBase;
-import io.confluent.connect.storage.hive.schema.TimeBasedSchemaGenerator;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
-import static org.junit.Assert.assertEquals;
-
 public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
-  private static final String timeZoneString = "America/Los_Angeles";
-  private static final DateTimeZone DATE_TIME_ZONE = DateTimeZone.forID(timeZoneString);
+  private static final String TIME_ZONE_STRING = "America/Los_Angeles";
+  private static final DateTimeZone DATE_TIME_ZONE = DateTimeZone.forID(TIME_ZONE_STRING);
 
   @Test
   public void testGeneratePartitionedPath() throws Exception {
     setUp();
     BiHourlyPartitioner partitioner = new BiHourlyPartitioner();
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
     String pathFormat = partitioner.getPathFormat();
     long partitionDurationMs = TimeUnit.HOURS.toMillis(2);
-    long timestamp = new DateTime(2015, 1, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
-    String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
+    long timestamp = new DateTime(2015, 1, 1, 3, 0, 0, 0, DATE_TIME_ZONE).getMillis();
+    String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat,
+        TIME_ZONE_STRING, timestamp);
     String path = partitioner.generatePartitionedPath("topic", encodedPartition);
     assertEquals("topic/year=2015/month=January/day=01/hour=2/", path);
   }
@@ -60,14 +60,20 @@ public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
   }
 
   private static class BiHourlyPartitioner extends TimeBasedPartitioner {
-    private static long partitionDurationMs = TimeUnit.HOURS.toMillis(2);
+    private static String partitionDurationMs = String.valueOf(TimeUnit.HOURS.toMillis(2));
     private static String pathFormat = "'year'=YYYY/'month'=MMMM/'day'=dd/'hour'=H/";
 
     @Override
-    public void configure(Map<String, Object> config) {
-      init(partitionDurationMs, pathFormat, Locale.FRENCH, DATE_TIME_ZONE, config);
+    public void configure(Map<String, String> props) {
+      // Do not assume configure()'s superclasses implementations
+      props.put(PartitionerConfig.PARTITION_DURATION_MS_CONFIG, partitionDurationMs);
+      props.put(PartitionerConfig.PATH_FORMAT_CONFIG, pathFormat);
+      props.put(PartitionerConfig.LOCALE_CONFIG, Locale.FRENCH.toString());
+      props.put(PartitionerConfig.TIMEZONE_CONFIG, TIME_ZONE_STRING);
+      super.configure(props);
     }
 
+    @Override
     public String getPathFormat() {
       return pathFormat;
     }

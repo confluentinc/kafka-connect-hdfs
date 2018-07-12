@@ -59,7 +59,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
   public void testCreateTable() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
+    Partitioner partitioner = HiveTestUtils.getPartitioner(propsWithDefaults);
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
@@ -105,7 +105,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
   public void testAlterSchema() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
-    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
+    Partitioner partitioner = HiveTestUtils.getPartitioner(propsWithDefaults);
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 

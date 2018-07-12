@@ -117,9 +117,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       new BooleanParentRecommender(
           HDFS_AUTHENTICATION_KERBEROS_CONFIG);
 
-  private static final GenericRecommender STORAGE_CLASS_RECOMMENDER = new GenericRecommender();
+  public static final GenericRecommender STORAGE_CLASS_RECOMMENDER = new GenericRecommender();
   private static final GenericRecommender FORMAT_CLASS_RECOMMENDER = new GenericRecommender();
-  private static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
+  public static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
   private static final ParentValueRecommender AVRO_COMPRESSION_RECOMMENDER
       = new ParentValueRecommender(FORMAT_CLASS_CONFIG, AvroFormat.class, AVRO_SUPPORTED_CODECS);
 
@@ -353,12 +353,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return hadoopConfig;
   }
 
-  public Map<String, ?> plainValues() {
-    Map<String, Object> map = new HashMap<>();
-    for (AbstractConfig config : allConfigs) {
-      map.putAll(config.values());
-    }
-    return map;
+  public Map<String, String> plainValues() {
+    return addDefaults(originalsStrings());
   }
 
   private static class BooleanParentRecommender implements ConfigDef.Recommender {

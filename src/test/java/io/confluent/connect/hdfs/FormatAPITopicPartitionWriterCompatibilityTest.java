@@ -62,7 +62,7 @@ public class FormatAPITopicPartitionWriterCompatibilityTest extends TestWithMini
   @Test
   public void testWriteRecordDefaultWithPadding() throws Exception {
     Partitioner partitioner = new DefaultPartitioner();
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION,
         storage,

@@ -23,7 +23,6 @@ import org.apache.kafka.connect.data.Struct;
 import org.junit.After;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -33,13 +32,12 @@ import io.confluent.connect.hdfs.avro.AvroFormat;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.storage.StorageSinkTestBase;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
 
   protected HdfsSinkConnectorConfig connectorConfig;
-  protected Map<String, Object> parsedConfig;
+  protected Map<String, String> propsWithDefaults;
   protected Configuration conf;
   protected String topicsDir;
   protected String logsDir;
@@ -112,7 +110,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
   public void setUp() throws Exception {
     super.setUp();
     connectorConfig = new HdfsSinkConnectorConfig(properties);
-    parsedConfig = new HashMap<>(connectorConfig.plainValues());
+    propsWithDefaults = connectorConfig.plainValues();
     conf = connectorConfig.getHadoopConfiguration();
     topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);

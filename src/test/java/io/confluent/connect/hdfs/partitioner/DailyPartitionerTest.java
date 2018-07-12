@@ -18,13 +18,9 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.storage.hive.schema.TimeBasedSchemaGenerator;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.junit.Assert.assertEquals;
@@ -36,10 +32,10 @@ public class DailyPartitionerTest extends TestWithMiniDFSCluster {
   public void testDailyPartitioner() throws Exception {
     setUp();
     DailyPartitioner partitioner = new DailyPartitioner();
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
 
     String pathFormat = partitioner.getPathFormat();
-    String timeZoneString = (String) parsedConfig.get(PartitionerConfig.TIMEZONE_CONFIG);
+    String timeZoneString = connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG);
     long timestamp = new DateTime(2014, 2, 1, 3, 0, 0, 0, DateTimeZone.forID(timeZoneString)).getMillis();
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
     String path = partitioner.generatePartitionedPath("topic", encodedPartition);
