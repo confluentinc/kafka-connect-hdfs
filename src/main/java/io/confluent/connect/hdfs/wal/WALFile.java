@@ -240,7 +240,11 @@ public class WALFile {
       if (statuses.length != 1) {
         throw new ConnectException("Expected exactly one log for WAL file " + p);
       }
-      return statuses[0].getLen() >= VERSION.length;
+      boolean result = statuses[0].getLen() >= VERSION.length;
+      if (!result) {
+        log.warn("Failed to read version header from WAL file " + p);
+      }
+      return result;
     }
 
     void init(Configuration conf, FSDataOutputStream out, boolean ownStream)
