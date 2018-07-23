@@ -3,6 +3,11 @@
 Changelog
 =========
 
+Version 4.1.1
+-------------
+
+* `PR-307 <https://github.com/confluentinc/kafka-connect-hdfs/pull/307>`_ - CC-918 Add Kafka Connect Maven plugin to build
+
 Version 4.1.0
 -------------
 
