@@ -3,6 +3,11 @@
 Changelog
 =========
 
+Version 4.1.2
+-------------
+
+* `PR-335 <https://github.com/confluentinc/kafka-connect-hdfs/pull/335>`_ - MINOR: Fix the secure HDFS test
+
 Version 4.1.1
 -------------
 
