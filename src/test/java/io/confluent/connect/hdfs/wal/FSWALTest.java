@@ -16,12 +16,16 @@
 
 package io.confluent.connect.hdfs.wal;
 
+import io.confluent.connect.hdfs.FileUtils;
+import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.Test;
 
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.storage.Storage;
+
+import java.io.OutputStream;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -45,5 +49,25 @@ public class FSWALTest extends TestWithMiniDFSCluster {
             storage.exists("/logs/mytopic/123/log"));
     assertTrue("Rotated WAL file should exist after truncate + append",
             storage.exists("/logs/mytopic/123/log.1"));
+  }
+  
+  @Test
+  public void testEmptyWalFileRecovery() throws Exception {
+    HdfsStorage storage = new HdfsStorage(conf, url);
+    TopicPartition tp = new TopicPartition("mytopic", 123);
+    fs.create(new Path(FileUtils.logFileName(url, logsDir, tp)), true);
+    FSWAL wal = new FSWAL("/logs", tp, storage);
+    wal.acquireLease();
+  }
+  
+  @Test
+  public void testTruncatedVersionWalFileRecovery() throws Exception {
+    HdfsStorage storage = new HdfsStorage(conf, url);
+    TopicPartition tp = new TopicPartition("mytopic", 123);
+    OutputStream o = fs.create(new Path(FileUtils.logFileName(url, logsDir, tp)), true);
+    o.write(47);
+    o.write(61);
+    FSWAL wal = new FSWAL("/logs", tp, storage);
+    wal.acquireLease();
   }
 }
