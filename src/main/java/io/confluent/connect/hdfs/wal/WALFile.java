@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.Syncable;
@@ -37,6 +38,7 @@ import org.apache.hadoop.io.serializer.Serializer;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.util.Options;
 import org.apache.hadoop.util.Time;
+import org.apache.kafka.connect.errors.ConnectException;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -151,7 +153,10 @@ public class WALFile {
                            ? fs.getDefaultBlockSize(p)
                            : blockSizeOption.getValue();
 
-          if (appendIfExistsOption != null && appendIfExistsOption.getValue() && fs.exists(p)) {
+          if (appendIfExistsOption != null
+              && appendIfExistsOption.getValue()
+              && fs.exists(p)
+              && hasIntactVersionHeader(p, fs)) {
             // Read the file and verify header details
             try (WALFile.Reader reader = new WALFile.Reader(
                 connectorConfig.getHadoopConfiguration(),
@@ -183,6 +188,18 @@ public class WALFile {
         throw re;
       }
 
+    }
+    
+    private boolean hasIntactVersionHeader(Path p, FileSystem fs) throws IOException {
+      FileStatus[] statuses = fs.listStatus(p);
+      if (statuses.length != 1) {
+        throw new ConnectException("Expected exactly one log for WAL file " + p);
+      }
+      boolean result = statuses[0].getLen() >= VERSION.length;
+      if (!result) {
+        log.warn("Failed to read version header from WAL file " + p);
+      }
+      return result;
     }
 
     public static Option file(Path value) {
