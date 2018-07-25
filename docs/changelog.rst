@@ -3,6 +3,11 @@
 Changelog
 =========
 
+Version 5.0.0
+-------------
+
+* `PR-63 <https://github.com/confluentinc/kafka-connect-storage-common/pull/63>`_ - DataUtils::getField returns field
+
 Version 4.1.2
 -------------
 
