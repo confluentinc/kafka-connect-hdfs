@@ -23,7 +23,7 @@
     <groupId>io.confluent</groupId>
     <artifactId>kafka-connect-hdfs</artifactId>
     <packaging>jar</packaging>
-    <version>3.2.4-SNAPSHOT</version>
+    <version>3.2.5-SNAPSHOT</version>
     <name>kafka-connect-hdfs</name>
     <organization>
         <name>Confluent, Inc.</name>
@@ -50,7 +50,7 @@
     </scm>
 
     <properties>
-        <confluent.version>3.2.4-SNAPSHOT</confluent.version>
+        <confluent.version>3.2.5-SNAPSHOT</confluent.version>
         <kafka.version>0.10.2.3-SNAPSHOT</kafka.version>
         <junit.version>4.12</junit.version>
         <hadoop.version>2.7.3</hadoop.version>
