@@ -75,11 +75,19 @@ Connector
 ^^^^^^^^^
 
 ``format.class``
-  The format class to use when writing data to the store.
+  The format class to use when writing data to the store. Format classes
+  implement the ``io.confluent.connect.storage.format.Format`` interface.
 
   * Type: class
-  * Default: io.confluent.connect.hdfs.avro.AvroFormat
+  * Default: ``io.confluent.connect.hdfs.avro.AvroFormat``
   * Importance: high
+
+  These classes are available by default:
+
+  - ``io.confluent.connect.hdfs.avro.AvroFormat``
+  - ``io.confluent.connect.hdfs.json.JsonFormat``
+  - ``io.confluent.connect.hdfs.parquet.ParquetFormat``
+  - ``io.confluent.connect.hdfs.string.StringFormat``
 
 ``flush.size``
   Number of records written to store before invoking file commits.
