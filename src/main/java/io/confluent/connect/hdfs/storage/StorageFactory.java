@@ -32,8 +32,7 @@ public class StorageFactory {
       Constructor<? extends Storage> ctor =
           storageClass.getConstructor(Configuration.class, String.class);
       return ctor.newInstance(conf, url);
-    } catch (
-        NoSuchMethodException
+    } catch (NoSuchMethodException
             | InvocationTargetException
             | MethodInvocationException
             | InstantiationException
