@@ -331,8 +331,7 @@ public class DataWriter {
         );
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
-    } catch (
-        ClassNotFoundException
+    } catch (ClassNotFoundException
             | IllegalAccessException
             | InstantiationException
             | InvocationTargetException
