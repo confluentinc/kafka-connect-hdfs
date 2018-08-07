@@ -80,8 +80,11 @@ public class ParquetRecordWriterProvider
             );
             log.debug("Opened record writer for: {}", filename);
           } catch (IOException e) {
-            log.debug(
-                "Error creating AvroParquetWriter for file '{}', {}, and schema {}: ",
+            // Ultimately caught and logged in TopicPartitionWriter,
+            // but log in debug to provide more context
+            log.warn(
+                "Error creating {} for file '{}', {}, and schema {}: ",
+                AvroParquetWriter.class.getSimpleName(),
                 filename,
                 compressionCodecName,
                 schema,
