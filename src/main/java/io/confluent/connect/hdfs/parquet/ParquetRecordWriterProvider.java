@@ -62,6 +62,10 @@ public class ParquetRecordWriterProvider
       public void write(SinkRecord record) {
         if (schema == null) {
           schema = record.valueSchema();
+          // may still be null at this point
+        }
+
+        if (writer == null) {
           try {
             log.info("Opening record writer for: {}", filename);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
@@ -74,7 +78,18 @@ public class ParquetRecordWriterProvider
                 true,
                 conf.getHadoopConfiguration()
             );
+            log.debug("Opened record writer for: {}", filename);
           } catch (IOException e) {
+            // Ultimately caught and logged in TopicPartitionWriter,
+            // but log in debug to provide more context
+            log.warn(
+                "Error creating {} for file '{}', {}, and schema {}: ",
+                AvroParquetWriter.class.getSimpleName(),
+                filename,
+                compressionCodecName,
+                schema,
+                e
+            );
             throw new ConnectException(e);
           }
         }
