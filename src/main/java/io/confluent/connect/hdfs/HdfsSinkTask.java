@@ -118,8 +118,6 @@ public class HdfsSinkTask extends SinkTask {
   public void close(Collection<TopicPartition> partitions) {
     if (hdfsWriter != null) {
       hdfsWriter.close();
-    } else {
-      log.warn("Close called on a null HDFS writer.");
     }
   }
 
