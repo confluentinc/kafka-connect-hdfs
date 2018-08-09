@@ -71,14 +71,14 @@ public class ParquetRecordWriterProvider
             log.info("Opening record writer for: {}", filename);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
             writer = AvroParquetWriter.<GenericRecord>builder(path)
-                                      .withSchema(avroSchema)
-                                      .withCompressionCodec(compressionCodecName)
-                                      .withRowGroupSize(blockSize)
-                                      .withPageSize(pageSize)
-                                      .withDictionaryEncoding(true)
-                                      .withConf(conf.getHadoopConfiguration())
-                                      .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
-                                      .build();
+                .withSchema(avroSchema)
+                .withCompressionCodec(compressionCodecName)
+                .withRowGroupSize(blockSize)
+                .withPageSize(pageSize)
+                .withDictionaryEncoding(true)
+                .withConf(conf.getHadoopConfiguration())
+                .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
+                .build();
             log.debug("Opened record writer for: {}", filename);
           } catch (IOException e) {
             // Ultimately caught and logged in TopicPartitionWriter,
