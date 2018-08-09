@@ -20,6 +20,7 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.slf4j.Logger;
@@ -69,15 +70,15 @@ public class ParquetRecordWriterProvider
           try {
             log.info("Opening record writer for: {}", filename);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
-            writer = new AvroParquetWriter<>(
-                path,
-                avroSchema,
-                compressionCodecName,
-                blockSize,
-                pageSize,
-                true,
-                conf.getHadoopConfiguration()
-            );
+            writer = AvroParquetWriter.<GenericRecord>builder(path)
+                                      .withSchema(avroSchema)
+                                      .withCompressionCodec(compressionCodecName)
+                                      .withRowGroupSize(blockSize)
+                                      .withPageSize(pageSize)
+                                      .withDictionaryEncoding(true)
+                                      .withConf(conf.getHadoopConfiguration())
+                                      .withWriteMode(ParquetFileWriter.Mode.OVERWRITE)
+                                      .build();
             log.debug("Opened record writer for: {}", filename);
           } catch (IOException e) {
             // Ultimately caught and logged in TopicPartitionWriter,
