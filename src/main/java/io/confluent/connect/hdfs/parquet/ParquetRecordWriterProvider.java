@@ -95,7 +95,7 @@ public class ParquetRecordWriterProvider
           }
         }
 
-        log.trace("Sink record: {}", record.toString());
+        log.trace("Sink record: {}", record);
         Object value = avroData.fromConnectData(record.valueSchema(), record.value());
         try {
           writer.write((GenericRecord) value);
