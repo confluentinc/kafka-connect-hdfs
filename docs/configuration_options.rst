@@ -1,3 +1,5 @@
+.. _hdfs-config-options:
+
 HDFS Connector Configuration Options
 ------------------------------------
 
