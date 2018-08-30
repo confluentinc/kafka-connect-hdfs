@@ -363,6 +363,7 @@ Contents:
 
 .. toctree::
    :maxdepth: 1
+   :hidden:
 
    configuration_options
    changelog
