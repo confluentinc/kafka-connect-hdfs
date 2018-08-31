@@ -358,9 +358,6 @@ under that topic that can query the whole data of that topic. If the ``schema.co
 set to ``FORWARD``, the Hive table schema of a topic is equivalent to the oldest schema of the HFDS
 files under that topic that can query the whole data of that topic.
 
-
-Contents:
-
 .. toctree::
    :maxdepth: 1
    :hidden:
