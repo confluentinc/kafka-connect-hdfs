@@ -5,7 +5,7 @@ HDFS
 ^^^^
 
 ``hdfs.url``
-  The HDFS connection URL. This configuration has the format of hdfs:://hostname:port and specifies the HDFS to export data to. This property is deprecated and will be removed in future releases. Use ``store.url`` instead.
+  The HDFS connection URL. This configuration has the format of hdfs://hostname:port and specifies the HDFS to export data to. This property is deprecated and will be removed in future releases. Use ``store.url`` instead.
 
   * Type: string
   * Default: null
