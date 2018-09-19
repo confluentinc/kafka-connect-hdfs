@@ -57,7 +57,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   // This config is deprecated and will be removed in future releases. Use store.url instead.
   public static final String HDFS_URL_CONFIG = "hdfs.url";
   public static final String HDFS_URL_DOC =
-      "The HDFS connection URL. This configuration has the format of hdfs:://hostname:port and "
+      "The HDFS connection URL. This configuration has the format of hdfs://hostname:port and "
           + "specifies the HDFS to export data to. This property is deprecated and will be "
           + "removed in future releases. Use ``store.url`` instead.";
   public static final String HDFS_URL_DEFAULT = null;
