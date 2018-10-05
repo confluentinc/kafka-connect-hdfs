@@ -364,7 +364,7 @@ public class TopicPartitionWriter {
                 break;
               }
             } else {
-              if (shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
+              if (shouldRotateAndMaybeUpdateTimers(currentRecord)) {
                 log.info(
                     "Starting commit and rotation for topic partition {} with start offsets {} "
                         + "and end offsets {}",
@@ -409,7 +409,7 @@ public class TopicPartitionWriter {
     if (buffer.isEmpty()) {
       // committing files after waiting for rotateIntervalMs time but less than flush.size
       // records available
-      if (recordCounter > 0 && shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
+      if (recordCounter > 0 && shouldRotateAndMaybeUpdateTimers(currentRecord)) {
         log.info(
             "committing files after waiting for rotateIntervalMs time but less than flush.size "
                 + "records available."
@@ -504,7 +504,8 @@ public class TopicPartitionWriter {
     this.state = state;
   }
 
-  private boolean shouldRotateAndMaybeUpdateTimers(SinkRecord currentRecord, long now) {
+  private boolean shouldRotateAndMaybeUpdateTimers(SinkRecord currentRecord) {
+    long now = time.milliseconds();
     Long currentTimestamp = null;
     if (isWallclockBased) {
       currentTimestamp = now;
