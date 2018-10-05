@@ -379,7 +379,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     Set<String> skip = new HashSet<>();
     skip.add(STORAGE_CLASS_CONFIG);
     skip.add(FORMAT_CLASS_CONFIG);
-    skip.add(APPEND_LATE_DATA);
 
     // Order added is important, so that group order is maintained
     ConfigDef visible = new ConfigDef();
