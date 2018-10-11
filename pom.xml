@@ -57,6 +57,7 @@
         <confluent.maven.repo>http://packages.confluent.io/maven/</confluent.maven.repo>
         <hadoop.version>2.7.3</hadoop.version>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
+        <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
     </properties>
 
     <repositories>
@@ -142,7 +143,7 @@
         <plugins>
             <plugin>
                 <groupId>io.confluent</groupId>
-                <version>0.10.0</version>
+                <version>${kafka.connect.maven.plugin.version}</version>
                 <artifactId>kafka-connect-maven-plugin</artifactId>
                 <executions>
                     <execution>
@@ -151,11 +152,11 @@
                         </goals>
                         <configuration>
                             <title>Kafka Connect HDFS</title>
-                            <documentationUrl>https://docs.confluent.io/current/connect/connect-hdfs/docs/index.html</documentationUrl>
+                            <documentationUrl>https://docs.confluent.io/${project.version}/connect/connect-hdfs/docs/index.html</documentationUrl>
                             <description>
                                 The HDFS connector allows you to export data from Kafka topics to HDFS files in a variety of formats and integrates with Hive to make data immediately available for querying with HiveQL.
 
-                                The connector periodically polls data from Kafka and writes them to HDFS. The data from each Kafka topic is partitioned by the provided partitioner and divided into chunks. Each chunk of data is represented as an HDFS file with topic, kafka partition, start and end offsets of this data chunk in the filename. If no partitioner is specified in the configuration, the default partitioner which preserves the Kafka partitioning is used. The size of each data chunk is determined by the number of records written to HDFS, the time written to HDFS and schema compatibility.
+                                The connector periodically polls data from Kafka and writes them to HDFS. The data from each Kafka topic is partitioned by the provided partitioner and divided into chunks. Each chunk of data is represented as an HDFS file with topic, Kafka partition, start and end offsets of this data chunk in the filename. If no partitioner is specified in the configuration, the default partitioner which preserves the Kafka partitioning is used. The size of each data chunk is determined by the number of records written to HDFS, the time written to HDFS and schema compatibility.
 
                                 The HDFS connector integrates with Hive and when it is enabled, the connector automatically creates an external Hive partitioned table for each Kafka topic and updates the table according to the available data in HDFS.
                             </description>
