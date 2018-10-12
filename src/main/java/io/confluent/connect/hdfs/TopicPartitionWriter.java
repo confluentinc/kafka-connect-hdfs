@@ -521,28 +521,28 @@ public class TopicPartitionWriter {
     boolean messageSizeRotation = recordCounter >= flushSize;
 
     log.trace(
-            "Should apply periodic time-based rotation (rotateIntervalMs: '{}', lastRotate: "
-                    + "'{}', timestamp: '{}')? {}",
-            rotateIntervalMs,
-            lastRotate,
-            currentTimestamp,
-            periodicRotation
+        "Should apply periodic time-based rotation (rotateIntervalMs: '{}', lastRotate: "
+            + "'{}', timestamp: '{}')? {}",
+        rotateIntervalMs,
+        lastRotate,
+        currentTimestamp,
+        periodicRotation
     );
 
     log.trace(
-            "Should apply scheduled rotation: (rotateScheduleIntervalMs: '{}', nextScheduledRotate:"
-                    + " '{}', now: '{}')? {}",
-            rotateScheduleIntervalMs,
-            nextScheduledRotate,
-            now,
-            scheduledRotation
+        "Should apply scheduled rotation: (rotateScheduleIntervalMs: '{}', nextScheduledRotate:"
+            + " '{}', now: '{}')? {}",
+        rotateScheduleIntervalMs,
+        nextScheduledRotate,
+        now,
+        scheduledRotation
     );
 
     log.trace(
-            "Should apply size-based rotation (count {} >= flush size {})? {}",
-            recordCounter,
-            flushSize,
-            messageSizeRotation
+        "Should apply size-based rotation (count {} >= flush size {})? {}",
+        recordCounter,
+        flushSize,
+        messageSizeRotation
     );
 
     return periodicRotation || scheduledRotation || messageSizeRotation;
