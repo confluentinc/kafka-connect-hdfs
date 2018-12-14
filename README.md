@@ -23,4 +23,4 @@ https://github.com/confluentinc/kafka-connect-hdfs/wiki/FAQ
 
 # License
 
-The project is licensed under the Apache 2 license.
+This project is licensed under the [Confluent Community License](LICENSE).
