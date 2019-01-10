@@ -441,6 +441,10 @@ public class DataWriter {
       // We need to immediately start recovery to ensure we pause consumption of messages for the
       // assigned topics while we try to recover offsets and rewind.
       recover(tp);
+
+      if (hiveIntegration) {
+        syncWithHive();
+      }
     }
   }
 
