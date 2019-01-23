@@ -44,6 +44,7 @@ import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.MULTI_SCHEMA_SUPPORT_CONFIG;
 import static org.junit.Assert.assertEquals;
 
 public class HiveIntegrationAvroTest extends HiveTestBase {
@@ -489,5 +490,60 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     records.add(record2);
     records.add(record3);
     return records.toArray(new Struct[records.size()]);
+  }
+
+  @Test
+  public void testHiveIntegrationAvroWitmMultipleSchemas() throws Exception {
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    localProps.put(MULTI_SCHEMA_SUPPORT_CONFIG, "true");
+    setUp();
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    String key = "key";
+    Schema[] schemas = new Schema[] {
+            createSchema(),
+            createSchema("record2"),
+    };
+    Struct[] records = new Struct[] {
+            createRecord(schemas[0]),
+            createRecord(schemas[1])
+    };
+
+
+    Collection<SinkRecord> sinkRecords1 = new ArrayList<>();
+    Collection<SinkRecord> sinkRecords2 = new ArrayList<>();
+    for (int offset = 0; offset < 14; offset++) {
+      Schema schema = schemas[offset % schemas.length];
+      Struct record = records[offset % schemas.length];
+      sinkRecords1.add(new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset));
+    }
+
+    hdfsWriter.write(sinkRecords1);
+    hdfsWriter.write(sinkRecords2);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    for (Schema schema : schemas) {
+      Table table = hiveMetaStore.getTable(hiveDatabase, schema.name());
+      List<String> expectedColumnNames = new ArrayList<>();
+      for (Field field : schema.fields()) {
+        expectedColumnNames.add(field.name());
+      }
+
+      List<String> actualColumnNames = new ArrayList<>();
+      for (FieldSchema column : table.getSd().getCols()) {
+        actualColumnNames.add(column.getName());
+      }
+      assertEquals(expectedColumnNames, actualColumnNames);
+
+      List<String> expectedPartitions = new ArrayList<>();
+      String directory = TOPIC + "/" + schema.name() + "/" + "partition=" + String.valueOf(PARTITION);
+      expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
+
+      List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, schema.name(), (short) -1);
+
+      assertEquals(expectedPartitions, partitions);
+    }
   }
 }

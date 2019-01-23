@@ -14,16 +14,23 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.SelectableRecordWriterProvider;
+import io.confluent.connect.hdfs.partitioner.SchemaAwarePartitionerDecorator;
+import io.confluent.connect.hdfs.schema.MultipleSchemasContainer;
+import io.confluent.connect.hdfs.schema.SchemaResolutionStrategy;
+import io.confluent.connect.hdfs.schema.SingleSchemaContainer;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,6 +41,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -57,6 +66,10 @@ import io.confluent.connect.storage.partitioner.DailyPartitioner;
 import io.confluent.connect.storage.partitioner.HourlyPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.MULTI_SCHEMA_SUPPORT_CONFIG;
+import static io.confluent.connect.storage.partitioner.PartitionerConfig.PARTITION_DURATION_MS_CONFIG;
+import static io.confluent.connect.storage.partitioner.PartitionerConfig.PATH_FORMAT_CONFIG;
+import static io.confluent.connect.storage.partitioner.PartitionerConfig.TIMEZONE_CONFIG;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -113,15 +126,15 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     Partitioner partitioner = new DefaultPartitioner();
     partitioner.configure(parsedConfig);
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        time
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            time
     );
 
     Schema schema = createSchema();
@@ -146,7 +159,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
                                "/" + TOPIC + "+" + PARTITION + "+06+08" + extension));
     int expectedBatchSize = 3;
-    verify(expectedFiles, expectedBatchSize, records, schema);
+    verify(createSingleSchemaFiles(expectedFiles, schema), expectedBatchSize, records);
   }
 
   @Test
@@ -162,15 +175,15 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     String partitionField = partitionFields.get(0);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        time
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            time
     );
 
     Schema schema = createSchema();
@@ -203,7 +216,11 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory3, TOPIC_PARTITION, 6, 8, extension, zeroPadFormat)));
 
     int expectedBatchSize = 3;
-    verify(expectedFiles, expectedBatchSize, records, schema);
+    verify(createSingleSchemaFiles(expectedFiles, schema), expectedBatchSize, records);
+  }
+
+  private SingleSchemaContainer createSingleSchemaContainer() {
+    return new SingleSchemaContainer(storage, connectorConfig, TOPIC_PARTITION.topic(), null, null, false);
   }
 
   @Test
@@ -213,15 +230,15 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     partitioner.configure(parsedConfig);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        time
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            time
     );
 
     Schema schema = createSchema();
@@ -239,10 +256,10 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     topicPartitionWriter.close();
 
     long partitionDurationMs = (Long) parsedConfig.get(
-        PartitionerConfig.PARTITION_DURATION_MS_CONFIG
+        PARTITION_DURATION_MS_CONFIG
     );
-    String pathFormat = (String) parsedConfig.get(PartitionerConfig.PATH_FORMAT_CONFIG);
-    String timeZoneString = (String) parsedConfig.get(PartitionerConfig.TIMEZONE_CONFIG);
+    String pathFormat = (String) parsedConfig.get(PATH_FORMAT_CONFIG);
+    String timeZoneString = (String) parsedConfig.get(TIMEZONE_CONFIG);
     long timestamp = System.currentTimeMillis();
 
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
@@ -255,7 +272,63 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, 6, 8, extension, zeroPadFormat)));
 
     int expectedBatchSize = 3;
-    verify(expectedFiles, expectedBatchSize, records, schema);
+    verify(createSingleSchemaFiles(expectedFiles, schema), expectedBatchSize, records);
+  }
+
+  @Test
+  public void testWriteRecordSchemaAwareTimeBasedPartition() throws Exception {
+    localProps.put(MULTI_SCHEMA_SUPPORT_CONFIG, "true");
+    setUp();
+    Partitioner partitioner = new TimeBasedPartitioner();
+    partitioner.configure(parsedConfig);
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            new MultipleSchemasContainer(storage, connectorConfig, TOPIC_PARTITION.topic(), null, null, false),
+            null,
+            time
+    );
+
+    Schema schema1 = createSchema();
+    Schema schema2 = createSchema("record2");
+
+    List<Struct> records1 = createRecordBatches(schema1, 3, 2);
+    List<SinkRecord> sinkRecords = createSinkRecords(records1, schema1);
+    List<Struct> records2 = createRecordBatches(schema2, 3, 2);
+    sinkRecords.addAll(createSinkRecords(records2, schema2));
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.recover();
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+    long partitionDurationMs = (Long) parsedConfig.get(PARTITION_DURATION_MS_CONFIG);
+    String pathFormat = (String) parsedConfig.get(PATH_FORMAT_CONFIG);
+    String timeZoneString = (String) parsedConfig.get(TIMEZONE_CONFIG);
+    long timestamp = System.currentTimeMillis();
+
+    String schema1EncodedPartition = TimeUtils.encodeSchemaAwareTimestamp(schema1, partitionDurationMs, pathFormat, timeZoneString, timestamp);
+    String schema1Directory = partitioner.generatePartitionedPath(TOPIC, schema1EncodedPartition);
+
+    String schema2EncodedPartition = TimeUtils.encodeSchemaAwareTimestamp(schema2, partitionDurationMs, pathFormat, timeZoneString, timestamp);
+    String schema2Directory = partitioner.generatePartitionedPath(TOPIC, schema2EncodedPartition);
+
+    Map<Path, Schema> expectedFiles = new HashMap<>();
+    expectedFiles.put(new Path(FileUtils.committedFileName(url, topicsDir, schema1Directory, TOPIC_PARTITION, 0, 2, extension, zeroPadFormat)), schema1);
+    expectedFiles.put(new Path(FileUtils.committedFileName(url, topicsDir, schema1Directory, TOPIC_PARTITION, 3, 5, extension, zeroPadFormat)), schema1);
+    expectedFiles.put(new Path(FileUtils.committedFileName(url, topicsDir, schema2Directory, TOPIC_PARTITION, 0, 2, extension, zeroPadFormat)), schema2);
+    expectedFiles.put(new Path(FileUtils.committedFileName(url, topicsDir, schema2Directory, TOPIC_PARTITION, 3, 5, extension, zeroPadFormat)), schema2);
+
+    List<Struct> records = new ArrayList<>(records1);
+    records.addAll(records2);
+    verify(expectedFiles, 3, records);
   }
 
   @Test
@@ -274,15 +347,15 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     partitioner.configure(parsedConfig);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        time
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            time
     );
 
     Schema schema = createSchemaWithTimestampField();
@@ -343,7 +416,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     for (int i : new int[]{9, 12, 15}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixLater, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
     }
-    verify(expectedFiles, 3, records, schema);
+    verify(createSingleSchemaFiles(expectedFiles, schema), 3, records);
   }
 
   @Test
@@ -362,15 +435,15 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     partitioner.configure(parsedConfig);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        time
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            time
     );
 
     Schema schema = createSchema();
@@ -405,7 +478,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     for (int i : new int[]{9, 12}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixLater, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
     }
-    verify(expectedFiles, 3, records, schema);
+    verify(createSingleSchemaFiles(expectedFiles, schema), 3, records);
   }
 
   @Test
@@ -421,20 +494,20 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     // Define the partitioner
     partitioner = new DataWriter.PartitionerWrapper(new DailyPartitioner<FieldSchema>());
     parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "Record");
-    parsedConfig.put(PartitionerConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd");
+    parsedConfig.put(PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd");
     partitioner.configure(parsedConfig);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        time
-    );
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            time
+            );
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 6);
@@ -468,7 +541,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     for (int i : new int[]{9, 12}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixLater, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
     }
-    verify(expectedFiles, 3, records, schema);
+    verify(createSingleSchemaFiles(expectedFiles, schema), 3, records);
   }
 
   @Test
@@ -490,23 +563,23 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     partitioner = new DataWriter.PartitionerWrapper(
         new io.confluent.connect.storage.partitioner.TimeBasedPartitioner<FieldSchema>()
     );
-    parsedConfig.put(PartitionerConfig.PARTITION_DURATION_MS_CONFIG, TimeUnit.DAYS.toMillis(1));
+    parsedConfig.put(PARTITION_DURATION_MS_CONFIG, TimeUnit.DAYS.toMillis(1));
     parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockedWallclockTimestampExtractor.class.getName());
     partitioner.configure(parsedConfig);
 
     MockedWallclockTimestampExtractor.TIME.sleep(SYSTEM.milliseconds());
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        MockedWallclockTimestampExtractor.TIME
-    );
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            MockedWallclockTimestampExtractor.TIME
+            );
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 6);
@@ -563,13 +636,13 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     for (int i : new int[]{3}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixLater, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
     }
-    verify(expectedFiles, 3, records, schema);
+    verify(createSingleSchemaFiles(expectedFiles, schema), 3, records);
   }
 
   private String getTimebasedEncodedPartition(long timestamp) {
-    long partitionDurationMs = (Long) parsedConfig.get(PartitionerConfig.PARTITION_DURATION_MS_CONFIG);
-    String pathFormat = (String) parsedConfig.get(PartitionerConfig.PATH_FORMAT_CONFIG);
-    String timeZone = (String) parsedConfig.get(PartitionerConfig.TIMEZONE_CONFIG);
+    long partitionDurationMs = (Long) parsedConfig.get(PARTITION_DURATION_MS_CONFIG);
+    String pathFormat = (String) parsedConfig.get(PATH_FORMAT_CONFIG);
+    String timeZone = (String) parsedConfig.get(TIMEZONE_CONFIG);
     return TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZone, timestamp);
   }
 
@@ -587,20 +660,30 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     }
   }
 
-  private void verify(Set<Path> expectedFiles, int expectedSize, List<Struct> records, Schema schema) throws IOException {
+  private Map<Path, Schema> createSingleSchemaFiles(Set<Path> expectedFiles, Schema schema) {
+    Map<Path, Schema> result = new HashMap<>();
+    expectedFiles.forEach(path -> result.put(path, schema));
+    return result;
+  }
+
+  private void verify(Map<Path, Schema> expectedFiles, int expectedSize, List<Struct> records) throws IOException {
     Path path = new Path(FileUtils.topicDirectory(url, topicsDir, TOPIC));
     FileStatus[] statuses = FileUtils.traverse(storage, path, new CommittedFileFilter());
     assertEquals(expectedFiles.size(), statuses.length);
     int index = 0;
     for (FileStatus status : statuses) {
       Path filePath = status.getPath();
-      assertTrue(expectedFiles.contains(status.getPath()));
+      assertTrue(expectedFiles.containsKey(status.getPath()));
       Collection<Object> avroRecords = dataFileReader.readData(connectorConfig.getHadoopConfiguration(), filePath);
       assertEquals(expectedSize, avroRecords.size());
       for (Object avroRecord : avroRecords) {
-        assertEquals(avroData.fromConnectData(schema, records.get(index++)), avroRecord);
+        assertEquals(avroData.fromConnectData(expectedFiles.get(status.getPath()), records.get(index++)), avroRecord);
       }
     }
+  }
+
+  private SelectableRecordWriterProvider createRecordWriterProvider() {
+    return new SelectableRecordWriterProvider(connectorConfig, avroData, newWriterProvider, writerProvider);
   }
 
   public static class MockedWallclockTimestampExtractor

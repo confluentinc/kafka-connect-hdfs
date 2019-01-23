@@ -14,6 +14,9 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.hive.HiveTableNamingParameters;
+import io.confluent.connect.hdfs.hive.HiveTableNamingStrategy;
+import io.confluent.connect.hdfs.hive.SchemaNameHiveTableNamingStrategy;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -32,6 +35,8 @@ import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.MULTI_SCHEMA_SUPPORT_CONFIG;
+
 public class AvroHiveUtil extends HiveUtil {
 
   private static final String AVRO_SERDE = "org.apache.hadoop.hive.serde2.avro.AvroSerDe";
@@ -42,20 +47,26 @@ public class AvroHiveUtil extends HiveUtil {
   private static final String AVRO_SCHEMA_LITERAL = "avro.schema.literal";
   private final AvroData avroData;
   private final String topicsDir;
+  private final boolean typedHiveTablesSupportEnabled;
+  private final HiveTableNamingStrategy hiveTableNamingStrategy;
 
-  public AvroHiveUtil(
-      HdfsSinkConnectorConfig conf, AvroData avroData, HiveMetaStore
-      hiveMetaStore
-  ) {
+  public AvroHiveUtil(HdfsSinkConnectorConfig conf, AvroData avroData,
+                      HiveMetaStore hiveMetaStore) {
     super(conf, hiveMetaStore);
     this.avroData = avroData;
     this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    this.typedHiveTablesSupportEnabled = conf.getBoolean(MULTI_SCHEMA_SUPPORT_CONFIG);
+    if (this.typedHiveTablesSupportEnabled) {
+      this.hiveTableNamingStrategy = new SchemaNameHiveTableNamingStrategy();
+    } else {
+      this.hiveTableNamingStrategy = new HiveTableNamingStrategy() {};
+    }
   }
 
   @Override
-  public void createTable(String database, String tableName, Schema schema, Partitioner partitioner)
+  public void createTable(String database, String topicName, Schema schema, Partitioner partitioner)
       throws HiveMetaStoreException {
-    Table table = constructAvroTable(database, tableName, schema, partitioner);
+    Table table = constructAvroTable(database, topicName, schema, partitioner);
     hiveMetaStore.createTable(table);
   }
 
@@ -72,16 +83,18 @@ public class AvroHiveUtil extends HiveUtil {
 
   private Table constructAvroTable(
       String database,
-      String tableName,
+      String topicName,
       Schema schema,
       Partitioner partitioner
   )
       throws HiveMetaStoreException {
+    String tableName = hiveTableNamingStrategy.createName(
+            new HiveTableNamingParameters(topicName, schema)
+    );
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
-    String tablePath = hiveDirectoryName(url, topicsDir, tableName);
-    table.setDataLocation(new Path(tablePath));
+    table.setDataLocation(createTablePath(topicName, schema));
     table.setSerializationLib(AVRO_SERDE);
     try {
       table.setInputFormatClass(AVRO_INPUT_FORMAT);
@@ -94,5 +107,13 @@ public class AvroHiveUtil extends HiveUtil {
     table.setPartCols(partitioner.partitionFields());
     table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
     return table;
+  }
+
+  private Path createTablePath(String tableName, Schema schema) {
+    String tablePath = hiveDirectoryName(url, topicsDir, tableName);
+    if (typedHiveTablesSupportEnabled) {
+      tablePath += schema.name() + this.delim;
+    }
+    return new Path(tablePath);
   }
 }

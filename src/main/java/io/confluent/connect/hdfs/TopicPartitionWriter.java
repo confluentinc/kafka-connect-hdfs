@@ -14,6 +14,22 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.common.utils.Time;
+import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
+import io.confluent.connect.hdfs.filter.CommittedFileFilter;
+import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
+import io.confluent.connect.hdfs.hive.HiveService;
+import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.hdfs.partitioner.SchemaAwarePartitionerDecorator;
+import io.confluent.connect.hdfs.schema.SchemaResolutionStrategy;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
+import io.confluent.connect.storage.partitioner.TimestampExtractor;
+import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
+import io.confluent.connect.storage.wal.WAL;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -36,35 +52,16 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 
-import io.confluent.common.utils.Time;
-import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.errors.HiveMetaStoreException;
-import io.confluent.connect.hdfs.filter.CommittedFileFilter;
-import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
-import io.confluent.connect.hdfs.hive.HiveMetaStore;
-import io.confluent.connect.hdfs.hive.HiveUtil;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.hive.HiveConfig;
-import io.confluent.connect.storage.partitioner.PartitionerConfig;
-import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
-import io.confluent.connect.storage.partitioner.TimestampExtractor;
-import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
-import io.confluent.connect.storage.wal.WAL;
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.MULTI_SCHEMA_SUPPORT_CONFIG;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
   private static final TimestampExtractor WALLCLOCK =
       new TimeBasedPartitioner.WallclockTimestampExtractor();
-  private final io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
-      newWriterProvider;
   private final String zeroPadOffsetFormat;
   private final boolean hiveIntegration;
   private final Time time;
@@ -88,14 +85,6 @@ public class TopicPartitionWriter {
   private Long lastRotate;
   private final long rotateScheduleIntervalMs;
   private long nextScheduledRotate;
-  // This is one case where we cannot simply wrap the old or new RecordWriterProvider with the
-  // other because they have incompatible requirements for some methods -- one requires the Hadoop
-  // config + extra parameters, the other requires the ConnectorConfig and doesn't get the other
-  // extra parameters. Instead, we have to (optionally) store one of each and use whichever one is
-  // non-null.
-  private final RecordWriterProvider writerProvider;
-  private final HdfsSinkConnectorConfig connectorConfig;
-  private final AvroData avroData;
   private final Set<String> appended;
   private long offset;
   private final Map<String, Long> startOffsets;
@@ -103,74 +92,37 @@ public class TopicPartitionWriter {
   private final long timeoutMs;
   private long failureTime;
   private final StorageSchemaCompatibility compatibility;
-  private Schema currentSchema;
+  private final SchemaResolutionStrategy schemaResolutionStrategy;
   private final String extension;
   private final DateTimeZone timeZone;
-  private final String hiveDatabase;
-  private final HiveMetaStore hiveMetaStore;
-  private final io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
-      schemaFileReader;
-  private final HiveUtil hive;
-  private final ExecutorService executorService;
-  private final Queue<Future<Void>> hiveUpdateFutures;
-  private final Set<String> hivePartitions;
+  private final Set<String> hivePartitions = new HashSet<>();
+  private final HiveService hiveService;
+  private final SelectableRecordWriterProvider recordWriterProvider;
+  private final boolean multiSchemaSupport;
 
   public TopicPartitionWriter(
       TopicPartition tp,
       HdfsStorage storage,
-      RecordWriterProvider writerProvider,
-      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
-          newWriterProvider,
+      SelectableRecordWriterProvider selectableRecordWriterProvider,
       Partitioner partitioner,
       HdfsSinkConnectorConfig connectorConfig,
       SinkTaskContext context,
-      AvroData avroData,
+      SchemaResolutionStrategy schemaResolutionStrategy,
+      HiveService hiveService,
       Time time
   ) {
-    this(
-        tp,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        null,
-        null,
-        null,
-        null,
-        null,
-        time
-    );
-  }
-
-  public TopicPartitionWriter(
-      TopicPartition tp,
-      HdfsStorage storage,
-      RecordWriterProvider writerProvider,
-      io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
-          newWriterProvider,
-      Partitioner partitioner,
-      HdfsSinkConnectorConfig connectorConfig,
-      SinkTaskContext context,
-      AvroData avroData,
-      HiveMetaStore hiveMetaStore,
-      HiveUtil hive,
-      io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
-          schemaFileReader,
-      ExecutorService executorService,
-      Queue<Future<Void>> hiveUpdateFutures,
-      Time time
-  ) {
+    this.recordWriterProvider = selectableRecordWriterProvider;
     this.time = time;
+    this.hiveService = hiveService;
     this.tp = tp;
     this.context = context;
-    this.avroData = avroData;
     this.storage = storage;
-    this.writerProvider = writerProvider;
-    this.newWriterProvider = newWriterProvider;
-    this.partitioner = partitioner;
+    this.multiSchemaSupport = connectorConfig.getBoolean(MULTI_SCHEMA_SUPPORT_CONFIG);
+    if (multiSchemaSupport) {
+      this.partitioner = new SchemaAwarePartitionerDecorator(partitioner);
+    } else {
+      this.partitioner = partitioner;
+    }
     TimestampExtractor timestampExtractor = null;
     if (partitioner instanceof DataWriter.PartitionerWrapper) {
       io.confluent.connect.storage.partitioner.Partitioner<?> inner =
@@ -184,8 +136,7 @@ public class TopicPartitionWriter {
         this.timestampExtractor.getClass()
     );
     this.url = storage.url();
-    this.connectorConfig = storage.conf();
-    this.schemaFileReader = schemaFileReader;
+    this.schemaResolutionStrategy = schemaResolutionStrategy;
 
     topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
@@ -208,31 +159,12 @@ public class TopicPartitionWriter {
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
     offset = -1L;
-    if (writerProvider != null) {
-      extension = writerProvider.getExtension();
-    } else if (newWriterProvider != null) {
-      extension = newWriterProvider.getExtension();
-    } else {
-      throw new ConnectException(
-          "Invalid state: either old or new RecordWriterProvider must be provided"
-      );
-    }
+    this.extension = recordWriterProvider.getExtension();
     zeroPadOffsetFormat = "%0"
         + connectorConfig.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG)
         + "d";
 
     hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
-    if (hiveIntegration) {
-      hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
-    } else {
-      hiveDatabase = null;
-    }
-
-    this.hiveMetaStore = hiveMetaStore;
-    this.hive = hive;
-    this.executorService = executorService;
-    this.hiveUpdateFutures = hiveUpdateFutures;
-    hivePartitions = new HashSet<>();
 
     if (rotateScheduleIntervalMs > 0) {
       timeZone = DateTimeZone.forID(connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG));
@@ -331,32 +263,18 @@ public class TopicPartitionWriter {
             pause();
             nextState();
           case WRITE_PARTITION_PAUSED:
-            if (currentSchema == null) {
-              if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
-                String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
-                CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
-                FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
-                    storage,
-                    new Path(topicDir),
-                    filter
-                );
-                if (fileStatusWithMaxOffset != null) {
-                  currentSchema = schemaFileReader.getSchema(
-                      connectorConfig,
-                      fileStatusWithMaxOffset.getPath()
-                  );
-                }
-              }
-            }
             SinkRecord record = buffer.peek();
+            Optional<Schema> valueSchema = Optional.ofNullable(record.valueSchema());
+            Optional<Schema> currentSchema = valueSchema.flatMap(schema ->
+                    schemaResolutionStrategy.getOrLoadCurrentSchema(schema.name(), offset)
+            );
             currentRecord = record;
-            Schema valueSchema = record.valueSchema();
-            if ((recordCounter <= 0 && currentSchema == null && valueSchema != null)
-                || compatibility.shouldChangeSchema(record, null, currentSchema)) {
-              currentSchema = valueSchema;
+            if (isNewSchema(valueSchema, currentSchema)
+                || compatibility.shouldChangeSchema(record, null, currentSchema.orElse(null))) {
+              schemaResolutionStrategy.update(valueSchema.get());
               if (hiveIntegration) {
-                createHiveTable();
-                alterHiveSchema();
+                hiveService.createHiveTable(valueSchema.get());
+                hiveService.alterHiveSchema(valueSchema.get());
               }
               if (recordCounter > 0) {
                 nextState();
@@ -365,9 +283,8 @@ public class TopicPartitionWriter {
               }
             } else {
               if (shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
-                log.info(
-                    "Starting commit and rotation for topic partition {} with start offsets {} "
-                        + "and end offsets {}",
+                log.info("Starting commit and rotation for topic partition {} with "
+                                + "start off sets {} and end offsets {}",
                     tp,
                     startOffsets,
                     offsets
@@ -375,7 +292,9 @@ public class TopicPartitionWriter {
                 nextState();
                 // Fall through and try to rotate immediately
               } else {
-                SinkRecord projectedRecord = compatibility.project(record, null, currentSchema);
+                SinkRecord projectedRecord = compatibility.project(record, null,
+                        currentSchema.orElse(null)
+                );
                 writeRecord(projectedRecord);
                 buffer.poll();
                 break;
@@ -430,6 +349,12 @@ public class TopicPartitionWriter {
       resume();
       state = State.WRITE_STARTED;
     }
+  }
+
+  @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+  private boolean isNewSchema(Optional<Schema> valueSchema, Optional<Schema> currentSchema) {
+    return (recordCounter <= 0 || this.multiSchemaSupport)
+            && valueSchema.isPresent() && !currentSchema.isPresent();
   }
 
   public void close() throws ConnectException {
@@ -580,29 +505,14 @@ public class TopicPartitionWriter {
 
     final io.confluent.connect.storage.format.RecordWriter writer;
     try {
-      if (writerProvider != null) {
-        writer = new OldRecordWriterWrapper(
-            writerProvider.getRecordWriter(
-                connectorConfig.getHadoopConfiguration(),
-                tempFile,
-                record,
-                avroData
-            )
-        );
-      } else if (newWriterProvider != null) {
-        writer = newWriterProvider.getRecordWriter(connectorConfig, tempFile);
-      } else {
-        throw new ConnectException(
-            "Invalid state: either old or new RecordWriterProvider must be provided"
-        );
-      }
+      writer = recordWriterProvider.getRecordWriter(tempFile, record);
     } catch (IOException e) {
       throw new ConnectException("Couldn't create RecordWriter", e);
     }
 
     writers.put(encodedPartition, writer);
     if (hiveIntegration && !hivePartitions.contains(encodedPartition)) {
-      addHivePartition(encodedPartition);
+      hiveService.addHivePartition(record, record.valueSchema());
       hivePartitions.add(encodedPartition);
     }
     return writer;
@@ -777,51 +687,6 @@ public class TopicPartitionWriter {
 
   private void setRetryTimeout(long timeoutMs) {
     context.timeout(timeoutMs);
-  }
-
-  private void createHiveTable() {
-    Future<Void> future = executorService.submit(new Callable<Void>() {
-      @Override
-      public Void call() throws HiveMetaStoreException {
-        try {
-          hive.createTable(hiveDatabase, tp.topic(), currentSchema, partitioner);
-        } catch (Throwable e) {
-          log.error("Creating Hive table threw unexpected error", e);
-        }
-        return null;
-      }
-    });
-    hiveUpdateFutures.add(future);
-  }
-
-  private void alterHiveSchema() {
-    Future<Void> future = executorService.submit(new Callable<Void>() {
-      @Override
-      public Void call() throws HiveMetaStoreException {
-        try {
-          hive.alterSchema(hiveDatabase, tp.topic(), currentSchema);
-        } catch (Throwable e) {
-          log.error("Altering Hive schema threw unexpected error", e);
-        }
-        return null;
-      }
-    });
-    hiveUpdateFutures.add(future);
-  }
-
-  private void addHivePartition(final String location) {
-    Future<Void> future = executorService.submit(new Callable<Void>() {
-      @Override
-      public Void call() throws Exception {
-        try {
-          hiveMetaStore.addPartition(hiveDatabase, tp.topic(), location);
-        } catch (Throwable e) {
-          log.error("Adding Hive partition threw unexpected error", e);
-        }
-        return null;
-      }
-    });
-    hiveUpdateFutures.add(future);
   }
 
   private enum State {
