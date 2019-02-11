@@ -150,10 +150,6 @@ public class HdfsSinkTask extends SinkTask {
     }
   }
 
-  private void syncWithHive() throws ConnectException {
-    hdfsWriter.syncWithHive();
-  }
-
   public AvroData getAvroData() {
     return avroData;
   }
