@@ -25,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -119,13 +119,20 @@ public class HdfsSinkTask extends SinkTask {
   public Map<TopicPartition, OffsetAndMetadata> preCommit(
       Map<TopicPartition, OffsetAndMetadata> currentOffsets
   ) {
-    // return an empty map so Connect doesn't commit offsets
-    return Collections.emptyMap();
+    // Although the connector manages offsets via files in HDFS, we still want to have Connect
+    // commit the consumer offsets for records this task has consumed from its topic partitions and
+    // committed to HDFS.
+    Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
+    for (Map.Entry<TopicPartition, Long> entry : hdfsWriter.getCommittedOffsets().entrySet()) {
+      result.put(entry.getKey(), new OffsetAndMetadata(entry.getValue()));
+    }
+    log.debug("Returning committed offsets {}", result);
+    return result;
   }
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
-    // Do nothing as the connector manages the offset
+    // Do nothing as the connector manages the offset and overrides 'preCommit()'
   }
 
   @Override

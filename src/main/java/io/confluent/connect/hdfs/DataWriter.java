@@ -504,7 +504,10 @@ public class DataWriter {
 
   public Map<TopicPartition, Long> getCommittedOffsets() {
     for (TopicPartition tp : assignment) {
-      offsets.put(tp, topicPartitionWriters.get(tp).offset());
+      Long committedOffset = topicPartitionWriters.get(tp).committedOffset();
+      if (committedOffset != null) {
+        offsets.put(tp, committedOffset);
+      }
     }
     return offsets;
   }
