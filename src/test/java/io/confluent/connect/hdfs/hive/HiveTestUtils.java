@@ -27,9 +27,9 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 
 public class HiveTestUtils {
 
-  public static Partitioner getPartitioner(Map<String, Object> parsedConfig) {
+  public static Partitioner getPartitioner(Map<String, String> props) {
     Partitioner partitioner = new DefaultPartitioner();
-    partitioner.configure(parsedConfig);
+    partitioner.configure(props);
     return partitioner;
   }
 

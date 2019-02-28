@@ -553,7 +553,7 @@ public class DataWriter {
       partitioner = new PartitionerWrapper(partitionerClass.newInstance());
     }
 
-    partitioner.configure(new HashMap<>(config.plainValues()));
+    partitioner.configure(config.plainValues());
     return partitioner;
   }
 
@@ -567,8 +567,8 @@ public class DataWriter {
     }
 
     @Override
-    public void configure(Map<String, Object> config) {
-      partitioner.configure(config);
+    public void configure(Map<String, String> props) {
+      partitioner.configure(props);
     }
 
     @Override
@@ -596,37 +596,5 @@ public class DataWriter {
       sb.append("/");
     }
     return sb.toString();
-  }
-
-  private Partitioner createPartitioner(HdfsSinkConnectorConfig config)
-      throws ClassNotFoundException, IllegalAccessException, InstantiationException {
-
-    @SuppressWarnings("unchecked")
-    Class<? extends Partitioner> partitionerClasss = (Class<? extends Partitioner>)
-        Class.forName(config.getString(PartitionerConfig.PARTITIONER_CLASS_CONFIG));
-
-    Map<String, Object> map = copyConfig(config);
-    Partitioner partitioner = partitionerClasss.newInstance();
-    partitioner.configure(map);
-    return partitioner;
-  }
-
-  private Map<String, Object> copyConfig(HdfsSinkConnectorConfig config) {
-    Map<String, Object> map = new HashMap<>();
-    map.put(
-        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG,
-        config.getString(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG)
-    );
-    map.put(
-        PartitionerConfig.PARTITION_DURATION_MS_CONFIG,
-        config.getLong(PartitionerConfig.PARTITION_DURATION_MS_CONFIG)
-    );
-    map.put(
-        PartitionerConfig.PATH_FORMAT_CONFIG,
-        config.getString(PartitionerConfig.PATH_FORMAT_CONFIG)
-    );
-    map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
-    map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
-    return map;
   }
 }

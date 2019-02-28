@@ -59,8 +59,9 @@ import io.confluent.connect.storage.partitioner.HourlyPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.apache.kafka.common.utils.Time.SYSTEM;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThat;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   private RecordWriterProvider writerProvider = null;
@@ -112,7 +113,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     localProps.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
     setUp();
     Partitioner partitioner = new DefaultPartitioner();
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION,
         storage,
@@ -154,10 +155,10 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   public void testWriteRecordFieldPartitioner() throws Exception {
     setUp();
     Partitioner partitioner = new FieldPartitioner();
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
 
     @SuppressWarnings("unchecked")
-    List<String> partitionFields = (List<String>) parsedConfig.get(
+    List<String> partitionFields = connectorConfig.getList(
         PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
     );
     String partitionField = partitionFields.get(0);
@@ -211,7 +212,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   public void testWriteRecordTimeBasedPartition() throws Exception {
     setUp();
     Partitioner partitioner = new TimeBasedPartitioner();
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION,
@@ -239,11 +240,11 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     topicPartitionWriter.write();
     topicPartitionWriter.close();
 
-    long partitionDurationMs = (Long) parsedConfig.get(
+    long partitionDurationMs = connectorConfig.getLong(
         PartitionerConfig.PARTITION_DURATION_MS_CONFIG
     );
-    String pathFormat = (String) parsedConfig.get(PartitionerConfig.PATH_FORMAT_CONFIG);
-    String timeZoneString = (String) parsedConfig.get(PartitionerConfig.TIMEZONE_CONFIG);
+    String pathFormat = connectorConfig.getString(PartitionerConfig.PATH_FORMAT_CONFIG);
+    String timeZoneString = connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG);
     long timestamp = System.currentTimeMillis();
 
     String encodedPartition = TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
@@ -267,12 +268,12 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.MINUTES.toMillis(1))
     );
+    localProps.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "RecordField");
     setUp();
 
     // Define the partitioner
     partitioner = new DataWriter.PartitionerWrapper(new HourlyPartitioner<FieldSchema>());
-    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "RecordField");
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION,
@@ -355,12 +356,12 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.MINUTES.toMillis(1))
     );
+    localProps.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "Record");
     setUp();
 
     // Define the partitioner
     partitioner = new DataWriter.PartitionerWrapper(new HourlyPartitioner<FieldSchema>());
-    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "Record");
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION,
@@ -417,13 +418,14 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.MINUTES.toMillis(1))
     );
+    localProps.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "Record");
+    localProps.put(PartitionerConfig.PATH_FORMAT_CONFIG,
+        "'year'=YYYY/'month'=MM/'day'=dd");
     setUp();
 
     // Define the partitioner
     partitioner = new DataWriter.PartitionerWrapper(new DailyPartitioner<FieldSchema>());
-    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, "Record");
-    parsedConfig.put(PartitionerConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd");
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
 
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
         TOPIC_PARTITION,
@@ -485,15 +487,17 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.MINUTES.toMillis(10))
     );
+    localProps.put(PartitionerConfig.PARTITION_DURATION_MS_CONFIG,
+        String.valueOf(TimeUnit.DAYS.toMillis(1)));
+    localProps.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG,
+        MockedWallclockTimestampExtractor.class.getName());
     setUp();
 
     // Define the partitioner
     partitioner = new DataWriter.PartitionerWrapper(
         new io.confluent.connect.storage.partitioner.TimeBasedPartitioner<FieldSchema>()
     );
-    parsedConfig.put(PartitionerConfig.PARTITION_DURATION_MS_CONFIG, TimeUnit.DAYS.toMillis(1));
-    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockedWallclockTimestampExtractor.class.getName());
-    partitioner.configure(parsedConfig);
+    partitioner.configure(propsWithDefaults);
 
     MockedWallclockTimestampExtractor.TIME.sleep(SYSTEM.milliseconds());
 
@@ -568,9 +572,9 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   }
 
   private String getTimebasedEncodedPartition(long timestamp) {
-    long partitionDurationMs = (Long) parsedConfig.get(PartitionerConfig.PARTITION_DURATION_MS_CONFIG);
-    String pathFormat = (String) parsedConfig.get(PartitionerConfig.PATH_FORMAT_CONFIG);
-    String timeZone = (String) parsedConfig.get(PartitionerConfig.TIMEZONE_CONFIG);
+    long partitionDurationMs = connectorConfig.getLong(PartitionerConfig.PARTITION_DURATION_MS_CONFIG);
+    String pathFormat = connectorConfig.getString(PartitionerConfig.PATH_FORMAT_CONFIG);
+    String timeZone = connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG);
     return TimeUtils.encodeTimestamp(partitionDurationMs, pathFormat, timeZone, timestamp);
   }
 
@@ -595,7 +599,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     int index = 0;
     for (FileStatus status : statuses) {
       Path filePath = status.getPath();
-      assertTrue(expectedFiles.contains(status.getPath()));
+      assertThat(expectedFiles, hasItem(status.getPath()));
       Collection<Object> avroRecords = dataFileReader.readData(connectorConfig.getHadoopConfiguration(), filePath);
       assertEquals(expectedSize, avroRecords.size());
       for (Object avroRecord : avroRecords) {
@@ -610,7 +614,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     public static final MockTime TIME = new MockTime();
 
     @Override
-    public void configure(Map<String, Object> config) {}
+    public void configure(Map<String, String> config) {}
 
     @Override
     public Long extract(ConnectRecord<?> record) {
