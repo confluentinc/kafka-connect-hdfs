@@ -43,16 +43,16 @@ public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUti
   @Override
   public void createTable(
       String database,
-      String tableName,
+      String topicName,
       Schema schema,
       io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> partitioner
   ) {
-    createTable(database, tableName, schema, (Partitioner) partitioner);
+    createTable(database, topicName, schema, (Partitioner) partitioner);
   }
 
   public abstract void createTable(
       String database,
-      String tableName,
+      String topicName,
       Schema schema,
       Partitioner partitioner
   );

@@ -18,12 +18,15 @@ package io.confluent.connect.hdfs.avro;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +47,8 @@ import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.MULTI_SCHEMA_SUPPORT_CONFIG;
+import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -113,7 +118,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     hdfsWriter.stop();
 
     long[] validOffsets = {0, 10, 20, 30, 40, 50, 53};
-    verifyFileListing(validOffsets, Collections.singleton(new TopicPartition(TOPIC, PARTITION)));
+    verifyFileListing(singletonList(new VerificationParameter(validOffsets, new TopicPartition(TOPIC, PARTITION))));
   }
 
   @Test
@@ -248,7 +253,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
     // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsetsTopicPartition2 = {0, 3, 6};
-    verify(sinkRecords, validOffsetsTopicPartition2, Collections.singleton(TOPIC_PARTITION2), true);
+    verify(sinkRecords, singletonList(new VerificationParameter(validOffsetsTopicPartition2, TOPIC_PARTITION2)), true);
 
     // Message offsets start at 6 because we discarded the in-progress temp file on re-balance
     sinkRecords = createSinkRecords(3, 6, context.assignment());
@@ -259,10 +264,10 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
     // Last file (offset 9) doesn't satisfy size requirement and gets discarded on close
     long[] validOffsetsTopicPartition1 = {6, 9};
-    verify(sinkRecords, validOffsetsTopicPartition1, Collections.singleton(TOPIC_PARTITION), true);
+    verify(sinkRecords, singletonList(new VerificationParameter(validOffsetsTopicPartition1, TOPIC_PARTITION)), true);
 
     long[] validOffsetsTopicPartition3 = {6, 9};
-    verify(sinkRecords, validOffsetsTopicPartition3, Collections.singleton(TOPIC_PARTITION3), true);
+    verify(sinkRecords, singletonList(new VerificationParameter(validOffsetsTopicPartition3, TOPIC_PARTITION3)), true);
   }
 
   @Test
@@ -439,6 +444,77 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
         assertTrue((index = fileContents.indexOf("avro.codec")) > 0
             && fileContents.indexOf("snappy", index) > 0);
       }
+    }
+  }
+
+  @Test
+  public void testWriteRecordWithDifferentSchemas() throws Exception {
+    Map<String, String> props = createProps();
+    props.put(MULTI_SCHEMA_SUPPORT_CONFIG, "true");
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    Schema schema1 = createSchema();
+    List<SinkRecord> sinkRecords1 = createSinkRecords(4, schema1);
+    Schema schema2 = SchemaBuilder.struct().name("record2").version(1).field("boolean", Schema.BOOLEAN_SCHEMA).field("int", Schema.INT32_SCHEMA).field("long", Schema.INT64_SCHEMA).field("float", Schema.FLOAT32_SCHEMA).field("double", Schema.FLOAT64_SCHEMA).build();
+    List<SinkRecord> sinkRecords2 = createSinkRecords(3, schema2);
+
+    hdfsWriter.write(sinkRecords1);
+    hdfsWriter.write(sinkRecords2);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    verify(sinkRecords1, singletonList(new VerificationParameter(new long[] {0, 3, 4}, TOPIC_PARTITION, schema1)), false);
+    verify(sinkRecords2, singletonList(new VerificationParameter(new long[] {0, 3}, TOPIC_PARTITION, schema2)), false);
+  }
+
+  @Test
+  public void testRecoveryWithMultipleSchemas() throws Exception {
+    Map<String, String> props = createProps();
+    props.put(MULTI_SCHEMA_SUPPORT_CONFIG, "true");
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+
+    WAL wal = storage.wal(logsDir, TOPIC_PARTITION);
+
+    wal.append(WAL.beginMarker, "");
+    Schema schema1 = createSchema();
+    Schema schema2 = createSchema("record2");
+    appendToWalFor(wal, schema1);
+    appendToWalFor(wal, schema2);
+    wal.append(WAL.endMarker, "");
+    wal.close();
+
+    hdfsWriter.recover(TOPIC_PARTITION);
+    Map<TopicPartition, Long> offsets = context.offsets();
+    assertTrue(offsets.containsKey(TOPIC_PARTITION));
+    assertEquals(50L, (long) offsets.get(TOPIC_PARTITION));
+
+    hdfsWriter.write(createSinkRecords(3, 50, Collections.singleton(new TopicPartition(TOPIC, PARTITION)), schema1));
+    hdfsWriter.write(createSinkRecords(3, 50, Collections.singleton(new TopicPartition(TOPIC, PARTITION)), schema2));
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    long[] validOffsets = {0, 10, 20, 30, 40, 50, 53};
+    verifyFileListing(singletonList(new VerificationParameter(validOffsets, new TopicPartition(TOPIC, PARTITION), schema1)));
+    verifyFileListing(singletonList(new VerificationParameter(validOffsets, new TopicPartition(TOPIC, PARTITION), schema2)));
+  }
+
+  private void appendToWalFor(WAL wal, Schema schema1) throws IOException {
+    for (int i = 0; i < 5; ++i) {
+      long startOffset = i * 10;
+      long endOffset = (i + 1) * 10 - 1;
+      String tempfile = FileUtils.tempFileName(url, topicsDir, getSchemaAwareDirectory(TOPIC_PARTITION, schema1), extension);
+      fs.createNewFile(new Path(tempfile));
+      String committedFile = FileUtils.committedFileName(url, topicsDir, getSchemaAwareDirectory(TOPIC_PARTITION, schema1), TOPIC_PARTITION, startOffset,
+              endOffset, extension, zeroPadFormat);
+      wal.append(tempfile, committedFile);
     }
   }
 }

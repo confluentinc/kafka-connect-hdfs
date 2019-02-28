@@ -1,23 +1,24 @@
 package io.confluent.connect.hdfs;
 
+import io.confluent.common.utils.MockTime;
+import io.confluent.connect.hdfs.avro.AvroDataFileReader;
+import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
+import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.hdfs.schema.SingleSchemaContainer;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.StorageFactory;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import io.confluent.common.utils.MockTime;
-import io.confluent.connect.hdfs.avro.AvroDataFileReader;
-import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.storage.StorageFactory;
-import io.confluent.connect.storage.common.StorageCommonConfig;
 
 /**
  * Test to ensure we can still instantiate & use the old-style HDFS-only interfaces instead of
@@ -64,15 +65,15 @@ public class FormatAPITopicPartitionWriterCompatibilityTest extends TestWithMini
     Partitioner partitioner = new DefaultPartitioner();
     partitioner.configure(parsedConfig);
     TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-        TOPIC_PARTITION,
-        storage,
-        writerProvider,
-        newWriterProvider,
-        partitioner,
-        connectorConfig,
-        context,
-        avroData,
-        time
+            TOPIC_PARTITION,
+            storage,
+            createRecordWriterProvider(),
+            partitioner,
+            connectorConfig,
+            context,
+            createSingleSchemaContainer(),
+            null,
+            time
     );
 
     Schema schema = createSchema();
@@ -92,6 +93,14 @@ public class FormatAPITopicPartitionWriterCompatibilityTest extends TestWithMini
     // No verification since the format is a dummy format. We're really just trying to exercise
     // the old APIs and any paths that should hit them (and not NPE due to the variables for
     // new-style formats being null)
+  }
+
+  private SingleSchemaContainer createSingleSchemaContainer() {
+    return new SingleSchemaContainer(storage, connectorConfig, TOPIC_PARTITION.topic(), null, null, false);
+  }
+
+  private SelectableRecordWriterProvider createRecordWriterProvider() {
+    return new SelectableRecordWriterProvider(connectorConfig, avroData, newWriterProvider, writerProvider);
   }
 
   private void createTopicDir(String url, String topicsDir, String topic) throws IOException {

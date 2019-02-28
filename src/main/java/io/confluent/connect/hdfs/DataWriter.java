@@ -15,6 +15,24 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.common.utils.SystemTime;
+import io.confluent.common.utils.Time;
+import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.hive.HiveMetaStore;
+import io.confluent.connect.hdfs.hive.HiveServiceProvider;
+import io.confluent.connect.hdfs.hive.HiveTableNamingParameters;
+import io.confluent.connect.hdfs.hive.HiveTableNamingStrategy;
+import io.confluent.connect.hdfs.hive.HiveUtil;
+import io.confluent.connect.hdfs.hive.SchemaNameHiveTableNamingStrategy;
+import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.hdfs.schema.SchemaResolutionStrategyProvider;
+import io.confluent.connect.hdfs.schema.SchemaResolutionStrategy;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.storage.common.StorageCommonConfig;
+import io.confluent.connect.storage.format.SchemaFileReader;
+import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -33,13 +51,16 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -48,20 +69,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import io.confluent.common.utils.SystemTime;
-import io.confluent.common.utils.Time;
-import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.filter.CommittedFileFilter;
-import io.confluent.connect.hdfs.filter.TopicCommittedFileFilter;
-import io.confluent.connect.hdfs.hive.HiveMetaStore;
-import io.confluent.connect.hdfs.hive.HiveUtil;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.format.SchemaFileReader;
-import io.confluent.connect.storage.hive.HiveConfig;
-import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import static io.confluent.connect.hdfs.FileUtils.topicDirectory;
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.MULTI_SCHEMA_SUPPORT_CONFIG;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 
 public class DataWriter {
   private static final Logger log = LoggerFactory.getLogger(DataWriter.class);
@@ -73,26 +84,24 @@ public class DataWriter {
   private HdfsStorage storage;
   private String topicsDir;
   private Format format;
-  private RecordWriterProvider writerProvider;
-  private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
-      newWriterProvider;
-  private io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
-      schemaFileReader;
+  private SchemaResolutionStrategyProvider schemaResolutionStrategyProvider;
   private io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> newFormat;
   private Set<TopicPartition> assignment;
   private Partitioner partitioner;
   private Map<TopicPartition, Long> offsets;
   private HdfsSinkConnectorConfig connectorConfig;
-  private AvroData avroData;
   private SinkTaskContext context;
   private ExecutorService executorService;
   private String hiveDatabase;
   private HiveMetaStore hiveMetaStore;
   private HiveUtil hive;
   private Queue<Future<Void>> hiveUpdateFutures;
+  private HiveTableNamingStrategy hiveTableNamingStrategy;
   private boolean hiveIntegration;
   private Thread ticketRenewThread;
   private volatile boolean isRunning;
+  private HiveServiceProvider hiveServiceProvider;
+  private SelectableRecordWriterProvider recoerdWriterProvider;
 
   public DataWriter(
       HdfsSinkConnectorConfig connectorConfig,
@@ -116,7 +125,6 @@ public class DataWriter {
       System.setProperty("hadoop.home.dir", hadoopHome);
 
       this.connectorConfig = connectorConfig;
-      this.avroData = avroData;
       this.context = context;
 
       String hadoopConfDir = connectorConfig.getString(
@@ -223,59 +231,7 @@ public class DataWriter {
       createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
       String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
       createDir(logsDir);
-
-      // Try to instantiate as a new-style storage-common type class, then fall back to old-style
-      // with no parameters
-      try {
-        Class<io.confluent.connect.storage.format.Format> formatClass =
-            (Class<io.confluent.connect.storage.format.Format>)
-                connectorConfig.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
-        newFormat = formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
-        newWriterProvider = newFormat.getRecordWriterProvider();
-        schemaFileReader = newFormat.getSchemaFileReader();
-      } catch (NoSuchMethodException e) {
-        Class<Format> formatClass =
-            (Class<Format>) connectorConfig.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
-        format = formatClass.getConstructor().newInstance();
-        writerProvider = format.getRecordWriterProvider();
-        final io.confluent.connect.hdfs.SchemaFileReader oldReader
-            = format.getSchemaFileReader(avroData);
-        schemaFileReader = new SchemaFileReader<HdfsSinkConnectorConfig, Path>() {
-          @Override
-          public Schema getSchema(HdfsSinkConnectorConfig hdfsSinkConnectorConfig, Path path) {
-            try {
-              return oldReader.getSchema(hdfsSinkConnectorConfig.getHadoopConfiguration(), path);
-            } catch (IOException e) {
-              throw new ConnectException("Failed to get schema", e);
-            }
-          }
-
-          @Override
-          public Iterator<Object> iterator() {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          public boolean hasNext() {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          public Object next() {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          public void remove() {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          public void close() throws IOException {
-
-          }
-        };
-      }
+      setupStorageFormat(connectorConfig, avroData);
 
       partitioner = newPartitioner(connectorConfig);
 
@@ -284,32 +240,7 @@ public class DataWriter {
 
       hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
-        hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
-        hiveMetaStore = new HiveMetaStore(conf, connectorConfig);
-        if (format != null) {
-          hive = format.getHiveUtil(connectorConfig, hiveMetaStore);
-        } else if (newFormat != null) {
-          final io.confluent.connect.storage.hive.HiveUtil newHiveUtil
-              = newFormat.getHiveFactory().createHiveUtil(connectorConfig, hiveMetaStore);
-          hive = new HiveUtil(connectorConfig, hiveMetaStore) {
-            @Override
-            public void createTable(
-                String database, String tableName, Schema schema,
-                Partitioner partitioner
-            ) {
-              newHiveUtil.createTable(database, tableName, schema, partitioner);
-            }
-
-            @Override
-            public void alterSchema(String database, String tableName, Schema schema) {
-              newHiveUtil.alterSchema(database, tableName, schema);
-            }
-          };
-        } else {
-          throw new ConnectException("One of old or new format classes must be provided");
-        }
-        executorService = Executors.newSingleThreadExecutor();
-        hiveUpdateFutures = new LinkedList<>();
+        setupHiveIntegration(connectorConfig, conf);
       }
 
       topicPartitionWriters = new HashMap<>();
@@ -317,17 +248,12 @@ public class DataWriter {
         TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
             tp,
             storage,
-            writerProvider,
-            newWriterProvider,
+            recoerdWriterProvider,
             partitioner,
             connectorConfig,
             context,
-            avroData,
-            hiveMetaStore,
-            hive,
-            schemaFileReader,
-            executorService,
-            hiveUpdateFutures,
+            schemaResolutionStrategyProvider.get(tp),
+            hiveServiceProvider != null ? hiveServiceProvider.get(tp) : null,
             time
         );
         topicPartitionWriters.put(tp, topicPartitionWriter);
@@ -342,6 +268,108 @@ public class DataWriter {
     } catch (IOException e) {
       throw new ConnectException(e);
     }
+  }
+
+  private void setupHiveIntegration(HdfsSinkConnectorConfig connectorConfig, Configuration conf) {
+    hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
+    hiveMetaStore = new HiveMetaStore(conf, connectorConfig);
+    if (format != null) {
+      hive = format.getHiveUtil(connectorConfig, hiveMetaStore);
+    } else if (newFormat != null) {
+      final io.confluent.connect.storage.hive.HiveUtil newHiveUtil
+              = newFormat.getHiveFactory().createHiveUtil(connectorConfig, hiveMetaStore);
+      hive = new HiveUtil(connectorConfig, hiveMetaStore) {
+        @Override
+        public void createTable(
+                String database, String tableName, Schema schema,
+                Partitioner partitioner
+        ) {
+          newHiveUtil.createTable(database, tableName, schema, partitioner);
+        }
+
+        @Override
+        public void alterSchema(String database, String tableName, Schema schema) {
+          newHiveUtil.alterSchema(database, tableName, schema);
+        }
+      };
+    } else {
+      throw new ConnectException("One of old or new format classes must be provided");
+    }
+    executorService = Executors.newSingleThreadExecutor();
+    hiveUpdateFutures = new LinkedList<>();
+    if (connectorConfig.getBoolean(MULTI_SCHEMA_SUPPORT_CONFIG)) {
+      this.hiveTableNamingStrategy = new SchemaNameHiveTableNamingStrategy();
+    } else {
+      this.hiveTableNamingStrategy = new HiveTableNamingStrategy() {};
+    }
+    this.hiveServiceProvider = new HiveServiceProvider(partitioner, hiveTableNamingStrategy,
+            hiveMetaStore, hive, executorService, hiveUpdateFutures, connectorConfig);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void setupStorageFormat(HdfsSinkConnectorConfig connectorConfig, AvroData avroData)
+          throws InstantiationException, IllegalAccessException, InvocationTargetException,
+          NoSuchMethodException {
+    // Try to instantiate as a new-style storage-common type class, then fall back to old-style
+    // with no parameters
+    io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
+            schemaFileReader;
+    RecordWriterProvider writerProvider = null;
+    io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+            newWriterProvider = null;
+    try {
+      Class<io.confluent.connect.storage.format.Format> formatClass =
+              (Class<io.confluent.connect.storage.format.Format>)
+                      connectorConfig.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+
+      newFormat = formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
+      newWriterProvider = newFormat.getRecordWriterProvider();
+      schemaFileReader = newFormat.getSchemaFileReader();
+    } catch (NoSuchMethodException e) {
+      Class<Format> formatClass =
+              (Class<Format>) connectorConfig.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+      format = formatClass.getConstructor().newInstance();
+      writerProvider = format.getRecordWriterProvider();
+      final io.confluent.connect.hdfs.SchemaFileReader oldReader
+              = format.getSchemaFileReader(avroData);
+      schemaFileReader = new SchemaFileReader<HdfsSinkConnectorConfig, Path>() {
+        @Override
+        public Schema getSchema(HdfsSinkConnectorConfig hdfsSinkConnectorConfig, Path path) {
+          try {
+            return oldReader.getSchema(hdfsSinkConnectorConfig.getHadoopConfiguration(), path);
+          } catch (IOException e) {
+            throw new ConnectException("Failed to get schema", e);
+          }
+        }
+
+        @Override
+        public Iterator<Object> iterator() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasNext() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object next() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void remove() {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() throws IOException {}
+      };
+    }
+    this.recoerdWriterProvider = new SelectableRecordWriterProvider(this.storage.conf(), avroData,
+            newWriterProvider, writerProvider);
+    this.schemaResolutionStrategyProvider = new SchemaResolutionStrategyProvider(storage,
+            connectorConfig, schemaFileReader);
   }
 
   public void write(Collection<SinkRecord> records) {
@@ -388,28 +416,21 @@ public class DataWriter {
 
     try {
       for (String topic : topics) {
-        String topicDir = FileUtils.topicDirectory(url, topicsDir, topic);
-        CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
-        FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
-            storage,
-            new Path(topicDir),
-            filter
-        );
-        if (fileStatusWithMaxOffset != null) {
-          final Path path = fileStatusWithMaxOffset.getPath();
-          final Schema latestSchema;
-          latestSchema = schemaFileReader.getSchema(
-              connectorConfig,
-              path
-          );
+        for (Schema latestSchema : readSchemas(topic)) {
           hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
-          List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, topic, (short) -1);
-          FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
+          String hiveTableName = hiveTableNamingStrategy.createName(
+                  new HiveTableNamingParameters(topic, latestSchema)
+          );
+          List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName,
+                  (short) -1
+          );
+          String topicDirPath = createTopicDirectoryName(topic, latestSchema);
+          FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDirPath));
           for (FileStatus status : statuses) {
             String location = status.getPath().toString();
             if (!partitions.contains(location)) {
               String partitionValue = getPartitionValue(location);
-              hiveMetaStore.addPartition(hiveDatabase, topic, partitionValue);
+              hiveMetaStore.addPartition(hiveDatabase, hiveTableName, partitionValue);
             }
           }
         }
@@ -419,23 +440,57 @@ public class DataWriter {
     }
   }
 
+  private List<Schema> readSchemas(String topic) {
+    SchemaResolutionStrategy schemaResolutionStrategy =
+            schemaResolutionStrategyProvider.get(topic, true);
+    if (connectorConfig.getBoolean(MULTI_SCHEMA_SUPPORT_CONFIG)) {
+      return findStoredSchemaNames(topic).stream()
+              .map(schemaName -> schemaResolutionStrategy.getOrLoadCurrentSchema(schemaName, 0))
+              .filter(Optional::isPresent)
+              .map(Optional::get)
+              .collect(toList());
+    } else {
+      return schemaResolutionStrategy.getOrLoadCurrentSchema(null, 0)
+              .map(Collections::singletonList)
+              .orElse(emptyList());
+    }
+  }
+
+  private List<String> findStoredSchemaNames(String topic) {
+    String topicDir = topicDirectory(url, topicsDir, topic);
+    List<FileStatus> files = storage.list(topicDir);
+    List<String> schemas = new ArrayList<>();
+    for (FileStatus typeDirectory : files) {
+      if (!typeDirectory.isDirectory()) {
+        throw new ConnectException("Path " + typeDirectory.getPath().toString()
+                + " is not supported for multi schema integration."
+                + " Path should consist of type name.");
+      }
+      schemas.add(typeDirectory.getPath().getName());
+    }
+    return schemas;
+  }
+
+  private String createTopicDirectoryName(String topic, Schema latestSchema) {
+    String topicDir = topicDirectory(url, topicsDir, topic);
+    if (connectorConfig.getBoolean(MULTI_SCHEMA_SUPPORT_CONFIG)) {
+      return topicDir + "/" + latestSchema.name();
+    }
+    return topicDir;
+  }
+
   public void open(Collection<TopicPartition> partitions) {
     assignment = new HashSet<>(partitions);
     for (TopicPartition tp : assignment) {
       TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
           tp,
           storage,
-          writerProvider,
-          newWriterProvider,
+          recoerdWriterProvider,
           partitioner,
           connectorConfig,
           context,
-          avroData,
-          hiveMetaStore,
-          hive,
-          schemaFileReader,
-          executorService,
-          hiveUpdateFutures,
+          schemaResolutionStrategyProvider.get(tp),
+          hiveServiceProvider != null ? hiveServiceProvider.get(tp) : null,
           time
       );
       topicPartitionWriters.put(tp, topicPartitionWriter);
@@ -596,37 +651,5 @@ public class DataWriter {
       sb.append("/");
     }
     return sb.toString();
-  }
-
-  private Partitioner createPartitioner(HdfsSinkConnectorConfig config)
-      throws ClassNotFoundException, IllegalAccessException, InstantiationException {
-
-    @SuppressWarnings("unchecked")
-    Class<? extends Partitioner> partitionerClasss = (Class<? extends Partitioner>)
-        Class.forName(config.getString(PartitionerConfig.PARTITIONER_CLASS_CONFIG));
-
-    Map<String, Object> map = copyConfig(config);
-    Partitioner partitioner = partitionerClasss.newInstance();
-    partitioner.configure(map);
-    return partitioner;
-  }
-
-  private Map<String, Object> copyConfig(HdfsSinkConnectorConfig config) {
-    Map<String, Object> map = new HashMap<>();
-    map.put(
-        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG,
-        config.getString(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG)
-    );
-    map.put(
-        PartitionerConfig.PARTITION_DURATION_MS_CONFIG,
-        config.getLong(PartitionerConfig.PARTITION_DURATION_MS_CONFIG)
-    );
-    map.put(
-        PartitionerConfig.PATH_FORMAT_CONFIG,
-        config.getString(PartitionerConfig.PATH_FORMAT_CONFIG)
-    );
-    map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
-    map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
-    return map;
   }
 }

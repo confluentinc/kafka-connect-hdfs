@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.partitioner;
 
+import org.apache.kafka.connect.data.Schema;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -35,5 +36,10 @@ public class TimeUtils {
     long adjustedTimeStamp = timeZone.convertUTCToLocal(timestamp);
     long partitionedTime = (adjustedTimeStamp / timeGranularityMs) * timeGranularityMs;
     return timeZone.convertLocalToUTC(partitionedTime, false);
+  }
+
+  public static String encodeSchemaAwareTimestamp(Schema schema, long partitionDurationMs, String pathFormat, String timeZoneString, long timestamp) {
+    String timestampEncoding = encodeTimestamp(partitionDurationMs, pathFormat, timeZoneString, timestamp);
+    return schema.name() + "/" + timestampEncoding;
   }
 }

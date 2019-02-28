@@ -43,6 +43,7 @@ import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -105,6 +106,10 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
    * @param size the number of records to return.
    * @return the list of records.
    */
+  protected List<SinkRecord> createSinkRecords(int size, Schema schema) {
+    return createSinkRecords(size, 0, Collections.singleton(new TopicPartition(TOPIC, PARTITION)), schema);
+  }
+
   protected List<SinkRecord> createSinkRecords(int size) {
     return createSinkRecords(size, 0);
   }
@@ -130,6 +135,10 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
    */
   protected List<SinkRecord> createSinkRecords(int size, long startOffset, Set<TopicPartition> partitions) {
     Schema schema = createSchema();
+    return createSinkRecords(size, startOffset, partitions, schema);
+  }
+
+  protected List<SinkRecord> createSinkRecords(int size, long startOffset, Set<TopicPartition> partitions, Schema schema) {
     Struct record = createRecord(schema);
     List<Struct> same = new ArrayList<>();
     for (int i = 0; i < size; ++i) {
@@ -263,12 +272,14 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
    * offsets equals the expected size of the file, and last offset is exclusive.
    */
   protected void verify(List<SinkRecord> sinkRecords, long[] validOffsets) throws IOException {
-    verify(sinkRecords, validOffsets, Collections.singleton(new TopicPartition(TOPIC, PARTITION)), false);
+    verify(sinkRecords, singletonList(new VerificationParameter(validOffsets, new TopicPartition(TOPIC, PARTITION))), false);
   }
 
   protected void verify(List<SinkRecord> sinkRecords, long[] validOffsets, Set<TopicPartition> partitions)
       throws IOException {
-    verify(sinkRecords, validOffsets, partitions, false);
+    List<VerificationParameter> parameters = new ArrayList<>();
+    partitions.forEach(partition -> parameters.add(new VerificationParameter(validOffsets, partition)));
+    verify(sinkRecords, parameters, false);
   }
 
   /**
@@ -276,23 +287,25 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
    *
    * @param sinkRecords a flat list of the records that need to appear in potentially several *
    * files in HDFS.
-   * @param validOffsets an array containing the offsets that map to uploaded files for a
+   * @param parameters contains validOffsets, partitions and schema
+   * validOffsets an array containing the offsets that map to uploaded files for a
    * topic-partition. Offsets appear in ascending order, the difference between two consecutive
    * offsets equals the expected size of the file, and last offset is exclusive.
-   * @param partitions the set of partitions to verify records for.
+   * partitions the set of partitions to verify records for.
+   * schema used for writen data (only for multi schema support
    */
-  protected void verify(List<SinkRecord> sinkRecords, long[] validOffsets, Set<TopicPartition> partitions,
+  protected void verify(List<SinkRecord> sinkRecords, List<VerificationParameter> parameters,
                         boolean skipFileListing) throws IOException {
     if (!skipFileListing) {
-      verifyFileListing(validOffsets, partitions);
+      verifyFileListing(parameters);
     }
 
-    for (TopicPartition tp : partitions) {
-      for (int i = 1, j = 0; i < validOffsets.length; ++i) {
-        long startOffset = validOffsets[i - 1];
-        long endOffset = validOffsets[i] - 1;
+    for (VerificationParameter parameter : parameters) {
+      for (int i = 1, j = 0; i < parameter.validOffsets.length; ++i) {
+        long startOffset = parameter.validOffsets[i - 1];
+        long endOffset = parameter.validOffsets[i] - 1;
 
-        String filename = FileUtils.committedFileName(url, topicsDir, getDirectory(tp.topic(), tp.partition()), tp,
+        String filename = FileUtils.committedFileName(url, topicsDir, getSchemaAwareDirectory(parameter.tp, parameter.schema), parameter.tp,
                                                       startOffset, endOffset, extension, zeroPadFormat);
         Path path = new Path(filename);
         Collection<Object> records = dataFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
@@ -316,18 +329,47 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     return expectedFiles;
   }
 
-  protected void verifyFileListing(long[] validOffsets, Set<TopicPartition> partitions) throws IOException {
-    for (TopicPartition tp : partitions) {
-      verifyFileListing(getExpectedFiles(validOffsets, tp), tp);
+  protected List<String> getExpectedFiles(VerificationParameter parameter) {
+    List<String> expectedFiles = new ArrayList<>();
+    for (int i = 1; i < parameter.validOffsets.length; ++i) {
+      long startOffset = parameter.validOffsets[i - 1];
+      long endOffset = parameter.validOffsets[i] - 1;
+      expectedFiles.add(FileUtils.committedFileName(url, topicsDir, getSchemaAwareDirectory(parameter.tp, parameter.schema), parameter.tp,
+              startOffset, endOffset, extension, zeroPadFormat));
+    }
+    return expectedFiles;
+  }
+
+  protected class VerificationParameter {
+    private long[] validOffsets;
+    private TopicPartition tp;
+    private Schema schema;
+
+    public VerificationParameter(long[] validOffsets, TopicPartition tp) {
+      this.tp = tp;
+      this.validOffsets = validOffsets;
+    }
+
+    public VerificationParameter(long[] validOffsets, TopicPartition tp, Schema schema) {
+      this.validOffsets = validOffsets;
+      this.tp = tp;
+      this.schema = schema;
     }
   }
 
-  protected void verifyFileListing(List<String> expectedFiles, TopicPartition tp) throws IOException {
+  protected void verifyFileListing(List<VerificationParameter> parameters) throws IOException {
+    for (VerificationParameter parameter : parameters) {
+      verifyFileListing(getExpectedFiles(parameter), parameter);
+    }
+  }
+
+  protected void verifyFileListing(List<String> expectedFiles, VerificationParameter parameter) throws IOException {
     FileStatus[] statuses = {};
     try {
+      String directory = getSchemaAwareDirectory(parameter.tp, parameter.schema);
       statuses = fs.listStatus(
-          new Path(FileUtils.directoryName(url, topicsDir, getDirectory(tp.topic(), tp.partition()))),
-          new TopicPartitionCommittedFileFilter(tp));
+          new Path(FileUtils.directoryName(url, topicsDir, directory)),
+          new TopicPartitionCommittedFileFilter(parameter.tp));
     } catch (FileNotFoundException e) {
       // the directory does not exist.
     }
@@ -340,6 +382,14 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     Collections.sort(actualFiles);
     Collections.sort(expectedFiles);
     assertThat(actualFiles, is(expectedFiles));
+  }
+
+  protected String getSchemaAwareDirectory(TopicPartition tp, Schema schema) {
+    String topic = tp.topic();
+    if (schema != null) {
+      topic = topic + "/" + schema.name();
+    }
+    return getDirectory(topic, tp.partition());
   }
 
   protected void verifyContents(List<SinkRecord> expectedRecords, int startIndex, Collection<Object> records) {
@@ -355,4 +405,13 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     }
   }
 
+  protected Schema createSchema(String name) {
+    return SchemaBuilder.struct().name(name).version(1)
+            .field("boolean", Schema.BOOLEAN_SCHEMA)
+            .field("int", Schema.INT32_SCHEMA)
+            .field("long", Schema.INT64_SCHEMA)
+            .field("float", Schema.FLOAT32_SCHEMA)
+            .field("double", Schema.FLOAT64_SCHEMA)
+            .build();
+  }
 }
