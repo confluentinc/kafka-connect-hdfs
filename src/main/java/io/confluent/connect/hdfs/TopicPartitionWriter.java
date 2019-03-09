@@ -742,6 +742,7 @@ public class TopicPartitionWriter {
   }
 
   private void commitFile() {
+    log.debug("Committing files");
     appended.clear();
     for (String encodedPartition : tempFiles.keySet()) {
       commitFile(encodedPartition);
@@ -749,6 +750,7 @@ public class TopicPartitionWriter {
   }
 
   private void commitFile(String encodedPartition) {
+    log.debug("Committing file for partition {}", encodedPartition);
     if (!startOffsets.containsKey(encodedPartition)) {
       return;
     }
@@ -775,7 +777,7 @@ public class TopicPartitionWriter {
     startOffsets.remove(encodedPartition);
     offsets.remove(encodedPartition);
     offset = offset + recordCounter; // offset of next record to be reading
-    committedOffset = endOffset; // offset of last record written to HDFS
+    committedOffset = offset - 1; // offset of last record written to HDFS
     recordCounter = 0;
     log.info("Committed {} for {}", committedFile, tp);
   }

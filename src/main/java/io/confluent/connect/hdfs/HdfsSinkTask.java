@@ -95,7 +95,8 @@ public class HdfsSinkTask extends SinkTask {
       }
     }
 
-    log.info("HDFS connector does not commit consumer offsets to Kafka. Upon startup, HDFS "
+    log.info("The connector relies on offsets in HDFS filenames, but does commit these offsets to "
+        + "Connect to enable monitoring progress of the HDFS connector. Upon startup, the HDFS "
         + "Connector restores offsets from filenames in HDFS. In the absence of files in HDFS, "
         + "the connector will attempt to find offsets for its consumer group in the "
         + "'__consumer_offsets' topic. If offsets are not found, the consumer will "
@@ -124,15 +125,15 @@ public class HdfsSinkTask extends SinkTask {
     // committed to HDFS.
     Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
     for (Map.Entry<TopicPartition, Long> entry : hdfsWriter.getCommittedOffsets().entrySet()) {
+      log.debug(
+          "Found last committed offset {} for topic partition {}",
+          entry.getValue(),
+          entry.getKey()
+      );
       result.put(entry.getKey(), new OffsetAndMetadata(entry.getValue()));
     }
     log.debug("Returning committed offsets {}", result);
     return result;
-  }
-
-  @Override
-  public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
-    // Do nothing as the connector manages the offset and overrides 'preCommit()'
   }
 
   @Override
