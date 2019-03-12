@@ -195,7 +195,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
     long previousOffset = committedOffsets.get(TOPIC_PARTITION);
-    assertEquals(previousOffset, 6L);
+    assertEquals(previousOffset, 6L - 1);
 
     hdfsWriter.close();
     hdfsWriter.stop();
@@ -396,7 +396,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
     long previousOffset = committedOffsets.get(TOPIC_PARTITION);
-    assertEquals(NUMBER_OF_RECORDS, previousOffset);
+    assertEquals(NUMBER_OF_RECORDS - 1, previousOffset);
 
     hdfsWriter.close();
     hdfsWriter.stop();
