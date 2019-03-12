@@ -60,6 +60,7 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 import static org.apache.kafka.common.utils.Time.SYSTEM;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
@@ -190,9 +191,14 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
       topicPartitionWriter.buffer(record);
     }
 
+    assertNull(topicPartitionWriter.committedOffset());
+
     topicPartitionWriter.recover();
+    assertNull(topicPartitionWriter.committedOffset());
     topicPartitionWriter.write();
+    assertEquals(8, topicPartitionWriter.committedOffset().longValue());
     topicPartitionWriter.close();
+    assertEquals(8, topicPartitionWriter.committedOffset().longValue());
 
     String directory1 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(16));
     String directory2 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(17));
@@ -205,6 +211,10 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
     int expectedBatchSize = 3;
     verify(expectedFiles, expectedBatchSize, records, schema);
+
+    // Try recovering at this point, and check that we've not lost our committed offsets
+    topicPartitionWriter.recover();
+    assertEquals(8, topicPartitionWriter.committedOffset().longValue());
   }
 
   @Test

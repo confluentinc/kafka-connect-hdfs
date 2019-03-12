@@ -99,6 +99,7 @@ public class TopicPartitionWriter {
   private final AvroData avroData;
   private final Set<String> appended;
   private long offset;
+  private Long committedOffset;
   private final Map<String, Long> startOffsets;
   private final Map<String, Long> offsets;
   private final long timeoutMs;
@@ -209,6 +210,7 @@ public class TopicPartitionWriter {
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
     offset = -1L;
+    committedOffset = null;
     if (writerProvider != null) {
       extension = writerProvider.getExtension();
     } else if (newWriterProvider != null) {
@@ -481,8 +483,13 @@ public class TopicPartitionWriter {
     buffer.add(sinkRecord);
   }
 
-  public long offset() {
-    return offset;
+  /**
+   * Get the offset that was last committed to HDFS, or null if nothing was committed yet.
+   *
+   * @return the last committed offset; may be null
+   */
+  public Long committedOffset() {
+    return committedOffset;
   }
 
   Map<String, io.confluent.connect.storage.format.RecordWriter> getWriters() {
@@ -558,7 +565,8 @@ public class TopicPartitionWriter {
         filter
     );
     if (fileStatusWithMaxOffset != null) {
-      offset = FileUtils.extractOffset(fileStatusWithMaxOffset.getPath().getName()) + 1;
+      committedOffset = FileUtils.extractOffset(fileStatusWithMaxOffset.getPath().getName());
+      offset = committedOffset + 1;
     }
   }
 
@@ -735,6 +743,7 @@ public class TopicPartitionWriter {
   }
 
   private void commitFile() {
+    log.debug("Committing files");
     appended.clear();
     for (String encodedPartition : tempFiles.keySet()) {
       commitFile(encodedPartition);
@@ -742,6 +751,7 @@ public class TopicPartitionWriter {
   }
 
   private void commitFile(String encodedPartition) {
+    log.debug("Committing file for partition {}", encodedPartition);
     if (!startOffsets.containsKey(encodedPartition)) {
       return;
     }
@@ -767,7 +777,8 @@ public class TopicPartitionWriter {
     storage.commit(tempFile, committedFile);
     startOffsets.remove(encodedPartition);
     offsets.remove(encodedPartition);
-    offset = offset + recordCounter;
+    offset = offset + recordCounter; // offset of next record to be reading
+    committedOffset = offset - 1; // offset of last record written to HDFS
     recordCounter = 0;
     log.info("Committed {} for {}", committedFile, tp);
   }
