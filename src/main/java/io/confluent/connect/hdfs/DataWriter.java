@@ -503,8 +503,13 @@ public class DataWriter {
   }
 
   public Map<TopicPartition, Long> getCommittedOffsets() {
+    log.debug("Writer looking for last offsets for topic partitions {}", assignment);
     for (TopicPartition tp : assignment) {
-      offsets.put(tp, topicPartitionWriters.get(tp).offset());
+      Long committedOffset = topicPartitionWriters.get(tp).committedOffset();
+      log.debug("Writer found last offset {} for topic partition {}", committedOffset, tp);
+      if (committedOffset != null) {
+        offsets.put(tp, committedOffset);
+      }
     }
     return offsets;
   }
