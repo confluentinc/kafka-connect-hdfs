@@ -459,10 +459,10 @@ public class DataWriter {
         topicPartitionWriters.get(tp).close();
       } catch (ConnectException e) {
         log.error("Error closing writer for {}. Error: {}", tp, e.getMessage());
-      } finally {
-        topicPartitionWriters.remove(tp);
       }
     }
+    topicPartitionWriters.clear();
+    assignment.clear();
   }
 
   public void stop() {
