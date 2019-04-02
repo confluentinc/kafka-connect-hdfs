@@ -114,6 +114,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final String KERBEROS_TICKET_RENEW_PERIOD_MS_DISPLAY = "Kerberos Ticket Renew "
       + "Period (ms)";
 
+  // Compression group
+  public static final String STRING_FORMAT_COMPRESSION_CONFIG = "format.string.compression";
+  public static final String STRING_FORMAT_COMPRESSION_NONE = "none";
+  public static final String STRING_FORMAT_COMPRESSION_DEFAULT = STRING_FORMAT_COMPRESSION_NONE;
+  public static final String STRING_FORMAT_COMPRESSION_DOC =
+      "Compression codec to use with StringFormat output. "
+          + "Use 'none' for uncompressed output. Available codecs depend on your HDFS setup, "
+          + "see org.apache.hadoop.io.compress.CompressionCodecFactory.getCodecByName "
+          + "for the full format description. Typically the 'deflate', 'gzip', and 'bzip2' codecs "
+          + "should be available.";
+  public static final String STRING_FORMAT_COMPRESSION_DISPLAY = "StringFormat's compression codec";
+
   private static final ConfigDef.Recommender hdfsAuthenticationKerberosDependentsRecommender =
       new BooleanParentRecommender(
           HDFS_AUTHENTICATION_KERBEROS_CONFIG);
@@ -276,6 +288,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           hdfsAuthenticationKerberosDependentsRecommender
       );
     }
+
+    defineCompresionGroup(configDef);
+
     // Put the storage group(s) last ...
     ConfigDef storageConfigDef = StorageSinkConnectorConfig.newConfigDef(
         FORMAT_CLASS_RECOMMENDER,
@@ -285,6 +300,22 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       configDef.define(key);
     }
     return configDef;
+  }
+
+  private static void defineCompresionGroup(ConfigDef configDef) {
+    final String group = "Compression";
+    // Compression for StringFormat
+    configDef.define(
+        STRING_FORMAT_COMPRESSION_CONFIG,
+        Type.STRING,
+        STRING_FORMAT_COMPRESSION_DEFAULT,
+        Importance.LOW,
+        STRING_FORMAT_COMPRESSION_DOC,
+        group,
+        0,
+        Width.NONE,
+        STRING_FORMAT_COMPRESSION_DISPLAY
+    );
   }
 
   private final String name;

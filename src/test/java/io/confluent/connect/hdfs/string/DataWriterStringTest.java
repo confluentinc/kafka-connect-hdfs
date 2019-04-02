@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Collection;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.STRING_FORMAT_COMPRESSION_CONFIG;
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.STRING_FORMAT_COMPRESSION_NONE;
 import static org.junit.Assert.assertEquals;
 
 public class DataWriterStringTest extends TestWithMiniDFSCluster {
@@ -36,8 +38,6 @@ public class DataWriterStringTest extends TestWithMiniDFSCluster {
   @Before
   public void setUp() throws Exception {
     super.setUp();
-    dataFileReader = new StringDataFileReader();
-    extension = ".txt";
   }
 
   @Override
@@ -49,7 +49,37 @@ public class DataWriterStringTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testReadString() throws Exception {
+    extension = ".txt";
+    dataFileReader = new StringDataFileReader(
+        connectorConfig.getHadoopConfiguration(), STRING_FORMAT_COMPRESSION_NONE);
+
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    List<SinkRecord> sinkRecords = createStringRecords(
+        7 * context.assignment().size(),
+        context.assignment()
+    );
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
+    long[] validOffsets = {0, 3, 6};
+    verify(sinkRecords, validOffsets, context.assignment());
+  }
+
+  @Test
+  public void testReadStringCompressed() throws Exception {
+    extension = ".gz";
+    dataFileReader = new StringDataFileReader(connectorConfig.getHadoopConfiguration(), "gzip");
+
+    final Map<String, String> props = connectorConfig.originalsStrings();
+    props.put(STRING_FORMAT_COMPRESSION_CONFIG, "gzip");
+    final HdfsSinkConnectorConfig newConfig = new HdfsSinkConnectorConfig(props);
+    DataWriter hdfsWriter = new DataWriter(newConfig, context, avroData);
     partitioner = hdfsWriter.getPartitioner();
     hdfsWriter.recover(TOPIC_PARTITION);
 

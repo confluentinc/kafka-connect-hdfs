@@ -19,6 +19,8 @@ import io.confluent.connect.hdfs.DataFileReader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.CompressionCodecFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,7 +31,18 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.STRING_FORMAT_COMPRESSION_NONE;
+
 public class StringDataFileReader implements DataFileReader {
+
+  private CompressionCodec compressionCodec;
+
+  public StringDataFileReader(Configuration conf, String compression) {
+    if (compression != null && !compression.equalsIgnoreCase(STRING_FORMAT_COMPRESSION_NONE)) {
+      CompressionCodecFactory factory = new CompressionCodecFactory(conf);
+      compressionCodec = factory.getCodecByName(compression);
+    }
+  }
 
   @Override
   public Collection<Object> readData(Configuration conf, Path path) throws IOException {
@@ -41,6 +54,9 @@ public class StringDataFileReader implements DataFileReader {
       throw new IOException("Failed to create URI: " + uri);
     }
     InputStream in = fs.open(path);
+    if (compressionCodec != null) {
+      in = compressionCodec.createInputStream(in);
+    }
 
     BufferedReader reader = new BufferedReader(new InputStreamReader(in));
     ArrayList<Object> records = new ArrayList<>();
