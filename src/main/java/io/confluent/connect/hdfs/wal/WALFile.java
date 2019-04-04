@@ -142,7 +142,7 @@ public class WALFile {
       try {
         if (ownStream) {
           Path p = fileOption.getValue();
-          fs = p.getFileSystem(conf);
+          fs = FileSystem.newInstance(p.toUri(), conf);
           int bufferSize = bufferSizeOption == null
                            ? getBufferSize(conf)
                            : bufferSizeOption.getValue();
@@ -445,7 +445,7 @@ public class WALFile {
       try {
         if (fileOpt != null) {
           filename = fileOpt.getValue();
-          fs = filename.getFileSystem(conf);
+          fs = FileSystem.newInstance(filename.toUri(), conf);
           int bufSize = bufOpt == null ? getBufferSize(conf) : bufOpt.getValue();
           len = null == lenOpt
                 ? fs.getFileStatus(filename).getLen()

@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.string;
 
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -60,7 +61,8 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
     try {
       return new RecordWriter() {
         final Path path = new Path(filename);
-        final OutputStream out = path.getFileSystem(conf.getHadoopConfiguration()).create(path);
+        final OutputStream out =
+            FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration()).create(path);
         final OutputStreamWriter streamWriter = new OutputStreamWriter(
             out,
             Charset.defaultCharset()

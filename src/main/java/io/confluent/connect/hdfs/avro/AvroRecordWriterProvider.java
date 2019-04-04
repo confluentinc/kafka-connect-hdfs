@@ -18,6 +18,7 @@ import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -63,7 +64,8 @@ public class AvroRecordWriterProvider
           schema = record.valueSchema();
           try {
             log.info("Opening record writer for: {}", filename);
-            final FSDataOutputStream out = path.getFileSystem(conf.getHadoopConfiguration())
+            final FSDataOutputStream out = FileSystem.newInstance(path.toUri(),
+                conf.getHadoopConfiguration())
                 .create(path);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
             writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
