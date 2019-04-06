@@ -179,22 +179,25 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
       }
     }
-    // Add a single records at the end of the batches sequence. Total records: 10
+    // Add a single records at the end of the batches sequence
     records.add(createRecord(schema));
+    assertEquals(10, records.size());
     List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
 
     for (SinkRecord record : sinkRecords) {
       topicPartitionWriter.buffer(record);
     }
 
-    assertNull(topicPartitionWriter.committedOffset());
+    assertEquals(-1, topicPartitionWriter.committedConsumerOffset());
 
     topicPartitionWriter.recover();
-    assertNull(topicPartitionWriter.committedOffset());
+    assertEquals(-1, topicPartitionWriter.committedConsumerOffset());
     topicPartitionWriter.write();
-    assertEquals(8, topicPartitionWriter.committedOffset().longValue());
+    // Flush size is 3, so records with offset 0-8 inclusive are written, and 9 is the next one
+    // after the last committed
+    assertEquals(9, topicPartitionWriter.committedConsumerOffset());
     topicPartitionWriter.close();
-    assertEquals(8, topicPartitionWriter.committedOffset().longValue());
+    assertEquals(9, topicPartitionWriter.committedConsumerOffset());
 
     String directory1 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(16));
     String directory2 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(17));
@@ -210,7 +213,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
     // Try recovering at this point, and check that we've not lost our committed offsets
     topicPartitionWriter.recover();
-    assertEquals(8, topicPartitionWriter.committedOffset().longValue());
+    assertEquals(9, topicPartitionWriter.committedConsumerOffset());
   }
 
   @Test

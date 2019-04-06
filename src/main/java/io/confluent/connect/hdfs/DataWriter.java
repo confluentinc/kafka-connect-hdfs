@@ -80,7 +80,6 @@ public class DataWriter {
   private io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> newFormat;
   private Set<TopicPartition> assignment;
   private Partitioner partitioner;
-  private Map<TopicPartition, Long> offsets;
   private HdfsSinkConnectorConfig connectorConfig;
   private AvroData avroData;
   private SinkTaskContext context;
@@ -278,7 +277,6 @@ public class DataWriter {
       partitioner = newPartitioner(connectorConfig);
 
       assignment = new HashSet<>(context.assignment());
-      offsets = new HashMap<>();
 
       hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
@@ -502,12 +500,18 @@ public class DataWriter {
     return partitioner;
   }
 
-  public Map<TopicPartition, Long> getCommittedOffsets() {
+  /**
+   * By convention, the consumer stores the offset that corresponds to the next record to consume.
+   * To follow this convention, this methods returns each offset that is one more than the last
+   * offset committed to HDFS.
+   */
+  public Map<TopicPartition, Long> getCommittedConsumerOffsets() {
+    Map<TopicPartition, Long> offsets = new HashMap<>();
     log.debug("Writer looking for last offsets for topic partitions {}", assignment);
     for (TopicPartition tp : assignment) {
-      Long committedOffset = topicPartitionWriters.get(tp).committedOffset();
+      long committedOffset = topicPartitionWriters.get(tp).committedConsumerOffset();
       log.debug("Writer found last offset {} for topic partition {}", committedOffset, tp);
-      if (committedOffset != null) {
+      if (committedOffset >= 0) {
         offsets.put(tp, committedOffset);
       }
     }
