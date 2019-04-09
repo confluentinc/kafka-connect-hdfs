@@ -124,8 +124,7 @@ public class HdfsSinkTask extends SinkTask {
     // commit the consumer offsets for records this task has consumed from its topic partitions and
     // committed to HDFS.
     Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
-    for (Map.Entry<TopicPartition, Long> entry :
-        hdfsWriter.getCommittedConsumerOffsets().entrySet()) {
+    for (Map.Entry<TopicPartition, Long> entry : hdfsWriter.getCommittedOffsets().entrySet()) {
       log.debug(
           "Found last committed offset {} for topic partition {}",
           entry.getValue(),

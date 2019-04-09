@@ -333,8 +333,7 @@ public class TopicPartitionWriter {
             nextState();
           case WRITE_PARTITION_PAUSED:
             if (currentSchema == null) {
-              if (compatibility != StorageSchemaCompatibility.NONE
-                  && offset != -1) {
+              if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
                 String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
                 CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
                 FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(

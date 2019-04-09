@@ -185,7 +185,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_PARTITION);
 
-    Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedConsumerOffsets();
+    Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
 
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
     long nextOffset = committedOffsets.get(TOPIC_PARTITION);
@@ -387,7 +387,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     time.sleep(WAIT_TIME);
     hdfsWriter.write(new ArrayList<SinkRecord>());
 
-    Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedConsumerOffsets();
+    Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
     long nextOffset = committedOffsets.get(TOPIC_PARTITION);
     assertEquals(NUMBER_OF_RECORDS, nextOffset);

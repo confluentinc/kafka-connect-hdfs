@@ -140,7 +140,7 @@ public class FileUtils {
   }
 
   /**
-   * Returns the last offset written in a file to HDFS.
+   * @return The last offset written in a file to HDFS.
    */
   public static long extractOffset(String filename) {
     Matcher m = HdfsSinkConnectorConstants.COMMITTED_FILENAME_PATTERN.matcher(filename);

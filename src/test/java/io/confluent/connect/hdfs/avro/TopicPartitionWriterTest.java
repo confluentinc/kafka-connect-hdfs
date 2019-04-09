@@ -188,16 +188,16 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
       topicPartitionWriter.buffer(record);
     }
 
-    assertEquals(-1, topicPartitionWriter.committedConsumerOffset());
+    assertEquals(-1, topicPartitionWriter.offset());
 
     topicPartitionWriter.recover();
-    assertEquals(-1, topicPartitionWriter.committedConsumerOffset());
+    assertEquals(-1, topicPartitionWriter.offset());
     topicPartitionWriter.write();
     // Flush size is 3, so records with offset 0-8 inclusive are written, and 9 is the next one
     // after the last committed
-    assertEquals(9, topicPartitionWriter.committedConsumerOffset());
+    assertEquals(9, topicPartitionWriter.offset());
     topicPartitionWriter.close();
-    assertEquals(9, topicPartitionWriter.committedConsumerOffset());
+    assertEquals(9, topicPartitionWriter.offset());
 
     String directory1 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(16));
     String directory2 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(17));
@@ -213,7 +213,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
     // Try recovering at this point, and check that we've not lost our committed offsets
     topicPartitionWriter.recover();
-    assertEquals(9, topicPartitionWriter.committedConsumerOffset());
+    assertEquals(9, topicPartitionWriter.offset());
   }
 
   @Test

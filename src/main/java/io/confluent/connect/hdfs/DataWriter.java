@@ -504,12 +504,14 @@ public class DataWriter {
    * By convention, the consumer stores the offset that corresponds to the next record to consume.
    * To follow this convention, this methods returns each offset that is one more than the last
    * offset committed to HDFS.
+   *
+   * @return Map from TopicPartition to next offset after the most recently committd offset to HDFS
    */
-  public Map<TopicPartition, Long> getCommittedConsumerOffsets() {
+  public Map<TopicPartition, Long> getCommittedOffsets() {
     Map<TopicPartition, Long> offsets = new HashMap<>();
     log.debug("Writer looking for last offsets for topic partitions {}", assignment);
     for (TopicPartition tp : assignment) {
-      long committedOffset = topicPartitionWriters.get(tp).committedConsumerOffset();
+      long committedOffset = topicPartitionWriters.get(tp).offset();
       log.debug("Writer found last offset {} for topic partition {}", committedOffset, tp);
       if (committedOffset >= 0) {
         offsets.put(tp, committedOffset);
