@@ -488,7 +488,7 @@ public class TopicPartitionWriter {
    * (like Kafka Consumer offset tracking).
    *
    * @return Next offset after the last offset written to HDFS, or -1 if no file has been committed
-   * yet
+   *     yet
    */
   public long offset() {
     return offset;
