@@ -487,7 +487,8 @@ public class TopicPartitionWriter {
    * This method returns the next offset after the last one in HDFS, useful for some APIs
    * (like Kafka Consumer offset tracking).
    *
-   * @return Next offset after the last offset written to HDFS
+   * @return Next offset after the last offset written to HDFS, or -1 if no file has been committed
+   * yet
    */
   public long offset() {
     return offset;
