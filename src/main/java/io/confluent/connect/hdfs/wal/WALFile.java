@@ -96,6 +96,7 @@ public class WALFile {
     private FSDataOutputStream out;
     private DataOutputBuffer buffer = new DataOutputBuffer();
     private boolean appendMode;
+    private FileSystem fs = null;
 
     {
       try {
@@ -135,7 +136,6 @@ public class WALFile {
         throw new IllegalArgumentException("file modifier options not compatible with stream");
       }
 
-      FileSystem fs = null;
       FSDataOutputStream out;
       boolean ownStream = fileOption != null;
 
@@ -419,6 +419,7 @@ public class WALFile {
     private DataInputStream valIn = null;
     private Deserializer<WALEntry> keyDeserializer;
     private Deserializer<WALEntry> valDeserializer;
+    private FileSystem fs = null;
 
     public Reader(Configuration conf, Option... opts) throws IOException {
       // Look up the options, these are null if not set
@@ -440,7 +441,7 @@ public class WALFile {
       Path filename = null;
       FSDataInputStream file;
       final long len;
-      FileSystem fs = null;
+
 
       try {
         if (fileOpt != null) {
@@ -652,6 +653,7 @@ public class WALFile {
 
       // Close the input-stream
       in.close();
+      fs.close();
     }
 
     private byte getVersion() {

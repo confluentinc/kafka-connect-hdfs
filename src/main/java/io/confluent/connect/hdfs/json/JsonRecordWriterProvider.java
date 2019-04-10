@@ -105,6 +105,7 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
         public void close() {
           try {
             writer.close();
+            out.close();
           } catch (IOException e) {
             throw new ConnectException(e);
           }

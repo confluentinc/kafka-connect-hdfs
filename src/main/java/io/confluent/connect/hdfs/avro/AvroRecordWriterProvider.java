@@ -54,6 +54,7 @@ public class AvroRecordWriterProvider
       final String filename
   ) {
     return new io.confluent.connect.storage.format.RecordWriter() {
+      FSDataOutputStream out;
       final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
       final Path path = new Path(filename);
       Schema schema = null;
@@ -64,7 +65,7 @@ public class AvroRecordWriterProvider
           schema = record.valueSchema();
           try {
             log.info("Opening record writer for: {}", filename);
-            final FSDataOutputStream out = FileSystem.newInstance(path.toUri(),
+            out = FileSystem.newInstance(path.toUri(),
                 conf.getHadoopConfiguration())
                 .create(path);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
@@ -94,6 +95,7 @@ public class AvroRecordWriterProvider
       public void close() {
         try {
           writer.close();
+          out.close();
         } catch (IOException e) {
           throw new DataException(e);
         }
