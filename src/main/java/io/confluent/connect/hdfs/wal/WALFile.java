@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs.wal;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import org.apache.commons.io.Charsets;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -46,8 +47,6 @@ import java.io.IOException;
 import java.rmi.server.UID;
 import java.security.MessageDigest;
 import java.util.Arrays;
-
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 
 public class WALFile {
 
@@ -312,17 +311,30 @@ public class WALFile {
     public synchronized void close() throws IOException {
       keySerializer.close();
       valSerializer.close();
-      if (out != null) {
-        // Close the underlying stream iff we own it...
-        if (ownOutputStream) {
-          out.close();
-        } else {
-          out.flush();
+      IOException error = null;
+      try {
+        if (out != null) {
+          // Close the underlying stream iff we own it...
+          if (ownOutputStream) {
+            out.close();
+          } else {
+            out.flush();
+          }
+          out = null;
         }
-        out = null;
-      }
-      if (fs != null) {
-        fs.close();
+      } catch (IOException e) {
+        error = e;
+        throw new ConnectException(e);
+      } finally {
+        try {
+          if (fs != null) {
+            fs.close();
+          }
+        } catch (IOException e) {
+          if (error == null) {
+            throw e;
+          }
+        }
       }
     }
 
@@ -653,11 +665,26 @@ public class WALFile {
       if (valDeserializer != null) {
         valDeserializer.close();
       }
-
-      // Close the input-stream
-      in.close();
-      if (fs != null) {
-        fs.close();
+      IOException error = null;
+      try {
+        // Close the input-stream
+        in.close();
+        if (fs != null) {
+          fs.close();
+        }
+      } catch (IOException e) {
+        error = e;
+        throw new ConnectException(e);
+      } finally {
+        try {
+          if (fs != null) {
+            fs.close();
+          }
+        } catch (IOException e) {
+          if (error == null) {
+            throw e;
+          }
+        }
       }
     }
 
