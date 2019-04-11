@@ -61,8 +61,8 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
     try {
       return new RecordWriter() {
         final Path path = new Path(filename);
-        final OutputStream out =
-            FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration()).create(path);
+        FileSystem fs = FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration());
+        final OutputStream out = fs.create(path);
         final OutputStreamWriter streamWriter = new OutputStreamWriter(
             out,
             Charset.defaultCharset()
@@ -88,7 +88,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
         public void close() {
           try {
             writer.close();
-            out.close();
+            fs.close();
           } catch (IOException e) {
             throw new ConnectException(e);
           }

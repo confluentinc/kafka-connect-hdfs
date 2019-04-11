@@ -70,8 +70,8 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
     try {
       return new RecordWriter() {
         final Path path = new Path(filename);
-        final OutputStream out = FileSystem.newInstance(path.toUri(),
-            conf.getHadoopConfiguration()).create(path);
+        final FileSystem fs = FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration());
+        final OutputStream out = fs.create(path);
         final JsonGenerator writer = mapper.getFactory()
             .createGenerator(out)
             .setRootValueSeparator(null);
@@ -105,7 +105,7 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
         public void close() {
           try {
             writer.close();
-            out.close();
+            fs.close();
           } catch (IOException e) {
             throw new ConnectException(e);
           }

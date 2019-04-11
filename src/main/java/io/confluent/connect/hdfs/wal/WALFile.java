@@ -321,6 +321,9 @@ public class WALFile {
         }
         out = null;
       }
+      if (fs != null) {
+        fs.close();
+      }
     }
 
     @Override
@@ -653,7 +656,9 @@ public class WALFile {
 
       // Close the input-stream
       in.close();
-      fs.close();
+      if (fs != null) {
+        fs.close();
+      }
     }
 
     private byte getVersion() {
