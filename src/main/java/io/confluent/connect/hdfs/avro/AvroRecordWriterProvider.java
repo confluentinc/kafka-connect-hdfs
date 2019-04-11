@@ -92,12 +92,23 @@ public class AvroRecordWriterProvider
 
       @Override
       public void close() {
+        IOException error = null;
         try {
           writer.close();
           // Must be closed independently to prevent resource leaks
-          fs.close();
         } catch (IOException e) {
+          error = e;
           throw new DataException(e);
+        } finally {
+          if (fs != null) {
+            try {
+              fs.close();
+            } catch (IOException e) {
+              if (error == null) {
+                throw new DataException(e);
+              }
+            }
+          }
         }
       }
 

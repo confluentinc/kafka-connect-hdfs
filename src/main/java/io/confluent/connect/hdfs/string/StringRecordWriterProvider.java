@@ -14,6 +14,10 @@
 
 package io.confluent.connect.hdfs.string;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.format.RecordWriter;
+import io.confluent.connect.storage.format.RecordWriterProvider;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -26,11 +30,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
-
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.storage.format.RecordWriter;
-import io.confluent.connect.storage.format.RecordWriterProvider;
 
 /**
  * Provider of a text record writer.
@@ -61,7 +60,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
     try {
       return new RecordWriter() {
         final Path path = new Path(filename);
-        FileSystem fs = FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration());
+        final FileSystem fs = FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration());
         final OutputStream out = fs.create(path);
         final OutputStreamWriter streamWriter = new OutputStreamWriter(
             out,
@@ -86,11 +85,20 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
 
         @Override
         public void close() {
+          IOException error = null;
           try {
             writer.close();
-            fs.close();
           } catch (IOException e) {
+            error = e;
             throw new ConnectException(e);
+          } finally {
+            try {
+              fs.close();
+            } catch (IOException e) {
+              if (error == null) {
+                throw new ConnectException(e);
+              }
+            }
           }
         }
       };
