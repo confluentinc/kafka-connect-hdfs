@@ -99,7 +99,6 @@ public class TopicPartitionWriter {
   private final AvroData avroData;
   private final Set<String> appended;
   private long offset;
-  private Long committedOffset;
   private final Map<String, Long> startOffsets;
   private final Map<String, Long> offsets;
   private final long timeoutMs;
@@ -209,8 +208,8 @@ public class TopicPartitionWriter {
     offsets = new HashMap<>();
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
+    // The next offset to consume after the last commit (one more than last offset written to HDFS)
     offset = -1L;
-    committedOffset = null;
     if (writerProvider != null) {
       extension = writerProvider.getExtension();
     } else if (newWriterProvider != null) {
@@ -484,12 +483,16 @@ public class TopicPartitionWriter {
   }
 
   /**
-   * Get the offset that was last committed to HDFS, or null if nothing was committed yet.
+   * HDFS Connector tracks offsets in filenames in HDFS (for Exactly Once Semantics) as the last
+   * record's offset that was written to the last file in HDFS.
+   * This method returns the next offset after the last one in HDFS, useful for some APIs
+   * (like Kafka Consumer offset tracking).
    *
-   * @return the last committed offset; may be null
+   * @return Next offset after the last offset written to HDFS, or -1 if no file has been committed
+   *     yet
    */
-  public Long committedOffset() {
-    return committedOffset;
+  public long offset() {
+    return offset;
   }
 
   Map<String, io.confluent.connect.storage.format.RecordWriter> getWriters() {
@@ -565,8 +568,10 @@ public class TopicPartitionWriter {
         filter
     );
     if (fileStatusWithMaxOffset != null) {
-      committedOffset = FileUtils.extractOffset(fileStatusWithMaxOffset.getPath().getName());
-      offset = committedOffset + 1;
+      long lastCommittedOffsetToHdfs = FileUtils.extractOffset(
+          fileStatusWithMaxOffset.getPath().getName());
+      // `offset` represents the next offset to read after the most recent commit
+      offset = lastCommittedOffsetToHdfs + 1;
     }
   }
 
@@ -778,7 +783,6 @@ public class TopicPartitionWriter {
     startOffsets.remove(encodedPartition);
     offsets.remove(encodedPartition);
     offset = offset + recordCounter; // offset of next record to be reading
-    committedOffset = offset - 1; // offset of last record written to HDFS
     recordCounter = 0;
     log.info("Committed {} for {}", committedFile, tp);
   }
