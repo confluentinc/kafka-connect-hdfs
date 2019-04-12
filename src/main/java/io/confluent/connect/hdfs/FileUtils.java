@@ -139,6 +139,12 @@ public class FileUtils {
     return fileStatusWithMaxOffset;
   }
 
+  /**
+   * Obtain the offset of the last record that was written to the specified HDFS file.
+   * @param filename the name of the HDFS file; may not be null
+   * @return the offset of the last record written to the specified file in HDFS
+   * @throws IllegalArgumentException if the filename does not match the expected pattern
+   */
   public static long extractOffset(String filename) {
     Matcher m = HdfsSinkConnectorConstants.COMMITTED_FILENAME_PATTERN.matcher(filename);
     // NB: if statement has side effect of enabling group() call
