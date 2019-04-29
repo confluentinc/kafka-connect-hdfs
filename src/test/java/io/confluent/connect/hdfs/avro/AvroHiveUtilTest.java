@@ -15,12 +15,25 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.storage.hive.HiveSchemaConverter;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.GregorianCalendar;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.data.Time;
+import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.Test;
@@ -42,6 +55,14 @@ import static org.junit.Assert.assertEquals;
 public class AvroHiveUtilTest extends HiveTestBase {
   private HiveUtil hive;
   private Map<String, String> localProps = new HashMap<>();
+
+  private static int SCALE = 3;
+  private static String CONNECT_AVRO_DECIMAL_PRECISION_PROP = "connect.decimal.precision";
+  private static String CONNECT_AVRO_DECIMAL_PRECISION_DEFAULT = "38";
+  private static Schema DECIMALSCHEMA = Decimal.schema(SCALE);
+  private static Schema DATESCHEMA = Date.SCHEMA;
+  private static Schema TIMESCHEMA = Time.SCHEMA;
+  private static Schema TIMESTAMPSCHEMA = Timestamp.SCHEMA;
 
   @Override
   protected Map<String, String> createProps() {
@@ -147,6 +168,57 @@ public class AvroHiveUtilTest extends HiveTestBase {
         assertEquals(expectedValue, parts[j++]);
       }
     }
+  }
+
+  @Test
+  public void testLogicalType() throws Exception{
+    setUp();
+    prepareData(TOPIC, PARTITION);
+    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
+
+    Schema schema = createSchemaAllLogical();
+    hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
+    String location = "partition=" + String.valueOf(PARTITION);
+    hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
+
+    String precision = schema
+        .field("decimal")
+        .schema()
+        .parameters()
+        .getOrDefault(CONNECT_AVRO_DECIMAL_PRECISION_PROP, CONNECT_AVRO_DECIMAL_PRECISION_DEFAULT);
+    String scale = SCALE + "" ;
+
+    List<String> expectedColumnNames = new ArrayList<>();
+    for (Field field : schema.fields()) {
+      expectedColumnNames.add(field.name());
+    }
+    List<String> expectedColumnTypes = new ArrayList<>();
+    expectedColumnTypes.add(serdeConstants.DECIMAL_TYPE_NAME + "(" + precision + "," + scale + ")");
+    expectedColumnTypes.add(serdeConstants.DATE_TYPE_NAME);
+    expectedColumnTypes.add(serdeConstants.INTERVAL_DAY_TIME_TYPE_NAME);
+    expectedColumnTypes.add(serdeConstants.TIMESTAMP_TYPE_NAME);
+
+    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+    List<String> actualColumnNames = new ArrayList<>();
+    List<String> actualColumnTypes = new ArrayList<>();
+    for (FieldSchema column : table.getSd().getCols()) {
+      actualColumnNames.add(column.getName());
+      actualColumnTypes.add(column.getType());
+    }
+
+    assertEquals(expectedColumnNames, actualColumnNames);
+    assertEquals(expectedColumnTypes, actualColumnTypes);
+  }
+
+
+  //move this later to StorageSinkTestBase
+  public static Schema createSchemaAllLogical() {
+    return SchemaBuilder.struct().name("record").version(1)
+        .field("decimal", DECIMALSCHEMA)
+        .field("date", DATESCHEMA)
+        .field("time", TIMESCHEMA)
+        .field("timestamp", TIMESTAMPSCHEMA)
+        .build();
   }
 
   private void prepareData(String topic, int partition) throws Exception {
