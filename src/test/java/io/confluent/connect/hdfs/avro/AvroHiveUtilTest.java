@@ -59,10 +59,6 @@ public class AvroHiveUtilTest extends HiveTestBase {
   private static int SCALE = 3;
   private static String CONNECT_AVRO_DECIMAL_PRECISION_PROP = "connect.decimal.precision";
   private static String CONNECT_AVRO_DECIMAL_PRECISION_DEFAULT = "38";
-  private static Schema DECIMALSCHEMA = Decimal.schema(SCALE);
-  private static Schema DATESCHEMA = Date.SCHEMA;
-  private static Schema TIMESCHEMA = Time.SCHEMA;
-  private static Schema TIMESTAMPSCHEMA = Timestamp.SCHEMA;
 
   @Override
   protected Map<String, String> createProps() {
@@ -171,7 +167,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
   }
 
   @Test
-  public void testLogicalType() throws Exception{
+  public void testLogicalType() throws Exception {
     setUp();
     prepareData(TOPIC, PARTITION);
     Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
@@ -193,6 +189,9 @@ public class AvroHiveUtilTest extends HiveTestBase {
       expectedColumnNames.add(field.name());
     }
     List<String> expectedColumnTypes = new ArrayList<>();
+    expectedColumnTypes.add(serdeConstants.BINARY_TYPE_NAME);
+    expectedColumnTypes.add(serdeConstants.INT_TYPE_NAME);
+    expectedColumnTypes.add(serdeConstants.BIGINT_TYPE_NAME);
     expectedColumnTypes.add(serdeConstants.DECIMAL_TYPE_NAME + "(" + precision + "," + scale + ")");
     expectedColumnTypes.add(serdeConstants.DATE_TYPE_NAME);
     expectedColumnTypes.add(serdeConstants.INTERVAL_DAY_TIME_TYPE_NAME);
@@ -214,10 +213,13 @@ public class AvroHiveUtilTest extends HiveTestBase {
   //move this later to StorageSinkTestBase
   public static Schema createSchemaAllLogical() {
     return SchemaBuilder.struct().name("record").version(1)
-        .field("decimal", DECIMALSCHEMA)
-        .field("date", DATESCHEMA)
-        .field("time", TIMESCHEMA)
-        .field("timestamp", TIMESTAMPSCHEMA)
+        .field("bytes", Schema.BYTES_SCHEMA)
+        .field("int", Schema.FLOAT32_SCHEMA)
+        .field("long", Schema.INT64_SCHEMA)
+        .field("decimal", Decimal.schema(SCALE))
+        .field("date", Date.SCHEMA)
+        .field("time", Time.SCHEMA)
+        .field("timestamp", Timestamp.SCHEMA)
         .build();
   }
 
