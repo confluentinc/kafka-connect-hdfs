@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.storage.hive.HiveConfig;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -44,6 +45,8 @@ public class AvroHiveUtil extends HiveUtil {
   private final AvroData avroData;
   private final String topicsDir;
 
+  private final boolean logicalTypeEnabled;
+
   public AvroHiveUtil(
       HdfsSinkConnectorConfig conf, AvroData avroData, HiveMetaStore
       hiveMetaStore
@@ -51,6 +54,8 @@ public class AvroHiveUtil extends HiveUtil {
     super(conf, hiveMetaStore);
     this.avroData = avroData;
     this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+
+    this.logicalTypeEnabled = conf.getBoolean(HiveConfig.HIVE_LOGICAL_TYPES_ENABLE_CONFIG);
   }
 
   @Override
@@ -90,7 +95,9 @@ public class AvroHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> columns =
+        this.logicalTypeEnabled ? HiveSchemaConverter.convertSchemaMaybeLogical(schema)
+            : HiveSchemaConverter.convertSchema(schema);
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
     table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
