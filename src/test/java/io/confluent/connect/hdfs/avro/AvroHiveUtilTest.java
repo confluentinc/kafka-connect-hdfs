@@ -214,7 +214,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
   public static Schema createSchemaAllLogical() {
     return SchemaBuilder.struct().name("record").version(1)
         .field("bytes", Schema.BYTES_SCHEMA)
-        .field("int", Schema.FLOAT32_SCHEMA)
+        .field("int", Schema.INT32_SCHEMA)
         .field("long", Schema.INT64_SCHEMA)
         .field("decimal", Decimal.schema(SCALE))
         .field("date", Date.SCHEMA)
