@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
@@ -56,7 +57,7 @@ public class HdfsSinkTask extends SinkTask {
       boolean hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
         StorageSchemaCompatibility compatibility = StorageSchemaCompatibility.getCompatibility(
-            connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG)
+            connectorConfig.getString(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG)
         );
         if (compatibility == StorageSchemaCompatibility.NONE) {
           throw new ConfigException(

@@ -61,6 +61,7 @@ import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.format.SchemaFileReader;
 import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.hive.HiveFactory;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class DataWriter {
@@ -288,7 +289,8 @@ public class DataWriter {
           hive = format.getHiveUtil(connectorConfig, hiveMetaStore);
         } else if (newFormat != null) {
           final io.confluent.connect.storage.hive.HiveUtil newHiveUtil
-              = newFormat.getHiveFactory().createHiveUtil(connectorConfig, hiveMetaStore);
+              = ((HiveFactory) newFormat.getHiveFactory())
+              .createHiveUtil(connectorConfig, hiveMetaStore);
           hive = new HiveUtil(connectorConfig, hiveMetaStore) {
             @Override
             public void createTable(
