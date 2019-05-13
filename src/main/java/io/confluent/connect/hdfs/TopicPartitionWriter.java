@@ -1,16 +1,17 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- **/
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.hdfs;
 
@@ -51,6 +52,7 @@ import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
@@ -194,7 +196,7 @@ public class TopicPartitionWriter {
         .ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
     timeoutMs = connectorConfig.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG);
     compatibility = StorageSchemaCompatibility.getCompatibility(
-        connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG));
+        connectorConfig.getString(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
 
     String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
     wal = storage.wal(logsDir, tp);
@@ -207,6 +209,7 @@ public class TopicPartitionWriter {
     offsets = new HashMap<>();
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
+    // The next offset to consume after the last commit (one more than last offset written to HDFS)
     offset = -1L;
     if (writerProvider != null) {
       extension = writerProvider.getExtension();
@@ -480,6 +483,15 @@ public class TopicPartitionWriter {
     buffer.add(sinkRecord);
   }
 
+  /**
+   * HDFS Connector tracks offsets in filenames in HDFS (for Exactly Once Semantics) as the last
+   * record's offset that was written to the last file in HDFS.
+   * This method returns the next offset after the last one in HDFS, useful for some APIs
+   * (like Kafka Consumer offset tracking).
+   *
+   * @return Next offset after the last offset written to HDFS, or -1 if no file has been committed
+   *     yet
+   */
   public long offset() {
     return offset;
   }
@@ -520,6 +532,31 @@ public class TopicPartitionWriter {
     boolean scheduledRotation = rotateScheduleIntervalMs > 0 && now >= nextScheduledRotate;
     boolean messageSizeRotation = recordCounter >= flushSize;
 
+    log.trace(
+        "Should apply periodic time-based rotation (rotateIntervalMs: '{}', lastRotate: "
+            + "'{}', timestamp: '{}')? {}",
+        rotateIntervalMs,
+        lastRotate,
+        currentTimestamp,
+        periodicRotation
+    );
+
+    log.trace(
+        "Should apply scheduled rotation: (rotateScheduleIntervalMs: '{}', nextScheduledRotate:"
+            + " '{}', now: '{}')? {}",
+        rotateScheduleIntervalMs,
+        nextScheduledRotate,
+        now,
+        scheduledRotation
+    );
+
+    log.trace(
+        "Should apply size-based rotation (count {} >= flush size {})? {}",
+        recordCounter,
+        flushSize,
+        messageSizeRotation
+    );
+
     return periodicRotation || scheduledRotation || messageSizeRotation;
   }
 
@@ -532,7 +569,10 @@ public class TopicPartitionWriter {
         filter
     );
     if (fileStatusWithMaxOffset != null) {
-      offset = FileUtils.extractOffset(fileStatusWithMaxOffset.getPath().getName()) + 1;
+      long lastCommittedOffsetToHdfs = FileUtils.extractOffset(
+          fileStatusWithMaxOffset.getPath().getName());
+      // `offset` represents the next offset to read after the most recent commit
+      offset = lastCommittedOffsetToHdfs + 1;
     }
   }
 
@@ -618,9 +658,17 @@ public class TopicPartitionWriter {
       // tempfile, but then that tempfile was discarded). To protect against this, even if we
       // just want to start at offset 0 or reset to the earliest offset, we specify that
       // explicitly to forcibly override any committed offsets.
-      long seekOffset = offset > 0 ? offset : 0;
-      log.debug("Resetting offset for {} to {}", tp, seekOffset);
-      context.offset(tp, seekOffset);
+      if (offset > 0) {
+        log.debug("Resetting offset for {} to {}", tp, offset);
+        context.offset(tp, offset);
+      } else {
+        // The offset was not found, so rather than forcibly set the offset to 0 we let the
+        // consumer decide where to start based upon standard consumer offsets (if available)
+        // or the consumer's `auto.offset.reset` configuration
+        log.debug("Resetting offset for {} based upon existing consumer group offsets or, if "
+                  + "there are none, the consumer's 'auto.offset.reset' value.",
+            tp);
+      }
       recovered = true;
     }
   }
@@ -701,6 +749,7 @@ public class TopicPartitionWriter {
   }
 
   private void commitFile() {
+    log.debug("Committing files");
     appended.clear();
     for (String encodedPartition : tempFiles.keySet()) {
       commitFile(encodedPartition);
@@ -708,6 +757,7 @@ public class TopicPartitionWriter {
   }
 
   private void commitFile(String encodedPartition) {
+    log.debug("Committing file for partition {}", encodedPartition);
     if (!startOffsets.containsKey(encodedPartition)) {
       return;
     }
@@ -733,7 +783,7 @@ public class TopicPartitionWriter {
     storage.commit(tempFile, committedFile);
     startOffsets.remove(encodedPartition);
     offsets.remove(encodedPartition);
-    offset = offset + recordCounter;
+    offset = offset + recordCounter; // offset of next record to be reading
     recordCounter = 0;
     log.info("Committed {} for {}", committedFile, tp);
   }

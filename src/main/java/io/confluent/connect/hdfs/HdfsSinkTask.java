@@ -1,16 +1,17 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- **/
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.hdfs;
 
@@ -25,10 +26,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
@@ -54,7 +57,7 @@ public class HdfsSinkTask extends SinkTask {
       boolean hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
         StorageSchemaCompatibility compatibility = StorageSchemaCompatibility.getCompatibility(
-            connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG)
+            connectorConfig.getString(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG)
         );
         if (compatibility == StorageSchemaCompatibility.NONE) {
           throw new ConfigException(
@@ -93,10 +96,21 @@ public class HdfsSinkTask extends SinkTask {
         hdfsWriter.stop();
       }
     }
+
+    log.info("The connector relies on offsets in HDFS filenames, but does commit these offsets to "
+        + "Connect to enable monitoring progress of the HDFS connector. Upon startup, the HDFS "
+        + "Connector restores offsets from filenames in HDFS. In the absence of files in HDFS, "
+        + "the connector will attempt to find offsets for its consumer group in the "
+        + "'__consumer_offsets' topic. If offsets are not found, the consumer will "
+        + "rely on the reset policy specified in the 'consumer.auto.offset.reset' property to "
+        + "start exporting data to HDFS.");
   }
 
   @Override
   public void put(Collection<SinkRecord> records) throws ConnectException {
+    if (log.isDebugEnabled()) {
+      log.debug("Read {} records from Kafka", records.size());
+    }
     try {
       hdfsWriter.write(records);
     } catch (ConnectException e) {
@@ -105,8 +119,23 @@ public class HdfsSinkTask extends SinkTask {
   }
 
   @Override
-  public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
-    // Do nothing as the connector manages the offset
+  public Map<TopicPartition, OffsetAndMetadata> preCommit(
+      Map<TopicPartition, OffsetAndMetadata> currentOffsets
+  ) {
+    // Although the connector manages offsets via files in HDFS, we still want to have Connect
+    // commit the consumer offsets for records this task has consumed from its topic partitions and
+    // committed to HDFS.
+    Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
+    for (Map.Entry<TopicPartition, Long> entry : hdfsWriter.getCommittedOffsets().entrySet()) {
+      log.debug(
+          "Found last committed offset {} for topic partition {}",
+          entry.getValue(),
+          entry.getKey()
+      );
+      result.put(entry.getKey(), new OffsetAndMetadata(entry.getValue()));
+    }
+    log.debug("Returning committed offsets {}", result);
+    return result;
   }
 
   @Override
@@ -116,7 +145,9 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    hdfsWriter.close();
+    if (hdfsWriter != null) {
+      hdfsWriter.close();
+    }
   }
 
   @Override

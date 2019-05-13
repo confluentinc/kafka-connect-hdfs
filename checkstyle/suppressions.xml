@@ -39,13 +39,12 @@
 
     <suppress
             checks="NPathComplexity"
-            files="(TopicPartitionWriter).java"
+            files="(TopicPartitionWriter|WALFile).java"
     />
 
     <suppress
             checks="ParameterNumber"
             files="(TopicPartitionWriter).java"
-            lines="112,148"
     />
 
     <suppress

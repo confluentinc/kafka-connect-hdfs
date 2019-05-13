@@ -1,25 +1,30 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- **/
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.hdfs.avro;
 
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,7 +33,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import io.confluent.common.utils.MockTime;
 import io.confluent.common.utils.Time;
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.FileUtils;
@@ -36,6 +40,7 @@ import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
@@ -46,6 +51,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DataWriterAvroTest extends TestWithMiniDFSCluster {
+
+  private static final Logger log = LoggerFactory.getLogger(DataWriterAvroTest.class);
 
   @Before
   public void setUp() throws Exception {
@@ -167,7 +174,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   }
 
   @Test
-  public void testGetPreviousOffsets() throws Exception {
+  public void testGetNextOffsets() throws Exception {
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
     long[] startOffsets = {0, 3};
     long[] endOffsets = {2, 5};
@@ -189,8 +196,8 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
 
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
-    long previousOffset = committedOffsets.get(TOPIC_PARTITION);
-    assertEquals(previousOffset, 6L);
+    long nextOffset = committedOffsets.get(TOPIC_PARTITION);
+    assertEquals(6L, nextOffset);
 
     hdfsWriter.close();
     hdfsWriter.stop();
@@ -263,7 +270,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testProjectBackWard() throws Exception {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
-    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
+    props.put(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -303,7 +310,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testProjectForward() throws Exception {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
-    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "FORWARD");
+    props.put(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "FORWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -324,7 +331,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   @Test
   public void testProjectNoVersion() throws Exception {
     Map<String, String> props = createProps();
-    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
+    props.put(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -384,18 +391,56 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecords(NUMBER_OF_RECORDS);
     hdfsWriter.write(sinkRecords);
 
+    // Wait so everything is committed
     time.sleep(WAIT_TIME);
-
     hdfsWriter.write(new ArrayList<SinkRecord>());
 
     Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
-    long previousOffset = committedOffsets.get(TOPIC_PARTITION);
-    assertEquals(NUMBER_OF_RECORDS, previousOffset);
+    long nextOffset = committedOffsets.get(TOPIC_PARTITION);
+    assertEquals(NUMBER_OF_RECORDS, nextOffset);
 
     hdfsWriter.close();
     hdfsWriter.stop();
   }
 
+  @Test
+  public void testAvroCompression() throws Exception {
+    //set compression codec to Snappy
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, "snappy");
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    List<SinkRecord> sinkRecords = createSinkRecords(7);
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    long[] validOffsets = {0, 3, 6};
+    verify(sinkRecords, validOffsets);
+
+    // check if the raw bytes have a "avro.codec" entry followed by "snappy"
+    List<String> filenames = getExpectedFiles(validOffsets, TOPIC_PARTITION);
+    for (String filename : filenames) {
+      Path p = new Path(filename);
+      try (FSDataInputStream stream = fs.open(p)) {
+        int size = (int) fs.getFileStatus(p).getLen();
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        if (stream.read(buffer) <= 0) {
+          log.error("Could not read file {}", filename);
+        }
+
+        String fileContents = new String(buffer.array());
+        int index;
+        assertTrue((index = fileContents.indexOf("avro.codec")) > 0
+            && fileContents.indexOf("snappy", index) > 0);
+      }
+    }
+  }
 }
 

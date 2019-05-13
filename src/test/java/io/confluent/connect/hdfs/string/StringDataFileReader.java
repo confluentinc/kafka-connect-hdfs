@@ -13,28 +13,23 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.connect.hdfs.json;
+package io.confluent.connect.hdfs.string;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.confluent.connect.hdfs.DataFileReader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
-import java.io.DataInput;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 
-import io.confluent.connect.hdfs.DataFileReader;
-
-public class JsonDataFileReader implements DataFileReader {
-
-  private static final ObjectMapper mapper = new ObjectMapper();
+public class StringDataFileReader implements DataFileReader {
 
   @Override
   public Collection<Object> readData(Configuration conf, Path path) throws IOException {
@@ -46,13 +41,17 @@ public class JsonDataFileReader implements DataFileReader {
       throw new IOException("Failed to create URI: " + uri);
     }
     InputStream in = fs.open(path);
-    JsonParser reader = mapper.getFactory().createParser(in);
 
+    BufferedReader reader = new BufferedReader(new InputStreamReader(in));
     ArrayList<Object> records = new ArrayList<>();
-    Iterator<Object> iterator = reader.readValuesAs(Object.class);
-    while (iterator.hasNext()) {
-      records.add(iterator.next());
+
+    String line;
+    while ((line = reader.readLine()) != null) {
+      System.out.println(line);
+      records.add(line);
     }
+
+    reader.close();
     return records;
   }
 }

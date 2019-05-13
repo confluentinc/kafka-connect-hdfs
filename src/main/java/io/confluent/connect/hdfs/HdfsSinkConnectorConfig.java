@@ -1,16 +1,17 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- **/
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.hdfs;
 
@@ -38,6 +39,7 @@ import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.ComposableConfig;
 import io.confluent.connect.storage.common.GenericRecommender;
+import io.confluent.connect.storage.common.ParentValueRecommender;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.DailyPartitioner;
@@ -57,7 +59,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   // This config is deprecated and will be removed in future releases. Use store.url instead.
   public static final String HDFS_URL_CONFIG = "hdfs.url";
   public static final String HDFS_URL_DOC =
-      "The HDFS connection URL. This configuration has the format of hdfs:://hostname:port and "
+      "The HDFS connection URL. This configuration has the format of hdfs://hostname:port and "
           + "specifies the HDFS to export data to. This property is deprecated and will be "
           + "removed in future releases. Use ``store.url`` instead.";
   public static final String HDFS_URL_DEFAULT = null;
@@ -119,6 +121,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final GenericRecommender STORAGE_CLASS_RECOMMENDER = new GenericRecommender();
   private static final GenericRecommender FORMAT_CLASS_RECOMMENDER = new GenericRecommender();
   private static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
+  private static final ParentValueRecommender AVRO_COMPRESSION_RECOMMENDER
+      = new ParentValueRecommender(FORMAT_CLASS_CONFIG, AvroFormat.class, AVRO_SUPPORTED_CODECS);
 
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
@@ -273,7 +277,10 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       );
     }
     // Put the storage group(s) last ...
-    ConfigDef storageConfigDef = StorageSinkConnectorConfig.newConfigDef(FORMAT_CLASS_RECOMMENDER);
+    ConfigDef storageConfigDef = StorageSinkConnectorConfig.newConfigDef(
+        FORMAT_CLASS_RECOMMENDER,
+        AVRO_COMPRESSION_RECOMMENDER);
+
     for (ConfigDef.ConfigKey key : storageConfigDef.configKeys().values()) {
       configDef.define(key);
     }

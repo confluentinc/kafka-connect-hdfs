@@ -1,16 +1,17 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- **/
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.hdfs;
 
@@ -74,14 +75,52 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     task.initialize(context);
     task.start(properties);
 
-    // Even without any files in HDFS, we expect an explicit request to start from the beginning of the topic (which
-    // either exists at offset 0, or offset 0 will be out of range and the consumer will reset to the smallest offset).
+    // Without any files in HDFS, we expect no offsets to be set by the connector.
+    // Thus, the consumer will start where it last left off or based upon the
+    // 'auto.offset.reset' setting, which Connect defaults to 'earliest'.
     Map<TopicPartition, Long> offsets = context.offsets();
-    assertEquals(offsets.size(), 2);
+    assertEquals(0, offsets.size());
+
+    task.stop();
+  }
+
+  @Test
+  public void testSinkTaskStartSomeCommittedFiles() throws Exception {
+    setUp();
+
+    Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
+    List<String> list1 = new ArrayList<>();
+    list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
+    list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
+    tempfiles.put(TOPIC_PARTITION, list1);
+
+    Map<TopicPartition, List<String>> committedFiles = new HashMap<>();
+    List<String> list3 = new ArrayList<>();
+    list3.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 100, 200,
+        extension, ZERO_PAD_FMT));
+    list3.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 201, 300,
+        extension, ZERO_PAD_FMT));
+    committedFiles.put(TOPIC_PARTITION, list3);
+
+    for (TopicPartition tp : tempfiles.keySet()) {
+      for (String file : tempfiles.get(tp)) {
+        fs.createNewFile(new Path(file));
+      }
+    }
+
+    createWALs(tempfiles, committedFiles);
+    HdfsSinkTask task = new HdfsSinkTask();
+
+    task.initialize(context);
+    task.start(properties);
+
+    // Without any files in HDFS, we expect no offsets to be set by the connector.
+    // Thus, the consumer will start where it last left off or based upon the
+    // 'auto.offset.reset' setting, which Connect defaults to 'earliest'.
+    Map<TopicPartition, Long> offsets = context.offsets();
+    assertEquals(1, offsets.size());
     assertTrue(offsets.containsKey(TOPIC_PARTITION));
-    assertEquals(0, (long) offsets.get(TOPIC_PARTITION));
-    assertTrue(offsets.containsKey(TOPIC_PARTITION2));
-    assertEquals(0, (long) offsets.get(TOPIC_PARTITION2));
+    assertEquals(301, (long) offsets.get(TOPIC_PARTITION));
 
     task.stop();
   }

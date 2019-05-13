@@ -1,19 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--~
-  ~ Copyright 2015 Confluent Inc.
+<!--
+  ~ Copyright 2018 Confluent Inc.
   ~
-  ~ Licensed under the Apache License, Version 2.0 (the "License");
-  ~ you may not use this file except in compliance with the License.
-  ~ You may obtain a copy of the License at
+  ~ Licensed under the Confluent Community License (the "License"); you may not use
+  ~ this file except in compliance with the License.  You may obtain a copy of the
+  ~ License at
   ~
-  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~ http://www.confluent.io/confluent-community-license
   ~
   ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS,
-  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  ~-->
+  ~ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  ~ WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations under the License.
+  -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
@@ -23,7 +22,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>4.0.0</version>
+        <version>5.3.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -40,8 +39,8 @@
 
     <licenses>
         <license>
-            <name>Apache License 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+            <name>Confluent Community License</name>
+            <url>http://www.confluent.io/confluent-community-license</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
@@ -57,6 +56,7 @@
         <confluent.maven.repo>http://packages.confluent.io/maven/</confluent.maven.repo>
         <hadoop.version>2.7.3</hadoop.version>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
+        <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
     </properties>
 
     <repositories>
@@ -105,6 +105,20 @@
             <version>${confluent.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-hive</artifactId>
+            <version>${confluent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-minicluster</artifactId>
             <version>${hadoop.version}</version>
@@ -136,33 +150,70 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>io.confluent</groupId>
+                <version>${kafka.connect.maven.plugin.version}</version>
+                <artifactId>kafka-connect-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>kafka-connect</goal>
+                        </goals>
+                        <configuration>
+                            <title>Kafka Connect HDFS</title>
+                            <documentationUrl>https://docs.confluent.io/${project.version}/connect/connect-hdfs/docs/index.html</documentationUrl>
+                            <description>
+                                The HDFS connector allows you to export data from Kafka topics to HDFS files in a variety of formats and integrates with Hive to make data immediately available for querying with HiveQL.
+
+                                The connector periodically polls data from Kafka and writes them to HDFS. The data from each Kafka topic is partitioned by the provided partitioner and divided into chunks. Each chunk of data is represented as an HDFS file with topic, Kafka partition, start and end offsets of this data chunk in the filename. If no partitioner is specified in the configuration, the default partitioner which preserves the Kafka partitioning is used. The size of each data chunk is determined by the number of records written to HDFS, the time written to HDFS and schema compatibility.
+
+                                The HDFS connector integrates with Hive and when it is enabled, the connector automatically creates an external Hive partitioned table for each Kafka topic and updates the table according to the available data in HDFS.
+                            </description>
+
+                            <supportProviderName>Confluent, Inc.</supportProviderName>
+                            <supportSummary>Confluent supports the HDFS sink connector alongside community members as part of its Confluent Platform offering.</supportSummary>
+                            <supportUrl>https://docs.confluent.io/current/</supportUrl>
+                            <supportLogo>logos/confluent.png</supportLogo>
+
+                            <ownerUsername>confluentinc</ownerUsername>
+                            <ownerType>organization</ownerType>
+                            <ownerName>Confluent, Inc.</ownerName>
+                            <ownerUrl>https://confluent.io/</ownerUrl>
+                            <ownerLogo>logos/confluent.png</ownerLogo>
+
+                            <dockerNamespace>confluentinc</dockerNamespace>
+                            <dockerName>cp-kafka-connect</dockerName>
+                            <dockerTag>${project.version}</dockerTag>
+
+                            <componentTypes>
+                                <componentType>sink</componentType>
+                            </componentTypes>
+
+                            <tags>
+                                <tag>hadoop</tag>
+                                <tag>hdfs</tag>
+                                <tag>hive</tag>
+                            </tags>
+
+                            <confluentControlCenterIntegration>true</confluentControlCenterIntegration>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <compilerArguments>
-                        <Xlint:all/>
-                        <!-- bootstrap class path not set in conjunction with -source 1.7 -->
-                        <Xlint:-options/>
-                        <!-- serializable class ... has no definition of serialVersionUID -->
-                        <Xlint:-serial/>
-                        <!-- bad path element ".../repository/org/apache/derby/derby/10.10.2.0/derbyLocale_*.jar": no such file or directory -->
-                        <Xlint:-path/>
-                        <!--
-                        WALFile.java:[333,16] [deprecation] sync() in Syncable has been deprecated
-                        Apparently SuppressWarnings("deprecation") doesn't cover this on JDK 7
-                        -->
-                        <Xlint:-deprecation/>
-                        <!-- Needed for DataWriter.java because @SuppressWarnings("unchecked") doesn't cover this on JDK 7 -->
-                        <Xlint:-unchecked/>
-                        <Werror/>
-                    </compilerArguments>
+                    <compilerArgs>
+                        <arg>-Xlint:all</arg>
+                        <arg>-Xlint:-deprecation</arg>
+                        <arg>-Werror</arg>
+                    </compilerArgs>
                     <showWarnings>true</showWarnings>
                     <showDeprecation>false</showDeprecation>
                 </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.5.3</version>
                 <configuration>
                     <descriptors>
                         <descriptor>src/assembly/development.xml</descriptor>

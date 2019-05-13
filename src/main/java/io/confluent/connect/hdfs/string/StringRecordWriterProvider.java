@@ -13,21 +13,19 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.connect.hdfs.json;
+package io.confluent.connect.hdfs.string;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hadoop.fs.Path;
-import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import java.io.OutputStreamWriter;
+import java.nio.charset.Charset;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
@@ -35,29 +33,22 @@ import io.confluent.connect.storage.format.RecordWriter;
 import io.confluent.connect.storage.format.RecordWriterProvider;
 
 /**
- * Provider of a JSON record writer.
+ * Provider of a text record writer.
  */
-public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkConnectorConfig> {
+public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSinkConnectorConfig> {
 
-  private static final Logger log = LoggerFactory.getLogger(JsonRecordWriterProvider.class);
-  private static final String EXTENSION = ".json";
-  private static final String LINE_SEPARATOR = System.lineSeparator();
-  private static final byte[] LINE_SEPARATOR_BYTES
-      = LINE_SEPARATOR.getBytes(StandardCharsets.UTF_8);
+  private static final Logger log = LoggerFactory.getLogger(StringRecordWriterProvider.class);
+  private static final String EXTENSION = ".txt";
+  private static final int WRITER_BUFFER_SIZE = 128 * 1024;
   private final HdfsStorage storage;
-  private final ObjectMapper mapper;
-  private final JsonConverter converter;
 
   /**
    * Constructor.
    *
    * @param storage the underlying storage implementation.
-   * @param converter the JSON converter to be used to convert records from Kafka Connect format.
    */
-  JsonRecordWriterProvider(HdfsStorage storage, JsonConverter converter) {
+  StringRecordWriterProvider(HdfsStorage storage) {
     this.storage = storage;
-    this.mapper = new ObjectMapper();
-    this.converter = converter;
   }
 
   @Override
@@ -71,27 +62,19 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
       return new RecordWriter() {
         final Path path = new Path(filename);
         final OutputStream out = path.getFileSystem(conf.getHadoopConfiguration()).create(path);
-        final JsonGenerator writer = mapper.getFactory()
-            .createGenerator(out)
-            .setRootValueSeparator(null);
+        final OutputStreamWriter streamWriter = new OutputStreamWriter(
+            out,
+            Charset.defaultCharset()
+        );
+        final BufferedWriter writer = new BufferedWriter(streamWriter, WRITER_BUFFER_SIZE);
 
         @Override
         public void write(SinkRecord record) {
           log.trace("Sink record: {}", record.toString());
           try {
-            Object value = record.value();
-            if (value instanceof Struct) {
-              byte[] rawJson = converter.fromConnectData(
-                  record.topic(),
-                  record.valueSchema(),
-                  value
-              );
-              out.write(rawJson);
-              out.write(LINE_SEPARATOR_BYTES);
-            } else {
-              writer.writeObject(value);
-              writer.writeRaw(LINE_SEPARATOR);
-            }
+            String value = (String) record.value();
+            writer.write(value);
+            writer.newLine();
           } catch (IOException e) {
             throw new ConnectException(e);
           }

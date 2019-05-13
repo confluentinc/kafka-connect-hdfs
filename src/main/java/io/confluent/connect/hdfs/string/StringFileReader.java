@@ -13,21 +13,20 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.connect.hdfs.json;
+package io.confluent.connect.hdfs.string;
 
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.storage.format.SchemaFileReader;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
 
 import java.util.Collection;
 import java.util.Iterator;
 
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.storage.format.SchemaFileReader;
-
 /**
- * A no-op implementation of a schema reader for JSON files.
+ * A no-op implementation of a schema reader for text files.
  */
-public class JsonFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, Path> {
+public class StringFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, Path> {
   @Override
   public Schema getSchema(HdfsSinkConnectorConfig conf, Path path) {
     return null;
