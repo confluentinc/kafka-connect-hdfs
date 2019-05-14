@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -24,7 +25,8 @@ import io.confluent.connect.storage.format.SchemaFileReader;
 import io.confluent.connect.storage.hive.HiveFactory;
 import org.apache.hadoop.fs.Path;
 
-public class OrcFormat implements io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
+public class OrcFormat
+    implements io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
 
   // DO NOT change this signature, it is required for instantiation via reflection
   public OrcFormat(HdfsStorage storage) {

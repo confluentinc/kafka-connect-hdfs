@@ -15,17 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
+import org.apache.hadoop.hive.ql.io.orc.OrcFile.ReaderOptions;
 import org.apache.hadoop.hive.ql.io.orc.Reader;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
-import org.apache.kafka.connect.data.*;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveTypeEntry;
+import org.apache.kafka.connect.data.ConnectSchema;
+import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.errors.DataException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +40,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Iterator;
 
-public class OrcFileReader implements io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path> {
+public class OrcFileReader
+    implements io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path> {
 
   private static final Logger log = LoggerFactory.getLogger(OrcFileReader.class);
 
@@ -41,7 +49,8 @@ public class OrcFileReader implements io.confluent.connect.storage.format.Schema
   public Schema getSchema(HdfsSinkConnectorConfig conf, Path path) {
     try {
       log.info("Opening record reader for: {}", path);
-      OrcFile.ReaderOptions readerOptions = new OrcFile.ReaderOptions(conf.getHadoopConfiguration());
+
+      ReaderOptions readerOptions = new ReaderOptions(conf.getHadoopConfiguration());
       Reader reader = OrcFile.createReader(path, readerOptions);
 
       if (reader.getObjectInspector().getCategory() == ObjectInspector.Category.STRUCT) {
@@ -55,8 +64,8 @@ public class OrcFileReader implements io.confluent.connect.storage.format.Schema
 
           switch (fieldObjectInspector.getCategory()) {
             case PRIMITIVE:
-              PrimitiveObjectInspectorUtils.PrimitiveTypeEntry typeEntry = PrimitiveObjectInspectorUtils.getTypeEntryFromTypeName(typeName);
-              log.debug("typeEntry: {}, {}, {}", typeEntry.primitiveJavaClass, typeEntry.primitiveJavaType, typeEntry.primitiveWritableClass);
+              PrimitiveTypeEntry typeEntry = PrimitiveObjectInspectorUtils
+                  .getTypeEntryFromTypeName(typeName);
               if (java.sql.Date.class.isAssignableFrom(typeEntry.primitiveJavaClass)) {
                 schemaType = Date.SCHEMA.type();
               } else if (java.sql.Timestamp.class.isAssignableFrom(typeEntry.primitiveJavaClass)) {
@@ -76,8 +85,6 @@ public class OrcFileReader implements io.confluent.connect.storage.format.Schema
           }
 
           schemaBuilder.field(schema.getFieldName(), SchemaBuilder.type(schemaType).build());
-
-          log.debug("typeName: {}, schemaType: {}", typeName, schemaType);
         }
 
         return schemaBuilder.build();

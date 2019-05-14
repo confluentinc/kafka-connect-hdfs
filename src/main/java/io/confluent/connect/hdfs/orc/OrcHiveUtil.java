@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -23,7 +24,6 @@ import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
-import io.confluent.connect.storage.hive.HiveSchemaConverter;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;

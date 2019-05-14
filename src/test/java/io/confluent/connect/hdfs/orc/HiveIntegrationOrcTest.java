@@ -170,9 +170,10 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
-    String partitionFieldName = connectorConfig.getString(
-        PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
+    List<String> partitionFieldNames = connectorConfig.getList(
+      PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
     );
+    String partitionFieldName = partitionFieldNames.get(0);
     String directory1 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(16);
     String directory2 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(17);
     String directory3 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(18);

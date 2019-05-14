@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -26,7 +27,8 @@ import org.apache.kafka.common.config.AbstractConfig;
 public class OrcHiveFactory implements HiveFactory {
 
   @Override
-  public HiveUtil createHiveUtil(AbstractConfig conf, io.confluent.connect.storage.hive.HiveMetaStore hiveMetaStore) {
+  public HiveUtil createHiveUtil(AbstractConfig conf,
+                                 io.confluent.connect.storage.hive.HiveMetaStore hiveMetaStore) {
     return createHiveUtil((HdfsSinkConnectorConfig) conf, (HiveMetaStore) hiveMetaStore);
   }
 
