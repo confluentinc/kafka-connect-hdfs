@@ -181,7 +181,7 @@ public class SchemaSourceTask extends SourceTask {
         );
       }
 
-      System.out.println("{\"amazing task\": " + id + ", \"seqno\": " + seqno + "}");
+      System.out.println("{\"task\": " + id + ", \"seqno\": " + seqno + "}");
       List<SourceRecord> result = Arrays.asList(srcRecord);
       seqno++;
       count++;

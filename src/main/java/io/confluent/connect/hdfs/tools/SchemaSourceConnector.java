@@ -37,7 +37,6 @@ public class SchemaSourceConnector extends SourceConnector {
   public void start(Map<String, String> props) {
 
     this.config = props;
-    System.out.println("fuck source");
   }
 
   @Override
@@ -47,7 +46,6 @@ public class SchemaSourceConnector extends SourceConnector {
 
   @Override
   public List<Map<String, String>> taskConfigs(int maxTasks) {
-    System.out.println("bitching source");
     ArrayList<Map<String, String>> configs = new ArrayList<>();
     for (Integer i = 0; i < maxTasks; i++) {
       Map<String, String> props = new HashMap<>(config);
