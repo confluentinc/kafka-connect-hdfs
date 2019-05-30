@@ -107,6 +107,7 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> records) throws ConnectException {
+    System.out.println("Amazing local repo!");
     if (log.isDebugEnabled()) {
       log.debug("Read {} records from Kafka", records.size());
     }

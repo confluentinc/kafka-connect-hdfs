@@ -15,9 +15,16 @@
 
 package io.confluent.connect.hdfs.tools;
 
+
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.data.Time;
+import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
@@ -41,26 +48,23 @@ public class SchemaSourceTask extends SourceTask {
   private static final Logger log = LoggerFactory.getLogger(SchemaSourceTask.class);
   private static final String ID_FIELD = "id";
   private static final String SEQNO_FIELD = "seqno";
+  private static final String CONNECT_AVRO_DECIMAL_PRECISION_PROP = "connect.decimal.precision";
   private static Schema valueSchema = SchemaBuilder.struct().version(1).name("record")
-      .field("boolean", Schema.BOOLEAN_SCHEMA)
-      .field("int", Schema.INT32_SCHEMA)
-      .field("long", Schema.INT64_SCHEMA)
-      .field("float", Schema.FLOAT32_SCHEMA)
-      .field("double", Schema.FLOAT64_SCHEMA)
-      .field("partitioning", Schema.INT32_SCHEMA)
-      .field("id", Schema.INT32_SCHEMA)
-      .field("seqno", Schema.INT64_SCHEMA)
+      .field("date", Date.builder().build())
+      .field("decimalwithprecision", Decimal.builder(2)
+          .parameter(CONNECT_AVRO_DECIMAL_PRECISION_PROP, "64").build())
+      .field("decimalwithoutprecision", Decimal.builder(2).build())
+      .field("time", Time.builder().build())
+      .field("timestamp", Timestamp.builder().build())
       .build();
   private static Schema valueSchema2 = SchemaBuilder.struct().version(2).name("record")
-      .field("boolean", Schema.BOOLEAN_SCHEMA)
-      .field("int", Schema.INT32_SCHEMA)
-      .field("long", Schema.INT64_SCHEMA)
-      .field("float", Schema.FLOAT32_SCHEMA)
-      .field("double", Schema.FLOAT64_SCHEMA)
-      .field("partitioning", Schema.INT32_SCHEMA)
+      .field("date", Date.builder().build())
+      .field("decimalwithprecision", Decimal.builder(2)
+          .parameter(CONNECT_AVRO_DECIMAL_PRECISION_PROP, "64").build())
+      .field("decimalwithoutprecision", Decimal.builder(2).build())
+      .field("time", Time.builder().build())
+      .field("timestamp", Timestamp.builder().build())
       .field("string", SchemaBuilder.string().defaultValue("abc").build())
-      .field("id", Schema.INT32_SCHEMA)
-      .field("seqno", Schema.INT64_SCHEMA)
       .build();
   private String name; // Connector name
   private int id; // Task ID
@@ -140,14 +144,11 @@ public class SchemaSourceTask extends SourceTask {
       final SourceRecord srcRecord;
       if (!multipleSchema || count % 2 == 0) {
         data = new Struct(valueSchema)
-            .put("boolean", true)
-            .put("int", 12)
-            .put("long", 12L)
-            .put("float", 12.2f)
-            .put("double", 12.2)
-            .put("partitioning", partitionVal)
-            .put("id", id)
-            .put("seqno", seqno);
+            .put("date", 12)
+            .put("decimalwithprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
+            .put("decimalwithoutprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
+            .put("time", 12)
+            .put("timestamp", 12L);
 
         srcRecord = new SourceRecord(
             partition,
@@ -161,15 +162,12 @@ public class SchemaSourceTask extends SourceTask {
         );
       } else {
         data = new Struct(valueSchema2)
-            .put("boolean", true)
-            .put("int", 12)
-            .put("long", 12L)
-            .put("float", 12.2f)
-            .put("double", 12.2)
-            .put("partitioning", partitionVal)
-            .put("string", "def")
-            .put("id", id)
-            .put("seqno", seqno);
+            .put("date", 12)
+            .put("decimalwithprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
+            .put("decimalwithoutprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
+            .put("time", 12)
+            .put("timestamp", 12L)
+            .put("string", "def");
 
         srcRecord = new SourceRecord(
             partition,
@@ -183,7 +181,7 @@ public class SchemaSourceTask extends SourceTask {
         );
       }
 
-      System.out.println("{\"task\": " + id + ", \"seqno\": " + seqno + "}");
+      System.out.println("{\"amazing task\": " + id + ", \"seqno\": " + seqno + "}");
       List<SourceRecord> result = Arrays.asList(srcRecord);
       seqno++;
       count++;
