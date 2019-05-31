@@ -17,7 +17,6 @@ package io.confluent.connect.hdfs.tools;
 
 
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
@@ -142,13 +141,16 @@ public class SchemaSourceTask extends SourceTask {
       int partitionVal = (int) (seqno % partitionCount);
       final Struct data;
       final SourceRecord srcRecord;
+      byte[] bytes = new BigInteger("1220").toByteArray();
       if (!multipleSchema || count % 2 == 0) {
         data = new Struct(valueSchema)
-            .put("date", 12)
-            .put("decimalwithprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
-            .put("decimalwithoutprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
-            .put("time", 12)
-            .put("timestamp", 12L);
+            .put("date", Date.toLogical(valueSchema.field("date").schema(), 12))
+            .put("decimalwithprecision", Decimal.toLogical(
+                valueSchema.field("decimalwithprecision").schema(), bytes))
+            .put("decimalwithoutprecision", Decimal.toLogical(
+                valueSchema.field("decimalwithoutprecision").schema(), bytes))
+            .put("time", Time.toLogical(valueSchema.field("time").schema(), 12))
+            .put("timestamp", Timestamp.toLogical(valueSchema.field("timestamp").schema(), 12L));
 
         srcRecord = new SourceRecord(
             partition,
@@ -162,11 +164,13 @@ public class SchemaSourceTask extends SourceTask {
         );
       } else {
         data = new Struct(valueSchema2)
-            .put("date", 12)
-            .put("decimalwithprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
-            .put("decimalwithoutprecision", ByteBuffer.wrap(new BigInteger("1220").toByteArray()))
-            .put("time", 12)
-            .put("timestamp", 12L)
+            .put("date", Date.toLogical(valueSchema2.field("date").schema(), 12))
+            .put("decimalwithprecision", Decimal.toLogical(
+                valueSchema2.field("decimalwithprecision").schema(),bytes))
+            .put("decimalwithoutprecision", Decimal.toLogical(
+                valueSchema2.field("decimalwithoutprecision").schema(), bytes))
+            .put("time", Time.toLogical(valueSchema2.field("time").schema(), 12))
+            .put("timestamp", Timestamp.toLogical(valueSchema2.field("timestamp").schema(), 12L))
             .put("string", "def");
 
         srcRecord = new SourceRecord(
