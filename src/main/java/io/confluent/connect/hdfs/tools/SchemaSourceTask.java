@@ -47,8 +47,33 @@ public class SchemaSourceTask extends SourceTask {
   private static final Logger log = LoggerFactory.getLogger(SchemaSourceTask.class);
   private static final String ID_FIELD = "id";
   private static final String SEQNO_FIELD = "seqno";
+  private static final String SCHEMA_TYPE = "schema.type";
   private static final String CONNECT_AVRO_DECIMAL_PRECISION_PROP = "connect.decimal.precision";
+
   private static Schema valueSchema = SchemaBuilder.struct().version(1).name("record")
+      .field("boolean", Schema.BOOLEAN_SCHEMA)
+      .field("int", Schema.INT32_SCHEMA)
+      .field("long", Schema.INT64_SCHEMA)
+      .field("float", Schema.FLOAT32_SCHEMA)
+      .field("double", Schema.FLOAT64_SCHEMA)
+      .field("partitioning", Schema.INT32_SCHEMA)
+      .field("id", Schema.INT32_SCHEMA)
+      .field("seqno", Schema.INT64_SCHEMA)
+      .build();
+  private static Schema valueSchema2 = SchemaBuilder.struct().version(2).name("record")
+      .field("boolean", Schema.BOOLEAN_SCHEMA)
+      .field("int", Schema.INT32_SCHEMA)
+      .field("long", Schema.INT64_SCHEMA)
+      .field("float", Schema.FLOAT32_SCHEMA)
+      .field("double", Schema.FLOAT64_SCHEMA)
+      .field("partitioning", Schema.INT32_SCHEMA)
+      .field("string", SchemaBuilder.string().defaultValue("abc").build())
+      .field("id", Schema.INT32_SCHEMA)
+      .field("seqno", Schema.INT64_SCHEMA)
+      .build();
+
+
+  private static Schema valueSchemaLogical = SchemaBuilder.struct().version(1).name("record")
       .field("date", Date.builder().build())
       .field("decimalwithprecision", Decimal.builder(2)
           .parameter(CONNECT_AVRO_DECIMAL_PRECISION_PROP, "64").build())
@@ -56,7 +81,7 @@ public class SchemaSourceTask extends SourceTask {
       .field("time", Time.builder().build())
       .field("timestamp", Timestamp.builder().build())
       .build();
-  private static Schema valueSchema2 = SchemaBuilder.struct().version(2).name("record")
+  private static Schema valueSchemaLogical2 = SchemaBuilder.struct().version(2).name("record")
       .field("date", Date.builder().build())
       .field("decimalwithprecision", Decimal.builder(2)
           .parameter(CONNECT_AVRO_DECIMAL_PRECISION_PROP, "64").build())
@@ -80,6 +105,7 @@ public class SchemaSourceTask extends SourceTask {
   // for system testing purposes
   private long intervalMs;
   private int intervalNanos;
+  private String schemaType;
 
   public String version() {
     return new SchemaSourceConnector().version();
@@ -106,6 +132,8 @@ public class SchemaSourceTask extends SourceTask {
         intervalMs = 0;
         intervalNanos = 0;
       }
+
+      schemaType = props.get(SCHEMA_TYPE);
     } catch (NumberFormatException e) {
       throw new ConnectException("Invalid SchemaSourceTask configuration", e);
     }
@@ -130,6 +158,16 @@ public class SchemaSourceTask extends SourceTask {
 
   @Override
   public List<SourceRecord> poll() throws InterruptedException {
+    if ("logical".equalsIgnoreCase(this.schemaType)) {
+      return pollLogical();
+    } else if ("primitive".equalsIgnoreCase(this.schemaType)) {
+      return pollPrimitive();
+    } else {
+      throw new InterruptedException("Invalid schema type");
+    }
+  }
+
+  private List<SourceRecord> pollLogical() throws InterruptedException {
     if (count < maxNumMsgs) {
       if (intervalMs > 0 || intervalNanos > 0) {
         synchronized (this) {
@@ -143,14 +181,87 @@ public class SchemaSourceTask extends SourceTask {
       final SourceRecord srcRecord;
       byte[] bytes = new BigInteger("1220").toByteArray();
       if (!multipleSchema || count % 2 == 0) {
-        data = new Struct(valueSchema)
-            .put("date", Date.toLogical(valueSchema.field("date").schema(), 12))
+        data = new Struct(valueSchemaLogical)
+            .put("date", Date.toLogical(valueSchemaLogical.field("date").schema(), 12))
             .put("decimalwithprecision", Decimal.toLogical(
-                valueSchema.field("decimalwithprecision").schema(), bytes))
+                valueSchemaLogical.field("decimalwithprecision").schema(), bytes))
             .put("decimalwithoutprecision", Decimal.toLogical(
-                valueSchema.field("decimalwithoutprecision").schema(), bytes))
-            .put("time", Time.toLogical(valueSchema.field("time").schema(), 12))
-            .put("timestamp", Timestamp.toLogical(valueSchema.field("timestamp").schema(), 12L));
+                valueSchemaLogical.field("decimalwithoutprecision").schema(), bytes))
+            .put("time", Time.toLogical(valueSchemaLogical.field("time").schema(), 12))
+            .put("timestamp",
+                Timestamp.toLogical(valueSchemaLogical.field("timestamp").schema(),
+                    12L));
+
+        srcRecord = new SourceRecord(
+            partition,
+            ccOffset,
+            topic,
+            id,
+            Schema.STRING_SCHEMA,
+            "key",
+            valueSchemaLogical,
+            data
+        );
+      } else {
+        data = new Struct(valueSchemaLogical2)
+            .put("date", Date.toLogical(valueSchemaLogical2.field("date").schema(), 12))
+            .put("decimalwithprecision", Decimal.toLogical(
+                valueSchemaLogical2.field("decimalwithprecision").schema(),bytes))
+            .put("decimalwithoutprecision", Decimal.toLogical(
+                valueSchemaLogical2.field("decimalwithoutprecision").schema(), bytes))
+            .put("time", Time.toLogical(valueSchemaLogical2.field("time").schema(), 12))
+            .put("timestamp",
+                Timestamp.toLogical(valueSchemaLogical2.field("timestamp").schema(),
+                    12L))
+            .put("string", "def");
+
+        srcRecord = new SourceRecord(
+            partition,
+            ccOffset,
+            topic,
+            id,
+            Schema.STRING_SCHEMA,
+            "key",
+            valueSchemaLogical2,
+            data
+        );
+      }
+
+      System.out.println("{\"task\": " + id + ", \"seqno\": " + seqno + "}");
+      List<SourceRecord> result = Arrays.asList(srcRecord);
+      seqno++;
+      count++;
+      return result;
+    } else {
+      synchronized (this) {
+        this.wait();
+      }
+      return new ArrayList<>();
+    }
+  }
+
+  private List<SourceRecord> pollPrimitive() throws InterruptedException {
+    if (count < maxNumMsgs) {
+      if (intervalMs > 0 || intervalNanos > 0) {
+        synchronized (this) {
+          this.wait(intervalMs, intervalNanos);
+        }
+      }
+
+      Map<String, Long> ccOffset = Collections.singletonMap(SEQNO_FIELD, seqno);
+      int partitionVal = (int) (seqno % partitionCount);
+      final Struct data;
+      final SourceRecord srcRecord;
+      if (!multipleSchema || count % 2 == 0) {
+        data = new Struct(valueSchema)
+            .put("boolean", true)
+            .put("int", 12)
+            .put("long", 12L)
+            .put("float", 12.2f)
+            .put("double", 12.2)
+            .put("partitioning", partitionVal)
+            .put("id", id)
+            .put("seqno", seqno);
 
         srcRecord = new SourceRecord(
             partition,
@@ -164,14 +275,15 @@ public class SchemaSourceTask extends SourceTask {
         );
       } else {
         data = new Struct(valueSchema2)
-            .put("date", Date.toLogical(valueSchema2.field("date").schema(), 12))
-            .put("decimalwithprecision", Decimal.toLogical(
-                valueSchema2.field("decimalwithprecision").schema(),bytes))
-            .put("decimalwithoutprecision", Decimal.toLogical(
-                valueSchema2.field("decimalwithoutprecision").schema(), bytes))
-            .put("time", Time.toLogical(valueSchema2.field("time").schema(), 12))
-            .put("timestamp", Timestamp.toLogical(valueSchema2.field("timestamp").schema(), 12L))
-            .put("string", "def");
+            .put("boolean", true)
+            .put("int", 12)
+            .put("long", 12L)
+            .put("float", 12.2f)
+            .put("double", 12.2)
+            .put("partitioning", partitionVal)
+            .put("string", "def")
+            .put("id", id)
+            .put("seqno", seqno);
 
         srcRecord = new SourceRecord(
             partition,
