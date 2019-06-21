@@ -173,7 +173,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   }
 
   @Test
-  public void testGetNextOffsets() throws Exception {
+  public void testGetPreviousOffsets() throws Exception {
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
     long[] startOffsets = {0, 3};
     long[] endOffsets = {2, 5};
@@ -195,8 +195,8 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
 
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
-    long nextOffset = committedOffsets.get(TOPIC_PARTITION);
-    assertEquals(6L, nextOffset);
+    long previousOffset = committedOffsets.get(TOPIC_PARTITION);
+    assertEquals(previousOffset, 6L - 1);
 
     hdfsWriter.close();
     hdfsWriter.stop();
@@ -390,14 +390,14 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     List<SinkRecord> sinkRecords = createSinkRecords(NUMBER_OF_RECORDS);
     hdfsWriter.write(sinkRecords);
 
-    // Wait so everything is committed
     time.sleep(WAIT_TIME);
+
     hdfsWriter.write(new ArrayList<SinkRecord>());
 
     Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
     assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
-    long nextOffset = committedOffsets.get(TOPIC_PARTITION);
-    assertEquals(NUMBER_OF_RECORDS, nextOffset);
+    long previousOffset = committedOffsets.get(TOPIC_PARTITION);
+    assertEquals(NUMBER_OF_RECORDS - 1, previousOffset);
 
     hdfsWriter.close();
     hdfsWriter.stop();
