@@ -440,7 +440,7 @@ public class TopicPartitionWriter {
             log.error("Failed to close temp file.",e);
             if (this.failedTempFileCloseAttempts < 4) {
               log.info("Preparing recovery for the partition "
-			      + "attempt : {}",failedTempFileCloseAttempts);
+                  + "attempt : {}",failedTempFileCloseAttempts);
               startRecovery();
               failedTempFileCloseAttempts += 1;
               // exit from the write() method call itself once state changes are done.
@@ -471,9 +471,9 @@ public class TopicPartitionWriter {
     state = State.RECOVERY_STARTED;
     /*
      recovered would be "true" at this time since, this is
-	 not a new TopicPartitionWriter. resetting this to false
-	 manually is required to trigger WAL operations and reset
-	 consumer offsets based on hdfs files.
+     not a new TopicPartitionWriter. resetting this to false
+     manually is required to trigger WAL operations and reset
+     consumer offsets based on hdfs files.
     */
     recovered = false;
     recordCounter = 0;
