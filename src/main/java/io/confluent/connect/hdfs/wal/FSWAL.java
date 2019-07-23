@@ -100,9 +100,11 @@ public class FSWAL implements WAL {
   public void apply() throws ConnectException {
     try {
       if (!storage.exists(logFile)) {
+        log.debug("Storage does not exist");
         return;
       }
       acquireLease();
+      log.debug("Lease acquired");
       if (reader == null) {
         reader = new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(logFile)));
       }
@@ -132,6 +134,7 @@ public class FSWAL implements WAL {
       close();
       throw new DataException(e);
     }
+    log.debug("Finished applying WAL");
   }
 
   @Override
@@ -147,6 +150,7 @@ public class FSWAL implements WAL {
 
   @Override
   public void close() throws ConnectException {
+    log.debug("Closing WAL");
     try {
       if (writer != null) {
         writer.close();
