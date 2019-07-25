@@ -256,15 +256,19 @@ public class TopicPartitionWriter {
           pause();
           nextState();
         case RECOVERY_PARTITION_PAUSED:
+          log.debug("Start recovery state: Apply WAL for topic partition {}", tp);
           applyWAL();
           nextState();
         case WAL_APPLIED:
+          log.debug("Start recovery state: Truncate WAL for topic partition {}", tp);
           truncateWAL();
           nextState();
         case WAL_TRUNCATED:
+          log.debug("Start recovery state: Reset Offsets for topic partition {}", tp);
           resetOffsets();
           nextState();
         case OFFSET_RESET:
+          log.debug("Start recovery state: Resume for topic partition {}", tp);
           resume();
           nextState();
           log.info("Finished recovery for topic partition {}", tp);
