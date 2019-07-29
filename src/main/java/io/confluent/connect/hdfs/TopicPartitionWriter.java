@@ -22,6 +22,7 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.errors.IllegalWorkerStateException;
+import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.errors.SchemaProjectorException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -280,7 +281,7 @@ public class TopicPartitionWriter {
               tp
           );
       }
-    } catch (ConnectException e) {
+    } catch (RetriableException e) {
       log.error("Recovery failed at state {}", state, e);
       setRetryTimeout(timeoutMs);
       return false;
@@ -406,7 +407,7 @@ public class TopicPartitionWriter {
         }
       } catch (SchemaProjectorException | IllegalWorkerStateException | HiveMetaStoreException e) {
         throw new RuntimeException(e);
-      } catch (ConnectException e) {
+      } catch (RetriableException e) {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
@@ -427,7 +428,7 @@ public class TopicPartitionWriter {
           closeTempFile();
           appendToWAL();
           commitFile();
-        } catch (ConnectException e) {
+        } catch (RetriableException e) {
           log.error("Exception on topic partition {}: ", tp, e);
           failureTime = time.milliseconds();
           setRetryTimeout(timeoutMs);
