@@ -358,6 +358,15 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     for (AbstractConfig config : allConfigs) {
       map.putAll(config.values());
     }
+    // Include any additional properties not defined by the ConfigDef
+    // that custom partitioners might need
+    Map<String, ?> originals = originals();
+    for (String originalKey : originals.keySet()) {
+      if (!map.containsKey(originalKey)) {
+        map.put(originalKey, originals.get(originalKey));
+      }
+    }
+
     return map;
   }
 
