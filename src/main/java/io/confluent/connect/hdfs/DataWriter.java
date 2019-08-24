@@ -67,7 +67,7 @@ public class DataWriter {
   private static final Time SYSTEM_TIME = new SystemTime();
   private final Time time;
 
-  private Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
+  private final Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
   private HdfsStorage storage;
   private String topicsDir;
@@ -451,11 +451,20 @@ public class DataWriter {
     // data may have continued to be processed and we'd have to restart from the recovery stage,
     // make sure we apply the WAL, and only reuse the temp file if the starting offset is still
     // valid. For now, we prefer the simpler solution that may result in a bit of wasted effort.
-    for (TopicPartition tp : assignment) {
+    for (Map.Entry<TopicPartition, TopicPartitionWriter> ent : topicPartitionWriters.entrySet()) {
       try {
-        topicPartitionWriters.get(tp).close();
+        TopicPartitionWriter writer = ent.getValue();
+        if (writer != null) {
+          // In some failure modes, with might not have created a writer for all assignments
+          writer.close();
+        }
       } catch (ConnectException e) {
-        log.error("Error closing writer for {}. Error: {}", tp, e.getMessage());
+        log.warn(
+            "Unable to close writer for topic partition {}: {}",
+            ent.getKey(),
+            e.getMessage(),
+            e
+        );
       }
     }
     topicPartitionWriters.clear();

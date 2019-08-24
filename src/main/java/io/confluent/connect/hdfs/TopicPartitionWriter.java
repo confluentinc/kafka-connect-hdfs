@@ -692,15 +692,15 @@ public class TopicPartitionWriter {
   }
 
   private void closeTempFile(String encodedPartition) {
-    if (writers.containsKey(encodedPartition)) {
-      io.confluent.connect.storage.format.RecordWriter writer = writers.get(encodedPartition);
+    io.confluent.connect.storage.format.RecordWriter writer = writers.remove(encodedPartition);
+    if (writer != null) {
       writer.close();
-      writers.remove(encodedPartition);
     }
   }
 
   private void closeTempFile() {
     for (String encodedPartition : tempFiles.keySet()) {
+      // Close the file and propagate any errors
       closeTempFile(encodedPartition);
     }
   }
