@@ -498,6 +498,10 @@ public class TopicPartitionWriter {
     return offset;
   }
 
+  public TopicPartition topicPartition() {
+    return tp;
+  }
+
   Map<String, io.confluent.connect.storage.format.RecordWriter> getWriters() {
     return writers;
   }

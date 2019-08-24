@@ -451,20 +451,14 @@ public class DataWriter {
     // data may have continued to be processed and we'd have to restart from the recovery stage,
     // make sure we apply the WAL, and only reuse the temp file if the starting offset is still
     // valid. For now, we prefer the simpler solution that may result in a bit of wasted effort.
-    for (Map.Entry<TopicPartition, TopicPartitionWriter> ent : topicPartitionWriters.entrySet()) {
+    for (TopicPartitionWriter writer : topicPartitionWriters.values()) {
       try {
-        TopicPartitionWriter writer = ent.getValue();
         if (writer != null) {
           // In some failure modes, the writer might not have been created for all assignments
           writer.close();
         }
       } catch (ConnectException e) {
-        log.warn(
-            "Unable to close writer for topic partition {}: {}",
-            ent.getKey(),
-            e.getMessage(),
-            e
-        );
+        log.warn("Unable to close writer for topic partition {}: ", writer.topicPartition(), e);
       }
     }
     topicPartitionWriters.clear();
