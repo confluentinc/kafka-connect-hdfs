@@ -455,7 +455,7 @@ public class DataWriter {
       try {
         TopicPartitionWriter writer = ent.getValue();
         if (writer != null) {
-          // In some failure modes, with might not have created a writer for all assignments
+          // In some failure modes, the writer might not have been created for all assignments
           writer.close();
         }
       } catch (ConnectException e) {
