@@ -500,6 +500,10 @@ public class TopicPartitionWriter {
     return offset;
   }
 
+  public TopicPartition topicPartition() {
+    return tp;
+  }
+
   Map<String, io.confluent.connect.storage.format.RecordWriter> getWriters() {
     return writers;
   }
@@ -694,15 +698,23 @@ public class TopicPartitionWriter {
   }
 
   private void closeTempFile(String encodedPartition) {
-    if (writers.containsKey(encodedPartition)) {
-      io.confluent.connect.storage.format.RecordWriter writer = writers.get(encodedPartition);
+    // Here we remove the writer first, and then if non-null attempt to close it.
+    // This is the correct logic, because if `close()` throws an exception and fails, the task
+    // will catch this an ultimately retry writing the records in that topic partition.
+    // But to do so, we need to get a new `RecordWriter`, and `getWriter(...)` would only
+    // do that if there is no existing writer in the `writers` map.
+    // Plus, once a `writer.close()` method is called, per the `Closeable` contract we should
+    // not use it again. Therefore, it's actually better to remove the writer before
+    // trying to close it, even if the close attempt fails.
+    io.confluent.connect.storage.format.RecordWriter writer = writers.remove(encodedPartition);
+    if (writer != null) {
       writer.close();
-      writers.remove(encodedPartition);
     }
   }
 
   private void closeTempFile() {
     for (String encodedPartition : tempFiles.keySet()) {
+      // Close the file and propagate any errors
       closeTempFile(encodedPartition);
     }
   }
