@@ -281,6 +281,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   private final String name;
+  private final String url;
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
   private final PartitionerConfig partitionerConfig;
@@ -301,6 +302,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
     this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
+    this.url = extractUrl(originalsStrings());
     addToGlobal(hiveConfig);
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
@@ -330,8 +332,28 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     }
   }
 
+  private static String extractUrl(Map<String, String> props) {
+    String storageUrl = props.get(StorageCommonConfig.STORE_URL_CONFIG);
+    if (storageUrl != null && !storageUrl.equals(StorageCommonConfig.STORE_URL_DEFAULT)) {
+      return storageUrl;
+    }
+
+    String hdfsUrl = props.get(HDFS_URL_CONFIG);
+    if (hdfsUrl != null && !hdfsUrl.equals(HDFS_URL_DEFAULT)) {
+      return hdfsUrl;
+    }
+
+    throw new ConfigException(
+        String.format("Configuration %s cannot be empty."), StorageCommonConfig.STORE_URL_CONFIG
+    );
+  }
+
   public String getName() {
     return name;
+  }
+
+  public String getUrl() {
+    return url;
   }
 
   @Override

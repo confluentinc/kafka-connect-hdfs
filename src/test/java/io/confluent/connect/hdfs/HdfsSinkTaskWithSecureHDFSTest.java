@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.storage.common.StorageCommonConfig;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -54,6 +55,8 @@ public class HdfsSinkTaskWithSecureHDFSTest extends TestWithSecureMiniDFSCluster
         sinkRecords.add(sinkRecord);
       }
     }
+
+    properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
     task.initialize(context);
     task.start(properties);
     task.put(sinkRecords);

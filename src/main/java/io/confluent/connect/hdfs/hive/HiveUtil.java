@@ -19,7 +19,6 @@ import org.apache.kafka.connect.data.Schema;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.storage.common.StorageCommonConfig;
 
 // NOTE: DO NOT add or modify this class as it is maintained for compatibility
 @Deprecated
@@ -27,14 +26,7 @@ public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUti
 
   public HiveUtil(HdfsSinkConnectorConfig connectorConfig, HiveMetaStore hiveMetaStore) {
     super(connectorConfig, hiveMetaStore);
-    String urlKey;
-
-    urlKey = connectorConfig.getString(StorageCommonConfig.STORE_URL_CONFIG);
-    if (urlKey == null || urlKey.equals(StorageCommonConfig.STORE_URL_DEFAULT)) {
-      urlKey = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
-    }
-
-    this.url = urlKey;
+    this.url = connectorConfig.getUrl();
   }
 
   @Override

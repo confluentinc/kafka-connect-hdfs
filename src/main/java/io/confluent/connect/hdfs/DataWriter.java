@@ -203,7 +203,7 @@ public class DataWriter {
         ticketRenewThread.start();
       }
 
-      url = connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
+      url = connectorConfig.getUrl();
       topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
 
       @SuppressWarnings("unchecked")
