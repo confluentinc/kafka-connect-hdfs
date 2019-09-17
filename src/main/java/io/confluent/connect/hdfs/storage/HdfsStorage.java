@@ -125,11 +125,14 @@ public class HdfsStorage
   @Override
   public void close() {
     if (fs != null) {
+      // don't close FileSystem, to avoid ClosedChannelException;
+      /*
       try {
         fs.close();
       } catch (IOException e) {
         throw new ConnectException(e);
       }
+      */
     }
   }
 

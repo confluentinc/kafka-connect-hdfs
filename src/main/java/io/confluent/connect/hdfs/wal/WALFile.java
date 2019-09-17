@@ -183,7 +183,8 @@ public class WALFile {
         log.error("Failed creating a WAL Writer: " + re.getMessage());
         if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
           if (fs != null) {
-            fs.close();
+            // don't close FileSystem, to avoid ClosedChannelException;
+            // fs.close();
           }
         }
         throw re;
@@ -465,7 +466,8 @@ public class WALFile {
         log.error("Failed creating a WAL Reader: " + re.getMessage());
         if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
           if (fs != null) {
-            fs.close();
+            // don't close FileSystem, to avoid ClosedChannelException;
+            // fs.close();
           }
         }
         throw re;
