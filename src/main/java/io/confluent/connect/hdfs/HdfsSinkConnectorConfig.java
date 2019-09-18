@@ -332,7 +332,14 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     }
   }
 
-  private static String extractUrl(Map<String, String> props) {
+  /**
+   * Returns the url property. Preference is given to property `store.url` over `hdfs.url` because
+   * `hdfs.url` is deprecated.
+   *
+   * @param props - Map of properties for the connector
+   * @return String - url for HDFS
+   */
+  private String extractUrl(Map<String, String> props) {
     String storageUrl = props.get(StorageCommonConfig.STORE_URL_CONFIG);
     if (storageUrl != null && !storageUrl.equals(StorageCommonConfig.STORE_URL_DEFAULT)) {
       return storageUrl;
