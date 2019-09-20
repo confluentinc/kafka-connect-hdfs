@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs;
 
-import io.confluent.connect.storage.common.StorageCommonConfig;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -24,11 +23,9 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.avro.AvroDataFileReader;
-import io.confluent.connect.hdfs.avro.AvroFileReader;
 
 import static org.junit.Assert.assertEquals;
 
@@ -56,7 +53,6 @@ public class HdfsSinkTaskWithSecureHDFSTest extends TestWithSecureMiniDFSCluster
       }
     }
 
-    properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
     task.initialize(context);
     task.start(properties);
     task.put(sinkRecords);

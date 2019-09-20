@@ -333,8 +333,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   /**
-   * Returns the url property. Preference is given to property `store.url` over `hdfs.url` because
-   * `hdfs.url` is deprecated.
+   * Returns the url property. Preference is given to property <code>store.url</code> over
+   * <code>hdfs.url</code> because <code>hdfs.url</code> is deprecated.
    *
    * @param props - Map of properties for the connector
    * @return String - url for HDFS
