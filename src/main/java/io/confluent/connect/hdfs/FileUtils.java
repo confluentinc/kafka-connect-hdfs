@@ -140,6 +140,17 @@ public class FileUtils {
     return fileStatusWithMaxOffset;
   }
 
+  public static TopicPartition extractTopicPartition(String filename) {
+    Matcher m = HdfsSinkConnectorConstants.COMMITTED_FILENAME_PATTERN.matcher(filename);
+    // NB: if statement has side effect of enabling group() call
+    if (!m.matches()) {
+      throw new IllegalArgumentException(filename + " does not match COMMITTED_FILENAME_PATTERN");
+    }
+    String topic = m.group(HdfsSinkConnectorConstants.PATTERN_TOPIC_GROUP);
+    int partition = Integer.parseInt(m.group(HdfsSinkConnectorConstants.PATTERN_PARTITION_GROUP));
+    return new TopicPartition(topic, partition);
+  }
+
   /**
    * Obtain the offset of the last record that was written to the specified HDFS file.
    * @param filename the name of the HDFS file; may not be null

@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.wal;
 
+import io.confluent.connect.hdfs.RecoveryHelper;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
@@ -120,6 +121,7 @@ public class FSWAL implements WAL {
           for (Map.Entry<WALEntry, WALEntry> entry: entries.entrySet()) {
             String tempFile = entry.getKey().getName();
             String committedFile = entry.getValue().getName();
+            RecoveryHelper.getInstance().addFile(committedFile);
             if (!storage.exists(committedFile)) {
               storage.commit(tempFile, committedFile);
             }
@@ -128,6 +130,9 @@ public class FSWAL implements WAL {
           WALEntry mapKey = new WALEntry(key.getName());
           WALEntry mapValue = new WALEntry(value.getName());
           entries.put(mapKey, mapValue);
+          if (value.getName().equals(RecoveryHelper.RECOVERY_RECORD_KEY)) {
+            RecoveryHelper.getInstance().addFile(value.getName());
+          }
         }
       }
     } catch (IOException e) {

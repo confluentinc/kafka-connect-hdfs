@@ -52,6 +52,7 @@ import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.hdfs.RecoveryHelper.RecoveryPoint;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
@@ -569,6 +570,14 @@ public class TopicPartitionWriter {
   }
 
   private void readOffset() throws ConnectException {
+    RecoveryPoint recoveryPoint = RecoveryHelper.getRecoveryPoint(tp, storage);
+    if (recoveryPoint != null) {
+      offset = recoveryPoint.offset + 1;
+      // yes, we intentionally do not write begin marker here, so it is skipped in WAL.apply()
+      wal.append(RecoveryHelper.RECOVERY_RECORD_KEY, recoveryPoint.filename);
+      return;
+    }
+
     String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
     CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
     FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
@@ -581,6 +590,7 @@ public class TopicPartitionWriter {
           fileStatusWithMaxOffset.getPath().getName());
       // `offset` represents the next offset to read after the most recent commit
       offset = lastCommittedOffsetToHdfs + 1;
+      wal.append(RecoveryHelper.RECOVERY_RECORD_KEY, fileStatusWithMaxOffset.getPath().toString());
     }
   }
 
