@@ -93,6 +93,7 @@ public class WALFile {
     // starts and ends by scanning for this value.
     long lastSyncPos;                     // position of last sync
     byte[] sync;                          // 16 random bytes
+    private FileSystem fs;
     private FSDataOutputStream out;
     private DataOutputBuffer buffer = new DataOutputBuffer();
     private boolean appendMode;
@@ -135,14 +136,13 @@ public class WALFile {
         throw new IllegalArgumentException("file modifier options not compatible with stream");
       }
 
-      FileSystem fs = null;
       FSDataOutputStream out;
       boolean ownStream = fileOption != null;
 
       try {
         if (ownStream) {
           Path p = fileOption.getValue();
-          fs = p.getFileSystem(conf);
+          fs = FileSystem.newInstance(p.toUri(), conf);
           int bufferSize = bufferSizeOption == null
                            ? getBufferSize(conf)
                            : bufferSizeOption.getValue();
@@ -180,10 +180,8 @@ public class WALFile {
         init(connectorConfig, out, ownStream);
       } catch (RemoteException re) {
         log.error("Failed creating a WAL Writer: " + re.getMessage());
-        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          if (fs != null) {
-            fs.close();
-          }
+        if (fs != null) {
+          fs.close();
         }
         throw re;
       }
@@ -316,6 +314,7 @@ public class WALFile {
         // Close the underlying stream iff we own it...
         if (ownOutputStream) {
           out.close();
+          fs.close();
         } else {
           out.flush();
         }
@@ -400,6 +399,7 @@ public class WALFile {
   public static class Reader implements java.io.Closeable {
 
     private String filename;
+    private FileSystem fs;
     private FSDataInputStream in;
     private DataOutputBuffer outBuf = new DataOutputBuffer();
 
@@ -440,12 +440,11 @@ public class WALFile {
       Path filename = null;
       FSDataInputStream file;
       final long len;
-      FileSystem fs = null;
 
       try {
         if (fileOpt != null) {
           filename = fileOpt.getValue();
-          fs = filename.getFileSystem(conf);
+          fs = FileSystem.newInstance(filename.toUri(),conf);
           int bufSize = bufOpt == null ? getBufferSize(conf) : bufOpt.getValue();
           len = null == lenOpt
                 ? fs.getFileStatus(filename).getLen()
@@ -462,10 +461,8 @@ public class WALFile {
         initialize(filename, file, start, len, conf, headerOnly != null);
       } catch (RemoteException re) {
         log.error("Failed creating a WAL Reader: " + re.getMessage());
-        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          if (fs != null) {
-            fs.close();
-          }
+        if (fs != null) {
+          fs.close();
         }
         throw re;
       }
@@ -652,6 +649,7 @@ public class WALFile {
 
       // Close the input-stream
       in.close();
+      fs.close();
     }
 
     private byte getVersion() {
