@@ -88,14 +88,18 @@ public class HdfsStorage
   }
 
   public OutputStream create(String filename, boolean overwrite) {
-    return create(filename, this.conf, overwrite);
+    try {
+      return fs.create(new Path(filename), overwrite);
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
   public OutputStream create(String filename, HdfsSinkConnectorConfig conf, boolean overwrite) {
-    try {
-      Path path = new Path(filename);
-      return path.getFileSystem(conf.getHadoopConfiguration()).create(path);
+    final Path path = new Path(filename);
+    try (FileSystem fs = FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration())) {
+      return fs.create(path, overwrite);
     } catch (IOException e) {
       throw new ConnectException(e);
     }
