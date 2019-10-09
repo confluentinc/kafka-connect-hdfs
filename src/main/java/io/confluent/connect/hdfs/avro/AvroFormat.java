@@ -25,10 +25,12 @@ import io.confluent.connect.storage.hive.HiveFactory;
 
 public class AvroFormat
     implements io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> {
+  private final HdfsStorage storage;
   private final AvroData avroData;
 
   // DO NOT change this signature, it is required for instantiation via reflection
   public AvroFormat(HdfsStorage storage) {
+    this.storage = storage;
     this.avroData = new AvroData(
         storage.conf().getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
     );
@@ -36,7 +38,7 @@ public class AvroFormat
 
   @Override
   public RecordWriterProvider<HdfsSinkConnectorConfig> getRecordWriterProvider() {
-    return new AvroRecordWriterProvider(avroData);
+    return new AvroRecordWriterProvider(storage, avroData);
   }
 
   @Override
