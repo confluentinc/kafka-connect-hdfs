@@ -322,7 +322,6 @@ public class WALFile {
           } else {
             out.flush();
           }
-          out = null;
 
         }
       } finally {
@@ -333,6 +332,7 @@ public class WALFile {
             log.error("Could not close FileSystem", t);
           }
         }
+        out = null;
       }
     }
 
