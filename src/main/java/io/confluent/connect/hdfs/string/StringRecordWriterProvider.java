@@ -70,6 +70,12 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
           writer.newLine();
         } catch (IOException e) {
           throw new ConnectException(e);
+        } finally {
+          try {
+            close();
+          } catch (Throwable t) {
+            log.error("Could not close Record Writer", t);
+          }
         }
       }
 

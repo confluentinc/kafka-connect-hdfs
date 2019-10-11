@@ -85,6 +85,12 @@ public class AvroRecordWriterProvider
           }
         } catch (IOException e) {
           throw new DataException(e);
+        } finally {
+          try {
+            close();
+          } catch (Throwable t) {
+            log.error("Could not close Record Writer", t);
+          }
         }
       }
 

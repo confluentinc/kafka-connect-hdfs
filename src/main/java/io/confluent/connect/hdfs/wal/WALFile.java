@@ -181,7 +181,11 @@ public class WALFile {
       } catch (RemoteException re) {
         log.error("Failed creating a WAL Writer: " + re.getMessage());
         if (fs != null) {
-          fs.close();
+          try {
+            fs.close();
+          } catch (Throwable t) {
+            log.error("Could not close filesystem", t);
+          }
         }
         throw re;
       }
@@ -308,17 +312,27 @@ public class WALFile {
 
     @Override
     public synchronized void close() throws IOException {
-      keySerializer.close();
-      valSerializer.close();
-      if (out != null) {
-        // Close the underlying stream iff we own it...
-        if (ownOutputStream) {
-          out.close();
-          fs.close();
-        } else {
-          out.flush();
+      try {
+        keySerializer.close();
+        valSerializer.close();
+        if (out != null) {
+          // Close the underlying stream iff we own it...
+          if (ownOutputStream) {
+            out.close();
+          } else {
+            out.flush();
+          }
+          out = null;
+
         }
-        out = null;
+      } finally {
+        if (fs != null) {
+          try {
+            fs.close();
+          } catch (Throwable t) {
+            log.error("Could not close FileSystem", t);
+          }
+        }
       }
     }
 
@@ -462,7 +476,11 @@ public class WALFile {
       } catch (RemoteException re) {
         log.error("Failed creating a WAL Reader: " + re.getMessage());
         if (fs != null) {
-          fs.close();
+          try {
+            fs.close();
+          } catch (Throwable t) {
+            log.error("Error closing FileSystem", t);
+          }
         }
         throw re;
       }
@@ -640,16 +658,23 @@ public class WALFile {
      */
     @Override
     public synchronized void close() throws IOException {
-      if (keyDeserializer != null) {
-        keyDeserializer.close();
-      }
-      if (valDeserializer != null) {
-        valDeserializer.close();
-      }
+      try {
+        if (keyDeserializer != null) {
+          keyDeserializer.close();
+        }
+        if (valDeserializer != null) {
+          valDeserializer.close();
+        }
 
-      // Close the input-stream
-      in.close();
-      fs.close();
+        // Close the input-stream
+        in.close();
+      } finally {
+        try {
+          fs.close();
+        } catch (Throwable t) {
+          log.error("Unable to close FileSystem", t);
+        }
+      }
     }
 
     private byte getVersion() {

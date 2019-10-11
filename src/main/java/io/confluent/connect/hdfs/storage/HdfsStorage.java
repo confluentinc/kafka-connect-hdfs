@@ -34,10 +34,14 @@ import java.util.List;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.hdfs.wal.WAL;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HdfsStorage
     implements io.confluent.connect.storage.Storage<HdfsSinkConnectorConfig, List<FileStatus>>,
     Storage {
+
+  private static final Logger log = LoggerFactory.getLogger(HdfsStorage.class);
 
   private final FileSystem fs;
   private final HdfsSinkConnectorConfig conf;
@@ -124,8 +128,15 @@ public class HdfsStorage
 
         @Override
         public void close() throws IOException {
-          file.close();
-          fs.close();
+          try {
+            file.close();
+          } finally {
+            try {
+              fs.close();
+            } catch (Throwable t) {
+              log.error("Could not close FileSystem", t);
+            }
+          }
         }
       };
     } catch (IOException e) {
