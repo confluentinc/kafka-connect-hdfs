@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -302,11 +303,11 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
     this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
-    this.url = extractUrl(props);
     addToGlobal(hiveConfig);
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
     addToGlobal(this);
+    this.url = extractUrl();
   }
 
   public static Map<String, String> addDefaults(Map<String, String> props) {
@@ -336,22 +337,21 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
    * Returns the url property. Preference is given to property <code>store.url</code> over
    * <code>hdfs.url</code> because <code>hdfs.url</code> is deprecated.
    *
-   * @param props - Map of properties for the connector
-   * @return String - url for HDFS
+   * @return String url for HDFS
    */
-  private String extractUrl(Map<String, String> props) {
-    String storageUrl = props.get(StorageCommonConfig.STORE_URL_CONFIG);
-    if (storageUrl != null && !storageUrl.equals(StorageCommonConfig.STORE_URL_DEFAULT)) {
+  private String extractUrl() {
+    String storageUrl = getString(StorageCommonConfig.STORE_URL_CONFIG);
+    if (StringUtils.isNotBlank(storageUrl)) {
       return storageUrl;
     }
 
-    String hdfsUrl = props.get(HDFS_URL_CONFIG);
-    if (hdfsUrl != null && !hdfsUrl.equals(HDFS_URL_DEFAULT)) {
+    String hdfsUrl = getString(HDFS_URL_CONFIG);
+    if (StringUtils.isNotBlank(hdfsUrl)) {
       return hdfsUrl;
     }
 
     throw new ConfigException(
-        String.format("Configuration %s cannot be empty."), StorageCommonConfig.STORE_URL_CONFIG
+        String.format("Configuration %s cannot be empty.", StorageCommonConfig.STORE_URL_CONFIG)
     );
   }
 
