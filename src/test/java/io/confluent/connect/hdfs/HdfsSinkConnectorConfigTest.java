@@ -65,6 +65,13 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   }
 
   @Test
+  public void testHdfsUrlIsValid() {
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
+    assertEquals(url, connectorConfig.getUrl());
+  }
+
+  @Test
   public void testStorageClass() throws Exception {
     // No real test case yet
     connectorConfig = new HdfsSinkConnectorConfig(properties);
