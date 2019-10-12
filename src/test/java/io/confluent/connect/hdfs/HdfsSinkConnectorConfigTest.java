@@ -17,6 +17,7 @@
 package io.confluent.connect.hdfs;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
@@ -48,6 +49,26 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   @Override
   public void setUp() throws Exception {
     super.setUp();
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testUrlConfigMustBeNonEmpty() {
+    properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
+    properties.remove(HdfsSinkConnectorConfig.HDFS_URL_CONFIG);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+  }
+
+  @Test
+  public void testStorageCommonUrlPreferred() {
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    assertEquals(url, connectorConfig.getUrl());
+  }
+
+  @Test
+  public void testHdfsUrlIsValid() {
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
+    assertEquals(url, connectorConfig.getUrl());
   }
 
   @Test

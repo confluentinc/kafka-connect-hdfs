@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -281,6 +282,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   private final String name;
+  private final String url;
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
   private final PartitionerConfig partitionerConfig;
@@ -305,6 +307,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
     addToGlobal(this);
+    this.url = extractUrl();
   }
 
   public static Map<String, String> addDefaults(Map<String, String> props) {
@@ -330,8 +333,34 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     }
   }
 
+  /**
+   * Returns the url property. Preference is given to property <code>store.url</code> over
+   * <code>hdfs.url</code> because <code>hdfs.url</code> is deprecated.
+   *
+   * @return String url for HDFS
+   */
+  private String extractUrl() {
+    String storageUrl = getString(StorageCommonConfig.STORE_URL_CONFIG);
+    if (StringUtils.isNotBlank(storageUrl)) {
+      return storageUrl;
+    }
+
+    String hdfsUrl = getString(HDFS_URL_CONFIG);
+    if (StringUtils.isNotBlank(hdfsUrl)) {
+      return hdfsUrl;
+    }
+
+    throw new ConfigException(
+        String.format("Configuration %s cannot be empty.", StorageCommonConfig.STORE_URL_CONFIG)
+    );
+  }
+
   public String getName() {
     return name;
+  }
+
+  public String getUrl() {
+    return url;
   }
 
   @Override
