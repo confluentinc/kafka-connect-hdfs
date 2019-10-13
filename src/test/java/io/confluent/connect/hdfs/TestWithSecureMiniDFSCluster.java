@@ -14,6 +14,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.storage.common.StorageCommonConfig;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
@@ -149,6 +150,7 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
     Map<String, String> props = super.createProps();
     url = "hdfs://" + cluster.getNameNode().getClientNamenodeAddress();
     props.put(HdfsSinkConnectorConfig.HDFS_URL_CONFIG, url);
+    props.put(StorageCommonConfig.STORE_URL_CONFIG, url);
     props.put(HdfsSinkConnectorConfig.HDFS_AUTHENTICATION_KERBEROS_CONFIG, "true");
     // if we use the connect principal to authenticate with secure Hadoop, the following
     // error shows up: Auth failed for 127.0.0.1:63101:null (GSS initiate failed).
