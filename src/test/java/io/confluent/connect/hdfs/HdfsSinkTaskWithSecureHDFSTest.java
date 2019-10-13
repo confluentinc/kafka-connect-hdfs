@@ -24,11 +24,9 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.avro.AvroDataFileReader;
-import io.confluent.connect.hdfs.avro.AvroFileReader;
 
 import static org.junit.Assert.assertEquals;
 
@@ -55,6 +53,7 @@ public class HdfsSinkTaskWithSecureHDFSTest extends TestWithSecureMiniDFSCluster
         sinkRecords.add(sinkRecord);
       }
     }
+
     task.initialize(context);
     task.start(properties);
     task.put(sinkRecords);
