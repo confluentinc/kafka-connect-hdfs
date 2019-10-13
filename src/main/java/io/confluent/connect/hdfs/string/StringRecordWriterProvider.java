@@ -15,32 +15,27 @@
 
 package io.confluent.connect.hdfs.string;
 
-import org.apache.hadoop.fs.Path;
-import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.nio.charset.Charset;
-
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.format.RecordWriter;
 import io.confluent.connect.storage.format.RecordWriterProvider;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.CompressionCodecFactory;
+import org.apache.kafka.connect.errors.ConnectException;
+
+import java.io.IOException;
+
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.STRING_FORMAT_COMPRESSION_CONFIG;
+import static io.confluent.connect.hdfs.HdfsSinkConnectorConfig.STRING_FORMAT_COMPRESSION_NONE;
 
 /**
  * Provider of a text record writer.
  */
 public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSinkConnectorConfig> {
 
-  private static final Logger log = LoggerFactory.getLogger(StringRecordWriterProvider.class);
-  private static final String EXTENSION = ".txt";
-  private static final int WRITER_BUFFER_SIZE = 128 * 1024;
-  private final HdfsStorage storage;
+  private static final String PLAINTEXT_EXTENSION = ".txt";
+  private final String extension;
+  private final CompressionCodec compressionCodec;
 
   /**
    * Constructor.
@@ -48,50 +43,31 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
    * @param storage the underlying storage implementation.
    */
   StringRecordWriterProvider(HdfsStorage storage) {
-    this.storage = storage;
+    final HdfsSinkConnectorConfig config = storage.conf();
+    final String compression = config.getString(STRING_FORMAT_COMPRESSION_CONFIG);
+    if (compression == null || compression.equalsIgnoreCase(STRING_FORMAT_COMPRESSION_NONE)) {
+      compressionCodec = null;
+      extension = PLAINTEXT_EXTENSION;
+    } else {
+      final CompressionCodecFactory compressionCodecFactory =
+          new CompressionCodecFactory(config.getHadoopConfiguration());
+      compressionCodec = compressionCodecFactory.getCodecByName(compression);
+      if (compressionCodec == null) {
+        throw new ConnectException("Compression codec '" + compression + "' not found");
+      }
+      extension = compressionCodec.getDefaultExtension();
+    }
   }
 
   @Override
   public String getExtension() {
-    return EXTENSION;
+    return extension;
   }
 
   @Override
   public RecordWriter getRecordWriter(final HdfsSinkConnectorConfig conf, final String filename) {
     try {
-      return new RecordWriter() {
-        final Path path = new Path(filename);
-        final OutputStream out = path.getFileSystem(conf.getHadoopConfiguration()).create(path);
-        final OutputStreamWriter streamWriter = new OutputStreamWriter(
-            out,
-            Charset.defaultCharset()
-        );
-        final BufferedWriter writer = new BufferedWriter(streamWriter, WRITER_BUFFER_SIZE);
-
-        @Override
-        public void write(SinkRecord record) {
-          log.trace("Sink record: {}", record.toString());
-          try {
-            String value = (String) record.value();
-            writer.write(value);
-            writer.newLine();
-          } catch (IOException e) {
-            throw new ConnectException(e);
-          }
-        }
-
-        @Override
-        public void commit() {}
-
-        @Override
-        public void close() {
-          try {
-            writer.close();
-          } catch (IOException e) {
-            throw new ConnectException(e);
-          }
-        }
-      };
+      return new StringRecordWriter(conf, filename, compressionCodec);
     } catch (IOException e) {
       throw new ConnectException(e);
     }
