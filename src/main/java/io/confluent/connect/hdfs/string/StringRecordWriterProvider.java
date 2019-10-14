@@ -14,7 +14,6 @@
 
 package io.confluent.connect.hdfs.string;
 
-import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -57,42 +56,34 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
 
   @Override
   public RecordWriter getRecordWriter(final HdfsSinkConnectorConfig conf, final String filename) {
-    try {
-      return new RecordWriter() {
-        final Path path = new Path(filename);
-        final OutputStream out = path.getFileSystem(conf.getHadoopConfiguration()).create(path);
-        final OutputStreamWriter streamWriter = new OutputStreamWriter(
-            out,
-            Charset.defaultCharset()
-        );
-        final BufferedWriter writer = new BufferedWriter(streamWriter, WRITER_BUFFER_SIZE);
+    return new RecordWriter() {
+      final OutputStream out = storage.create(filename, true);
+      final OutputStreamWriter streamWriter = new OutputStreamWriter(out, Charset.defaultCharset());
+      final BufferedWriter writer = new BufferedWriter(streamWriter, WRITER_BUFFER_SIZE);
 
-        @Override
-        public void write(SinkRecord record) {
-          log.trace("Sink record: {}", record.toString());
-          try {
-            String value = (String) record.value();
-            writer.write(value);
-            writer.newLine();
-          } catch (IOException e) {
-            throw new ConnectException(e);
-          }
+      @Override
+      public void write(SinkRecord record) {
+        log.trace("Sink record: {}", record.toString());
+        try {
+          String value = (String) record.value();
+          writer.write(value);
+          writer.newLine();
+        } catch (IOException e) {
+          throw new ConnectException(e);
         }
+      }
 
-        @Override
-        public void commit() {}
+      @Override
+      public void commit() {}
 
-        @Override
-        public void close() {
-          try {
-            writer.close();
-          } catch (IOException e) {
-            throw new ConnectException(e);
-          }
+      @Override
+      public void close() {
+        try {
+          writer.close();
+        } catch (IOException e) {
+          throw new ConnectException(e);
         }
-      };
-    } catch (IOException e) {
-      throw new ConnectException(e);
-    }
+      }
+    };
   }
 }
