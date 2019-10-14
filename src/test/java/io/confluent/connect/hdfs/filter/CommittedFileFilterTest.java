@@ -40,7 +40,7 @@ public class CommittedFileFilterTest {
   public void setUp() throws Exception {
     Configuration conf = new Configuration();
     conf.set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem");
-    fs = FileSystem.get(conf);
+    fs = FileSystem.newInstance(conf);
   }
 
   @After

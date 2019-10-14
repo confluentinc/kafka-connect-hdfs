@@ -15,6 +15,8 @@
 
 package io.confluent.connect.hdfs;
 
+import java.net.URI;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -65,6 +67,75 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     assertEquals(46, (long) offsets.get(TOPIC_PARTITION2));
 
     task.stop();
+  }
+
+  @Test
+  public void testSinkTaskFileSystemIsolation() throws Exception {
+    // Shutdown of one task should not affect another task
+    setUp();
+    createCommittedFiles();
+
+    // Generate two rounds of data two write at separate times
+    String key = "key";
+    Schema schema = createSchema();
+    Struct record = createRecord(schema);
+    Collection<SinkRecord> sinkRecordsA = new ArrayList<>();
+    Collection<SinkRecord> sinkRecordsB = new ArrayList<>();
+    for (TopicPartition tp : context.assignment()) {
+      for (long offset = 0; offset < 7; offset++) {
+        SinkRecord sinkRecord =
+            new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record,
+                offset);
+        sinkRecordsA.add(sinkRecord);
+      }
+      for (long offset = 7; offset < 16; offset++) {
+        SinkRecord sinkRecord =
+            new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record,
+                offset);
+        sinkRecordsB.add(sinkRecord);
+      }
+    }
+
+    HdfsSinkTask task = new HdfsSinkTask();
+    task.initialize(context);
+    task.start(properties);
+    task.put(sinkRecordsA);
+
+    // Get an aliased reference to the filesystem object from the per-worker FileSystem.CACHE
+    // Close it to induce exceptions when aliased FileSystem objects are used after closing.
+    // Paths within this filesystem (such as the WAL) will also share the same FileSystem object
+    // because the cache is keyed on uri.getScheme() and uri.getAuthority().
+    FileSystem.get(
+        new URI(connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG)),
+        connectorConfig.getHadoopConfiguration()
+    ).close();
+
+    // If any FileSystem-based resources are kept in-use between put calls, they should generate
+    // exceptions on a subsequent put. These exceptions must not affect the correctness of the task.
+    task.put(sinkRecordsB);
+    task.stop();
+
+    // Verify that the data arrived correctly
+    AvroData avroData = task.getAvroData();
+    // Last file (offset 15) doesn't satisfy size requirement and gets discarded on close
+    long[] validOffsets = {-1, 2, 5, 8, 11, 14};
+
+    for (TopicPartition tp : context.assignment()) {
+      String directory = tp.topic() + "/" + "partition=" + String.valueOf(tp.partition());
+      for (int j = 1; j < validOffsets.length; ++j) {
+        long startOffset = validOffsets[j - 1] + 1;
+        long endOffset = validOffsets[j];
+        Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
+            startOffset, endOffset, extension,
+            ZERO_PAD_FMT));
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
+        long size = endOffset - startOffset + 1;
+        assertEquals(records.size(), size);
+        for (Object avroRecord : records) {
+          assertEquals(avroRecord, avroData.fromConnectData(schema, record));
+        }
+      }
+    }
   }
 
   @Test
