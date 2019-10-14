@@ -33,24 +33,19 @@ public class StringDataFileReader implements DataFileReader {
   @Override
   public Collection<Object> readData(Configuration conf, Path path) throws IOException {
     String uri = "hdfs://127.0.0.1:9001";
-    FileSystem fs;
-    try {
-      fs = FileSystem.get(new URI(uri), conf);
+    try (FileSystem fs = FileSystem.newInstance(new URI(uri), conf)) {
+      try (BufferedReader reader = new BufferedReader(new InputStreamReader(fs.open(path)))) {
+
+        ArrayList<Object> records = new ArrayList<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
+          System.out.println(line);
+          records.add(line);
+        }
+        return records;
+      }
     } catch (URISyntaxException e) {
       throw new IOException("Failed to create URI: " + uri);
     }
-    InputStream in = fs.open(path);
-
-    BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-    ArrayList<Object> records = new ArrayList<>();
-
-    String line;
-    while ((line = reader.readLine()) != null) {
-      System.out.println(line);
-      records.add(line);
-    }
-
-    reader.close();
-    return records;
   }
 }

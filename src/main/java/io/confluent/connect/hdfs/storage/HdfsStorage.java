@@ -34,10 +34,14 @@ import java.util.List;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.hdfs.wal.WAL;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HdfsStorage
     implements io.confluent.connect.storage.Storage<HdfsSinkConnectorConfig, List<FileStatus>>,
     Storage {
+
+  private static final Logger log = LoggerFactory.getLogger(HdfsStorage.class);
 
   private final FileSystem fs;
   private final HdfsSinkConnectorConfig conf;
@@ -88,14 +92,53 @@ public class HdfsStorage
   }
 
   public OutputStream create(String filename, boolean overwrite) {
-    return create(filename, this.conf, overwrite);
+    try {
+      return fs.create(new Path(filename), overwrite);
+    } catch (IOException e) {
+      throw new ConnectException(e);
+    }
   }
 
   @Override
   public OutputStream create(String filename, HdfsSinkConnectorConfig conf, boolean overwrite) {
+    final Path path = new Path(filename);
     try {
-      Path path = new Path(filename);
-      return path.getFileSystem(conf.getHadoopConfiguration()).create(path);
+      return new OutputStream() {
+        FileSystem fs = FileSystem.newInstance(path.toUri(), conf.getHadoopConfiguration());
+        OutputStream file = fs.create(new Path(filename), overwrite);
+        @Override
+        public void write(final int b) throws IOException {
+          file.write(b);
+        }
+
+        @Override
+        public void write(final byte[] b) throws IOException {
+          file.write(b);
+        }
+
+        @Override
+        public void write(final byte[] b, final int off, final int len) throws IOException {
+          file.write(b, off, len);
+        }
+
+        @Override
+        public void flush() throws IOException {
+          file.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+          try {
+            file.close();
+          } finally {
+            try {
+              fs.close();
+            } catch (Throwable t) {
+              log.error("Could not close FileSystem", t);
+            }
+          }
+        }
+      };
     } catch (IOException e) {
       throw new ConnectException(e);
     }
