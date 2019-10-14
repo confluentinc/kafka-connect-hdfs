@@ -39,20 +39,18 @@ public class JsonDataFileReader implements DataFileReader {
   @Override
   public Collection<Object> readData(Configuration conf, Path path) throws IOException {
     String uri = "hdfs://127.0.0.1:9001";
-    FileSystem fs;
-    try {
-      fs = FileSystem.get(new URI(uri), conf);
+    try (FileSystem fs = FileSystem.newInstance(new URI(uri), conf)) {
+      try (JsonParser reader = mapper.getFactory().createParser((InputStream) fs.open(path))) {
+
+        ArrayList<Object> records = new ArrayList<>();
+        Iterator<Object> iterator = reader.readValuesAs(Object.class);
+        while (iterator.hasNext()) {
+          records.add(iterator.next());
+        }
+        return records;
+      }
     } catch (URISyntaxException e) {
       throw new IOException("Failed to create URI: " + uri);
     }
-    InputStream in = fs.open(path);
-    JsonParser reader = mapper.getFactory().createParser(in);
-
-    ArrayList<Object> records = new ArrayList<>();
-    Iterator<Object> iterator = reader.readValuesAs(Object.class);
-    while (iterator.hasNext()) {
-      records.add(iterator.next());
-    }
-    return records;
   }
 }
