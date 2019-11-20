@@ -15,6 +15,9 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.DataWriter;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.common.TopicPartition;
@@ -30,18 +33,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.hive.HiveTestBase;
 import io.confluent.connect.hdfs.hive.HiveTestUtils;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.Assert.assertEquals;
 
 public class AvroHiveUtilTest extends HiveTestBase {
   private HiveUtil hive;
   private Map<String, String> localProps = new HashMap<>();
+  private static final Logger log = LoggerFactory.getLogger(AvroHiveUtilTest.class);
 
   @Override
   protected Map<String, String> createProps() {
@@ -54,6 +58,12 @@ public class AvroHiveUtilTest extends HiveTestBase {
   public void setUp() throws Exception {
     super.setUp();
     hive = new AvroHiveUtil(connectorConfig, avroData, hiveMetaStore);
+  }
+
+  public void setUp(boolean isLogicalEnabled) throws Exception {
+    super.setUp();
+    Map<String, String> originals = connectorConfig.originalsStrings();
+    hive = new AvroHiveUtil(new HdfsSinkConnectorConfig(originals), avroData, hiveMetaStore);
   }
 
   @Test
@@ -149,6 +159,62 @@ public class AvroHiveUtilTest extends HiveTestBase {
     }
   }
 
+//  @Test
+//  public void testStripOffLogicalTypes() throws Exception {
+//    setUp(true);
+//    prepareLogicalData(TOPIC, PARTITION);
+//    Partitioner partitioner = HiveTestUtils.getPartitioner(parsedConfig);
+//
+//    Schema schema = createLogicalSchema();
+//    hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
+//    String location = "partition=" + String.valueOf(PARTITION);
+//    hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
+//
+//    Struct expectedRecord = createLogicalRecord(schema);
+//    List<String> expectedResult = new ArrayList<>();
+//    List<String> expectedColumnNames = new ArrayList<>();
+//    for (Field field : schema.fields()) {
+//      expectedColumnNames.add(field.name());
+//      expectedResult.add(String.valueOf(expectedRecord.get(field.name())));
+//    }
+//
+//    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+//    List<String> actualColumnNames = new ArrayList<>();
+//    for (FieldSchema column : table.getSd().getCols()) {
+//      actualColumnNames.add(column.getName().toUpperCase());
+//    }
+//
+//    assertEquals(expectedColumnNames, actualColumnNames);
+//
+//    for (FieldSchema column : table.getSd().getCols()) {
+//      log.error(column.getType());
+//    }
+//    setUp();
+//
+//    Schema schema = AvroHiveUtil.stripOffLogicalType(createLogicalSchema());
+//    for (Field f : schema.fields()) {
+//      assertNull(f.schema().name());
+//      Map<String, String> props = f.schema().parameters();
+//      if (props != null)
+//      assertFalse(props.containsKey(AvroHiveUtil.AVRO_LOGICAL_TYPE_PROP));
+//    }
+
+//    String result = HiveTestUtils.runHive(
+//        hiveExec,
+//        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+//    );
+//    String[] rows = result.split("\n");
+//    // Only 6 of the 7 records should have been delivered due to flush_size = 3
+//    assertEquals(6, rows.length);
+//    for (String row : rows) {
+//      String[] parts = HiveTestUtils.parseOutput(row);
+//      int j = 0;
+//      for (String expectedValue : expectedResult) {
+//        assertEquals(expectedValue, parts[j++]);
+//      }
+//    }
+  //}
+
   private void prepareData(String topic, int partition) throws Exception {
     TopicPartition tp = new TopicPartition(topic, partition);
     DataWriter hdfsWriter = createWriter(context, avroData);
@@ -164,4 +230,66 @@ public class AvroHiveUtilTest extends HiveTestBase {
   private DataWriter createWriter(SinkTaskContext context, AvroData avroData){
     return new DataWriter(connectorConfig, context, avroData);
   }
+//
+//  private Schema createLogicalSchema() {
+//    return SchemaBuilder.struct()
+//        .field("DECIMAL_COLUMN", Decimal.schema(10))
+//        .field("TIMESTAMP_COLUMN", Timestamp.SCHEMA)
+//        .field("DATE_COLUMN", Date.SCHEMA)
+//        .field("TIME_COLUMN", Time.SCHEMA)
+//        .build();
+//  }
+//
+//  private Struct createLogicalRecord(Schema schema) {
+//    Struct struct = new Struct(schema);
+//    for (Field field : schema.fields()) {
+//      String name = field.name();
+//      switch (name) {
+//        case "DECIMAL_COLUMN":
+//          struct = struct.put(name, new BigDecimal(new BigInteger("1000000"), 10));
+//          break;
+//        case "DATE_COLUMN":
+//          struct = struct.put(
+//              name,
+//              java.util.Date.from(
+//                  Instant.EPOCH
+//                      .plusMillis(TimeUnit.DAYS.toMillis(1))
+//              )
+//          );
+//          break;
+//        case "TIME_COLUMN":
+//        case "TIMESTAMP_COLUMN":
+//          struct = struct.put(
+//              name,
+//              java.util.Date.from(
+//                  Instant.EPOCH
+//                      .plusSeconds(10)
+//              )
+//          );
+//      }
+//    }
+//    return struct;
+//  }
+//
+//  private List<SinkRecord> logicalRecordsProvider(int num) {
+//    Schema schema = createLogicalSchema();
+//    List<Struct> same = new ArrayList<>();
+//    for (int i = 0; i < num; ++i) {
+//      same.add(createLogicalRecord(schema));
+//    }
+//    return createSinkRecords(same, schema, 0, Collections
+//        .singleton(new TopicPartition(TOPIC, PARTITION)));
+//  }
+//
+//  private void prepareLogicalData(String topic, int partition) throws Exception {
+//    TopicPartition tp = new TopicPartition(topic, partition);
+//    DataWriter hdfsWriter = createWriter(context, avroData);
+//    hdfsWriter.recover(tp);
+//
+//    List<SinkRecord> sinkRecords = logicalRecordsProvider(7);
+//
+//    hdfsWriter.write(sinkRecords);
+//    hdfsWriter.close();
+//    hdfsWriter.stop();
+//  }
 }

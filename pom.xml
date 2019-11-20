@@ -79,10 +79,16 @@
             <version>${kafka.version}</version>
             <scope>provided</scope>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.confluent</groupId>-->
+<!--            <artifactId>kafka-connect-storage-common</artifactId>-->
+<!--            <version>${confluent.version}</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common</artifactId>
-            <version>${confluent.version}</version>
+            <version>5.0.4-SNAPSHOT</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
@@ -150,17 +156,17 @@
                 <executions>
                     <execution>
                         <goals>
-                            <goal>kafka-connect</goal>
+                        <goal>kafka-connect</goal>
                         </goals>
                         <configuration>
                             <title>Kafka Connect HDFS</title>
                             <documentationUrl>https://docs.confluent.io/${project.version}/connect/connect-hdfs/docs/index.html</documentationUrl>
                             <description>
-                                The HDFS connector allows you to export data from Kafka topics to HDFS files in a variety of formats and integrates with Hive to make data immediately available for querying with HiveQL.
+                              The HDFS connector allows you to export data from Kafka topics to HDFS files in a variety of formats and integrates with Hive to make data immediately available for querying with HiveQL.
 
-                                The connector periodically polls data from Kafka and writes them to HDFS. The data from each Kafka topic is partitioned by the provided partitioner and divided into chunks. Each chunk of data is represented as an HDFS file with topic, Kafka partition, start and end offsets of this data chunk in the filename. If no partitioner is specified in the configuration, the default partitioner which preserves the Kafka partitioning is used. The size of each data chunk is determined by the number of records written to HDFS, the time written to HDFS and schema compatibility.
+                              The connector periodically polls data from Kafka and writes them to HDFS. The data from each Kafka topic is partitioned by the provided partitioner and divided into chunks. Each chunk of data is represented as an HDFS file with topic, Kafka partition, start and end offsets of this data chunk in the filename. If no partitioner is specified in the configuration, the default partitioner which preserves the Kafka partitioning is used. The size of each data chunk is determined by the number of records written to HDFS, the time written to HDFS and schema compatibility.
 
-                                The HDFS connector integrates with Hive and when it is enabled, the connector automatically creates an external Hive partitioned table for each Kafka topic and updates the table according to the available data in HDFS.
+                              The HDFS connector integrates with Hive and when it is enabled, the connector automatically creates an external Hive partitioned table for each Kafka topic and updates the table according to the available data in HDFS.
                             </description>
 
                             <supportProviderName>Confluent, Inc.</supportProviderName>
@@ -179,13 +185,13 @@
                             <dockerTag>${project.version}</dockerTag>
 
                             <componentTypes>
-                                <componentType>sink</componentType>
+                              <componentType>sink</componentType>
                             </componentTypes>
 
                             <tags>
-                                <tag>hadoop</tag>
-                                <tag>hdfs</tag>
-                                <tag>hive</tag>
+                              <tag>hadoop</tag>
+                              <tag>hdfs</tag>
+                              <tag>hive</tag>
                             </tags>
 
                             <confluentControlCenterIntegration>true</confluentControlCenterIntegration>
