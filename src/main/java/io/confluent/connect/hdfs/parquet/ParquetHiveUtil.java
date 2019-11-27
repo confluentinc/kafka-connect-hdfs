@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs.parquet;
 
-import io.confluent.connect.storage.hive.HiveConfig;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -36,12 +35,9 @@ import io.confluent.connect.storage.hive.HiveSchemaConverter;
 public class ParquetHiveUtil extends HiveUtil {
   private final String topicsDir;
 
-  private final boolean logicalTypeEnabled;
-
   public ParquetHiveUtil(HdfsSinkConnectorConfig conf, HiveMetaStore hiveMetaStore) {
     super(conf, hiveMetaStore);
     this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
-    logicalTypeEnabled = conf.getBoolean(HiveConfig.HIVE_LOGICAL_TYPES_ENABLED_CONFIG);
   }
 
   @Override
@@ -58,9 +54,7 @@ public class ParquetHiveUtil extends HiveUtil {
   @Override
   public void alterSchema(String database, String tableName, Schema schema) {
     Table table = hiveMetaStore.getTable(database, tableName);
-    List<FieldSchema> columns = logicalTypeEnabled
-        ? HiveSchemaConverter.convertSchemaMaybeLogical(schema) :
-        HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> columns = HiveSchemaConverter.convertSchemaMaybeLogical(schema);
     table.setFields(columns);
     hiveMetaStore.alterTable(table);
   }
@@ -84,9 +78,7 @@ public class ParquetHiveUtil extends HiveUtil {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
     // convert copycat schema schema to Hive columns
-    List<FieldSchema> columns = logicalTypeEnabled
-        ? HiveSchemaConverter.convertSchemaMaybeLogical(schema) :
-        HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> columns = HiveSchemaConverter.convertSchemaMaybeLogical(schema);
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
     return table;
