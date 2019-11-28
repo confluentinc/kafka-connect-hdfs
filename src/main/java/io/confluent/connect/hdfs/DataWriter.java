@@ -345,35 +345,11 @@ public class DataWriter {
   }
 
   public void write(Collection<SinkRecord> records) {
-    for (SinkRecord record : records) {
-      String topic = record.topic();
-      int partition = record.kafkaPartition();
-      TopicPartition tp = new TopicPartition(topic, partition);
-      topicPartitionWriters.get(tp).buffer(record);
-    }
+    fillInTopicPartitionWritersBuffer(records);
 
-    if (hiveIntegration) {
-      Iterator<Future<Void>> iterator = hiveUpdateFutures.iterator();
-      while (iterator.hasNext()) {
-        try {
-          Future<Void> future = iterator.next();
-          if (future.isDone()) {
-            future.get();
-            iterator.remove();
-          } else {
-            break;
-          }
-        } catch (ExecutionException e) {
-          throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-          // ignore
-        }
-      }
-    }
+    hiveIntegrationWriter();
 
-    for (TopicPartition tp : assignment) {
-      topicPartitionWriters.get(tp).write();
-    }
+    drainTopicPartitionWriters();
   }
 
   public void recover(TopicPartition tp) {
@@ -644,5 +620,55 @@ public class DataWriter {
     map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
     map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
     return map;
+  }
+  
+  private void fillInTopicPartitionWritersBuffer(Collection<SinkRecord> records) {
+    for (SinkRecord record : records) {
+      String topic = record.topic();
+      int partition = record.kafkaPartition();
+      TopicPartition tp = new TopicPartition(topic, partition);
+
+      if(topicPartitionWriters.get(tp) == null){
+        throw new RuntimeException("Stop processing records as TopicPartitionWriter is missing for TopicPartition :" + tp);
+      }
+      topicPartitionWriters.get(tp).buffer(record);
+    }
+  }
+  
+  private void hiveIntegrationWriter() {
+    if (hiveIntegration) {
+      Iterator<Future<Void>> iterator = hiveUpdateFutures.iterator();
+      while (iterator.hasNext()) {
+        try {
+          Future<Void> future = iterator.next();
+          if (future.isDone()) {
+            future.get();
+            iterator.remove();
+          } else {
+            break;
+          }
+        } catch (ExecutionException e) {
+          throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+          // ignore
+        }
+      }
+    }
+  }
+  
+  private void drainTopicPartitionWriters() {
+    if(topicPartitionWriters.isEmpty()){
+      log.debug("Stop draining records as topicPartitionWriters map is not initialized ! " +
+              "Will try again with the next invocation");
+      return;
+    }
+    for (TopicPartition tp : assignment) {
+      if (topicPartitionWriters.get(tp) == null) {
+        log.debug("Stop draining records for TopicPartition :" + tp +
+                " as TopicPartitionWriter is missing in the buffer. Will try again with the next invocation");
+        continue;
+      }
+      topicPartitionWriters.get(tp).write();
+    }
   }
 }
