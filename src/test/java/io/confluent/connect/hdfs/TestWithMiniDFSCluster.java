@@ -292,6 +292,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
         long startOffset = validOffsets[i - 1];
         long endOffset = validOffsets[i] - 1;
 
+        String topicsDir = this.topicsDir.get(tp.topic());
         String filename = FileUtils.committedFileName(url, topicsDir, getDirectory(tp.topic(), tp.partition()), tp,
                                                       startOffset, endOffset, extension, zeroPadFormat);
         Path path = new Path(filename);
@@ -310,6 +311,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     for (int i = 1; i < validOffsets.length; ++i) {
       long startOffset = validOffsets[i - 1];
       long endOffset = validOffsets[i] - 1;
+      String topicsDir = this.topicsDir.get(tp.topic());
       expectedFiles.add(FileUtils.committedFileName(url, topicsDir, getDirectory(tp.topic(), tp.partition()), tp,
                                                     startOffset, endOffset, extension, zeroPadFormat));
     }
@@ -325,6 +327,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
   protected void verifyFileListing(List<String> expectedFiles, TopicPartition tp) throws IOException {
     FileStatus[] statuses = {};
     try {
+      String topicsDir = this.topicsDir.get(tp.topic());
       statuses = fs.listStatus(
           new Path(FileUtils.directoryName(url, topicsDir, getDirectory(tp.topic(), tp.partition()))),
           new TopicPartitionCommittedFileFilter(tp));

@@ -131,6 +131,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     for (int i = 1; i < validOffsets.length; i++) {
       long startOffset = validOffsets[i - 1] + 1;
       long endOffset = validOffsets[i];
+      String topicsDir = this.topicsDir.get(TOPIC_PARTITION2.topic());
       String path = FileUtils.committedFileName(url, topicsDir, directory2, TOPIC_PARTITION2,
                                                 startOffset, endOffset, extension, ZERO_PAD_FMT);
       long size = endOffset - startOffset + 1;

@@ -39,6 +39,7 @@ public class WALTest extends TestWithMiniDFSCluster {
   @Test
   public void testMultiWALFromOneDFSClient() throws Exception {
     setUp();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
 
     @SuppressWarnings("unchecked")

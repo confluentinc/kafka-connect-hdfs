@@ -68,6 +68,7 @@ public class HdfsSinkTaskWithSecureHDFSTest extends TestWithSecureMiniDFSCluster
       for (int j = 1; j < validOffsets.length; ++j) {
         long startOffset = validOffsets[j - 1] + 1;
         long endOffset = validOffsets[j];
+        String topicsDir = this.topicsDir.get(tp.topic());
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                                                          startOffset, endOffset, extension,
                                                          ZERO_PAD_FMT));

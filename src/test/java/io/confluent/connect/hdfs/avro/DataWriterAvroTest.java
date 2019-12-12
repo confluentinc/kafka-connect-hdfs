@@ -80,6 +80,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testRecovery() throws Exception {
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
 
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);
@@ -176,6 +177,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   @Test
   public void testGetNextOffsets() throws Exception {
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
+    String topicsDir = this.topicsDir.get(TOPIC);
     long[] startOffsets = {0, 3};
     long[] endOffsets = {2, 5};
 

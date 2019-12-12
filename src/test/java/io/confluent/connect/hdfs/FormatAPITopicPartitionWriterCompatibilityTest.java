@@ -55,6 +55,7 @@ public class FormatAPITopicPartitionWriterCompatibilityTest extends TestWithMini
     newWriterProvider = null;
     dataFileReader = new AvroDataFileReader();
     extension = writerProvider.getExtension();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     createTopicDir(url, topicsDir, TOPIC);
     createLogsDir(url, logsDir);
   }

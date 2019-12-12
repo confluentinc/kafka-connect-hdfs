@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.storage.Storage;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
@@ -50,6 +51,57 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   @Override
   public void setUp() throws Exception {
     super.setUp();
+  }
+
+  @Test
+  public void testValidRegexCaptureGroup() {
+    String topic = "topica";
+    String topicDir = "topic.another.${topic}.again";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    assertEquals(
+        topicDir.replace("${topic}", topic),
+        connectorConfig.getTopicDirFromTopic(topic)
+    );
+  }
+
+  @Test
+  public void testTopicDirFromTopicParts() {
+    String topic = "a.b.c.d";
+    String topicDir = "${1}-${2}-${3}-${4}";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    assertEquals(
+        topic.replace(".", "-"),
+        connectorConfig.getTopicDirFromTopic(topic)
+    );
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testInvalidTopicDir() {
+    String topic = "a.b.c.d";
+    String topicDir = "${100}-${2}-${3}-${4}";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    connectorConfig.getTopicDirFromTopic(topic);
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testInvalidRegexCaptureGroup() {
+    String topicDir = "topic.another.${topic}.again";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
   }
 
   @Test(expected = ConfigException.class)
