@@ -37,8 +37,9 @@ public class WALFileTest extends TestWithMiniDFSCluster {
     setUp();
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
 
-    String topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     String topic = "topic";
+    String topicsDir = connectorConfig.getTopicDirFromTopic(topic);
+
     int partition = 0;
     TopicPartition topicPart = new TopicPartition(topic, partition);
 

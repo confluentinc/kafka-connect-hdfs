@@ -189,7 +189,7 @@ public class TopicPartitionWriter {
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
 
-    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    topicsDir = connectorConfig.getTopicDirFromTopic(tp.topic());
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
     rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig

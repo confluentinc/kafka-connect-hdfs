@@ -15,6 +15,10 @@
 
 package io.confluent.connect.hdfs;
 
+import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.config.AbstractConfig;
@@ -53,6 +57,7 @@ import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_CONFIG;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DISPLAY;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DOC;
+import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_CONFIG;
 
 public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
@@ -82,6 +87,17 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String LOGS_DIR_DEFAULT = "logs";
   public static final String LOGS_DIR_DISPLAY = "Logs directory";
 
+  // Storage group
+  public static final String TOPIC_REGEX_CAPTURE_GROUP_CONFIG = "topic.regex.capture.group";
+  public static final String TOPIC_REGEX_CAPTURE_GROUP_DISPLAY = "Topic Regex Capture Group";
+  public static final String TOPIC_REGEX_CAPTURE_GROUP_DOC = "A regex that specifies what groups "
+      + "to capture in the topic, so when specifying `${1}` in `topics.dir`, `${1}` will refer to "
+      + "the first captured group. Example config value of `[a-zA-Z]*` will capture all characters "
+      + "delimited by . _  and -, so for `topic.dir = ${1}/${2}` and `topic = topic.name.suffix` "
+      + "the corresponding `topic.dir` will be `topic/name/`. By default, this functionality is "
+      + "not enabled.";
+  public static final String TOPIC_REGEX_CAPTURE_GROUP_DEFAULT = null;
+  
   // Security group
   public static final String HDFS_AUTHENTICATION_KERBEROS_CONFIG = "hdfs.authentication.kerberos";
   private static final String HDFS_AUTHENTICATION_KERBEROS_DOC =
@@ -282,9 +298,28 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         FORMAT_CLASS_RECOMMENDER,
         AVRO_COMPRESSION_RECOMMENDER);
 
+    int lastOrder = 0;
+    String group = "Storage";
     for (ConfigDef.ConfigKey key : storageConfigDef.configKeys().values()) {
       configDef.define(key);
+      group = key.group;
+      lastOrder = key.orderInGroup;
     }
+
+    // add the topic.regex.capture.group config to storage
+    configDef
+        .define(
+            TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+            Type.STRING,
+            TOPIC_REGEX_CAPTURE_GROUP_DEFAULT,
+            Importance.LOW,
+            TOPIC_REGEX_CAPTURE_GROUP_DOC,
+            group,
+            ++lastOrder,
+            Width.LONG,
+            TOPIC_REGEX_CAPTURE_GROUP_DISPLAY
+    );
+
     return configDef;
   }
 
@@ -293,6 +328,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
   private final PartitionerConfig partitionerConfig;
+  private final Pattern topixRegexCaptureGroup;
   private final Map<String, ComposableConfig> propertyToConfig = new HashMap<>();
   private final Set<AbstractConfig> allConfigs = new HashSet<>();
   private Configuration hadoopConfig;
@@ -315,6 +351,16 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     addToGlobal(commonConfig);
     addToGlobal(this);
     this.url = extractUrl();
+    try {
+      this.topixRegexCaptureGroup = getString(TOPIC_REGEX_CAPTURE_GROUP_CONFIG) != null
+          ? Pattern.compile(getString(TOPIC_REGEX_CAPTURE_GROUP_CONFIG))
+          : null;
+    } catch (PatternSyntaxException e) {
+      throw new ConfigException(
+          TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " is an invalid regex pattern: ",
+          e
+      );
+    }
   }
 
   public static Map<String, String> addDefaults(Map<String, String> props) {
@@ -368,6 +414,49 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   public String getUrl() {
     return url;
+  }
+
+  /**
+   * Performs all substitutions and calculates the final topic directory for a topic
+   *
+   * @param topic - String - the topic whose directory to find
+   * @return String - the directory name and path
+   */
+  public String getTopicDirFromTopic(String topic) {
+    String topicsDir = getString(TOPICS_DIR_CONFIG);
+    topicsDir = topicsDir.replace("${topic}", topic);
+
+    // only if configured
+    if (topixRegexCaptureGroup != null) {
+
+      // find all of the captured groups by the regex
+      List<String> topicGroups = new ArrayList<>();
+      Matcher matcher = topixRegexCaptureGroup.matcher(topic);
+      while (matcher.find()) {
+        topicGroups.add(matcher.group());
+      }
+
+      // make sure that all references to captured groups actually exist
+      int maxVar = extractMaximumInt(topicsDir);
+      if (maxVar > topicGroups.size()) {
+        throw new ConfigException(
+            String.format(
+                "Topic %s must be split into at least %d parts using regex pattern %s, "
+                    + "but was actually split into %d parts",
+                topic,
+                maxVar,
+                topixRegexCaptureGroup.pattern(),
+                topicGroups.size()
+            )
+        );
+      }
+
+      for (int i = 0; i < maxVar; i++) {
+        topicsDir = topicsDir.replace("${" + (i + 1) + "}", topicGroups.get(i));
+      }
+    }
+
+    return topicsDir;
   }
 
   @Override
@@ -424,6 +513,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     Set<String> skip = new HashSet<>();
     skip.add(STORAGE_CLASS_CONFIG);
     skip.add(FORMAT_CLASS_CONFIG);
+    skip.add(TOPICS_DIR_CONFIG);
 
     // Order added is important, so that group order is maintained
     ConfigDef visible = new ConfigDef();
@@ -459,6 +549,22 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         FORMAT_CLASS_RECOMMENDER
     );
 
+    visible.define(
+        "topics.dir",
+        Type.STRING,
+        "topics",
+        Importance.HIGH,
+        "Top level directory to store the data ingested from Kafka. "
+            + "Supports ``${topic}`` in the value, which will be replaced by the actual"
+            + " topic name. Supports ``${1}``, ..., ``${n}`` in conjunction with "
+            + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + ". See " + TOPIC_REGEX_CAPTURE_GROUP_CONFIG
+            + " configuration documentation for details.",
+        "Storage",
+        2,
+        Width.NONE,
+        "Topics directory"
+    );
+
     return visible;
   }
 
@@ -468,6 +574,32 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         container.define(key);
       }
     }
+  }
+
+  /**
+   * Extract the biggest integer contained in the string
+   *
+   * @param string - the string to extract the maximum integer from
+   * @return int - the biggest integer found in the string, 0 if none found
+   */
+  private static int extractMaximumInt(String string) {
+    int num = 0;
+    int res = 0;
+
+    for (char c : string.toCharArray()) {
+
+      // Convert into an integer while there are consecutive numeric digits
+      if (Character.isDigit(c)) {
+        num = num * 10 + (c - '0');
+      } else {
+        res = Math.max(res, num);
+
+        // Reset the number
+        num = 0;
+      }
+    }
+
+    return Math.max(res, num);
   }
 
   public static void main(String[] args) {

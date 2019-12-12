@@ -72,7 +72,7 @@ public class DataWriter {
   private final Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
   private HdfsStorage storage;
-  private String topicsDir;
+  private HashMap<String, String> topicDirs;
   private Format format;
   private RecordWriterProvider writerProvider;
   private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
@@ -207,7 +207,6 @@ public class DataWriter {
       }
 
       url = connectorConfig.getUrl();
-      topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
 
       @SuppressWarnings("unchecked")
       Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) connectorConfig
@@ -219,8 +218,16 @@ public class DataWriter {
           url
       );
 
-      createDir(topicsDir);
-      createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
+      topicDirs = new HashMap<>();
+      for (TopicPartition tp : context.assignment()) {
+        topicDirs.computeIfAbsent(tp.topic(), topic -> connectorConfig.getTopicDirFromTopic(topic));
+      }
+
+      for (String directories : topicDirs.values()) {
+        createDir(directories);
+        createDir(directories + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
+      }
+
       String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
       createDir(logsDir);
 
@@ -388,7 +395,7 @@ public class DataWriter {
 
     try {
       for (String topic : topics) {
-        String topicDir = FileUtils.topicDirectory(url, topicsDir, topic);
+        String topicDir = FileUtils.topicDirectory(url, topicDirs.get(topic), topic);
         CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
         FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
             storage,
