@@ -433,7 +433,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       List<String> topicGroups = new ArrayList<>();
       Matcher matcher = topixRegexCaptureGroup.matcher(topic);
       while (matcher.find()) {
-        topicGroups.add(matcher.group());
+        if (!matcher.group().isEmpty()) {
+          topicGroups.add(matcher.group());
+        }
       }
 
       // make sure that all references to captured groups actually exist
