@@ -83,6 +83,21 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     );
   }
 
+  @Test
+  public void testTopicDirCanContainNumber() {
+    String topic = "a.b.c.d";
+    String topicDir = "${1}-${2}-${3}-${4}-1000";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]*");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    assertEquals(
+        topic.replace(".", "-") + "-1000",
+        connectorConfig.getTopicDirFromTopic(topic)
+    );
+  }
+
   @Test(expected = ConfigException.class)
   public void testInvalidTopicDir() {
     String topic = "a.b.c.d";

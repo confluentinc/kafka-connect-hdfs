@@ -16,6 +16,7 @@
 package io.confluent.connect.hdfs;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -58,6 +59,9 @@ import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CL
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DISPLAY;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DOC;
 import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_CONFIG;
+import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_DEFAULT;
+import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_DISPLAY;
+import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_DOC;
 
 public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
@@ -93,7 +97,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DOC = "A regex that specifies what groups "
       + "to capture in the topic, so when specifying `${1}` in `topics.dir`, `${1}` will refer to "
       + "the first captured group. Example config value of `[a-zA-Z]*` will capture all characters "
-      + "delimited by . _  and -, so for `topic.dir = ${1}/${2}` and `topic = topic.name.suffix` "
+      + "between [-._0-9], so for `topic.dir = ${1}/${2}` and `topic = topic.name_suffix` "
       + "the corresponding `topic.dir` will be `topic/name/`. By default, this functionality is "
       + "not enabled.";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DEFAULT = null;
@@ -332,6 +336,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private final Map<String, ComposableConfig> propertyToConfig = new HashMap<>();
   private final Set<AbstractConfig> allConfigs = new HashSet<>();
   private Configuration hadoopConfig;
+  private List<Integer> partsToReplace;
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
     this(newConfigDef() , addDefaults(props));
@@ -361,6 +366,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           e
       );
     }
+
+    partsToReplace = getPartsToReplace();
   }
 
   public static Map<String, String> addDefaults(Map<String, String> props) {
@@ -439,22 +446,24 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       }
 
       // make sure that all references to captured groups actually exist
-      int maxVar = extractMaximumInt(topicsDir);
-      if (maxVar > topicGroups.size()) {
-        throw new ConfigException(
-            String.format(
-                "Topic %s must be split into at least %d parts using regex pattern %s, "
-                    + "but was actually split into %d parts",
-                topic,
-                maxVar,
-                topixRegexCaptureGroup.pattern(),
-                topicGroups.size()
-            )
-        );
+      if (!partsToReplace.isEmpty()) {
+        int largestVar = partsToReplace.get(partsToReplace.size() - 1);
+        if (largestVar > topicGroups.size()) {
+          throw new ConfigException(
+              String.format(
+                  "Topic %s must be split into at least %d parts using regex pattern %s, "
+                      + "but was actually split into %d parts",
+                  topic,
+                  largestVar,
+                  topixRegexCaptureGroup.pattern(),
+                  topicGroups.size()
+              )
+          );
+        }
       }
 
-      for (int i = 0; i < maxVar; i++) {
-        topicsDir = topicsDir.replace("${" + (i + 1) + "}", topicGroups.get(i));
+      for (int index : partsToReplace) {
+        topicsDir = topicsDir.replace("${" + index + "}", topicGroups.get(index - 1));
       }
     }
 
@@ -552,19 +561,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     );
 
     visible.define(
-        "topics.dir",
+        TOPICS_DIR_CONFIG,
         Type.STRING,
-        "topics",
+        TOPICS_DIR_DEFAULT,
         Importance.HIGH,
-        "Top level directory to store the data ingested from Kafka. "
-            + "Supports ``${topic}`` in the value, which will be replaced by the actual"
-            + " topic name. Supports ``${1}``, ..., ``${n}`` in conjunction with "
-            + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + ". See " + TOPIC_REGEX_CAPTURE_GROUP_CONFIG
-            + " configuration documentation for details.",
+        TOPICS_DIR_DOC + " Supports ``${topic}`` in the value, which will be "
+            + "replaced by the actual topic name. Supports ``${1}``, ..., ``${n}`` in "
+            + "conjunction with " + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + ". See "
+            + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " configuration documentation for details.",
         "Storage",
         2,
         Width.NONE,
-        "Topics directory"
+        TOPICS_DIR_DISPLAY
     );
 
     return visible;
@@ -579,29 +587,26 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   /**
-   * Extract the biggest integer contained in the string
-   *
-   * @param string - the string to extract the maximum integer from
-   * @return int - the biggest integer found in the string, 0 if none found
+   * Finds all instances of `${[0-9]+}` in `topics.dir` and returns a list.
+   * @return list of all numbers found in the regex pattern
    */
-  private static int extractMaximumInt(String string) {
-    int num = 0;
-    int res = 0;
+  private List<Integer> getPartsToReplace() {
 
-    for (char c : string.toCharArray()) {
+    List<Integer> toReplace = new ArrayList<>();
+    Pattern pattern = Pattern.compile("\\$\\{\\d+}");
+    Matcher partsMatcher = pattern.matcher(getString(TOPICS_DIR_CONFIG));
 
-      // Convert into an integer while there are consecutive numeric digits
-      if (Character.isDigit(c)) {
-        num = num * 10 + (c - '0');
-      } else {
-        res = Math.max(res, num);
-
-        // Reset the number
-        num = 0;
+    while (partsMatcher.find()) {
+      String part = partsMatcher.group();
+      if (!part.isEmpty()) {
+        part = part.substring(2, part.length() - 1); // trim "${" and "}"
+        toReplace.add(Integer.valueOf(part));
       }
     }
 
-    return Math.max(res, num);
+    Collections.sort(toReplace);
+
+    return toReplace;
   }
 
   public static void main(String[] args) {
