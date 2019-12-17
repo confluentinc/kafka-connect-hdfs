@@ -369,6 +369,12 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     }
 
     partsToReplace = getPartsToReplace();
+    if (!partsToReplace.isEmpty() && topixRegexCaptureGroup == null) {
+      throw new ConfigException(
+          TOPICS_DIR_CONFIG + " cannot contain ${} without a valid "
+              + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " being configured."
+      );
+    }
   }
 
   public static Map<String, String> addDefaults(Map<String, String> props) {
