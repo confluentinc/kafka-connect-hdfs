@@ -81,7 +81,7 @@ public class AvroHiveUtil extends HiveUtil {
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
     // tableName is always the topic name
-    String tablePath = hiveDirectoryName(url, config.getTopicDirFromTopic(tableName), tableName);
+    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(tableName), tableName);
     table.setDataLocation(new Path(tablePath));
     table.setSerializationLib(AVRO_SERDE);
     try {

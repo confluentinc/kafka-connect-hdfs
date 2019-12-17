@@ -72,6 +72,7 @@ public class DataWriter {
   private final Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
   private HdfsStorage storage;
+  private HashMap<String, String> logDirs;
   private HashMap<String, String> topicDirs;
   private Format format;
   private RecordWriterProvider writerProvider;
@@ -220,16 +221,22 @@ public class DataWriter {
 
       topicDirs = new HashMap<>();
       for (TopicPartition tp : context.assignment()) {
-        topicDirs.computeIfAbsent(tp.topic(), topic -> connectorConfig.getTopicDirFromTopic(topic));
+        topicDirs.computeIfAbsent(tp.topic(), top -> connectorConfig.getTopicsDirFromTopic(top));
       }
 
-      for (String directories : topicDirs.values()) {
-        createDir(directories);
-        createDir(directories + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
+      for (String directory : topicDirs.values()) {
+        createDir(directory);
+        createDir(directory + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
       }
 
-      String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
-      createDir(logsDir);
+      logDirs = new HashMap<>();
+      for (TopicPartition tp : context.assignment()) {
+        logDirs.computeIfAbsent(tp.topic(), topic -> connectorConfig.getLogsDirFromTopic(topic));
+      }
+
+      for (String directory : logDirs.values()) {
+        createDir(directory);
+      }
 
       // Try to instantiate as a new-style storage-common type class, then fall back to old-style
       // with no parameters

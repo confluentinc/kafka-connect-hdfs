@@ -64,7 +64,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
 
     assertEquals(
         topicDir.replace("${topic}", topic),
-        connectorConfig.getTopicDirFromTopic(topic)
+        connectorConfig.getTopicsDirFromTopic(topic)
     );
   }
 
@@ -82,7 +82,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
 
     assertEquals(
         topic.replace(".", "-"),
-        connectorConfig.getTopicDirFromTopic(topic)
+        connectorConfig.getTopicsDirFromTopic(topic)
     );
   }
 
@@ -100,7 +100,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
 
     assertEquals(
         topic.replace(".", "-") + "-1000",
-        connectorConfig.getTopicDirFromTopic(topic)
+        connectorConfig.getTopicsDirFromTopic(topic)
     );
   }
 
@@ -116,7 +116,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
 
-    connectorConfig.getTopicDirFromTopic(topic);
+    connectorConfig.getTopicsDirFromTopic(topic);
   }
 
   @Test(expected = ConfigException.class)
@@ -136,7 +136,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-z]");
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
-    connectorConfig.getTopicDirFromTopic(topic);
+    connectorConfig.getTopicsDirFromTopic(topic);
   }
 
   @Test(expected = ConfigException.class)

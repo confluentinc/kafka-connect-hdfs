@@ -117,7 +117,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     conf = connectorConfig.getHadoopConfiguration();
     topicsDir = new HashMap<>();
     for (TopicPartition tp : context.assignment()) {
-      topicsDir.computeIfAbsent(tp.topic(), topic -> connectorConfig.getTopicDirFromTopic(topic));
+      topicsDir.computeIfAbsent(tp.topic(), topic -> connectorConfig.getTopicsDirFromTopic(topic));
     }
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
     avroData = new AvroData(

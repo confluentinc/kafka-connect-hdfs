@@ -85,12 +85,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final String HADOOP_HOME_DOC = "The Hadoop home directory.";
   private static final String HADOOP_HOME_DISPLAY = "Hadoop home directory";
 
-  public static final String LOGS_DIR_CONFIG = "logs.dir";
-  public static final String LOGS_DIR_DOC =
-      "Top level directory to store the write ahead logs.";
-  public static final String LOGS_DIR_DEFAULT = "logs";
-  public static final String LOGS_DIR_DISPLAY = "Logs directory";
-
   // Storage group
   public static final String TOPIC_REGEX_CAPTURE_GROUP_CONFIG = "topic.regex.capture.group";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DISPLAY = "Topic Regex Capture Group";
@@ -102,6 +96,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       + "`topic = topic_name` the corresponding `topic.dir` will be `topic/name/`. By default, "
       + "this functionality is not enabled.";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DEFAULT = null;
+
+  private static final String DIR_REGEX_DOC = " Supports ``${topic}`` in the value, which will be "
+      + "replaced by the actual topic name. Supports ``${1}``, ..., ``${n}`` in "
+      + "conjunction with " + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + ". See "
+      + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " configuration documentation for details.";
+
+  // HDFS Group
+  public static final String LOGS_DIR_CONFIG = "logs.dir";
+  public static final String LOGS_DIR_DOC =
+      "Top level directory to store the write ahead logs." + DIR_REGEX_DOC;
+  public static final String LOGS_DIR_DEFAULT = "logs";
+  public static final String LOGS_DIR_DISPLAY = "Logs directory";
   
   // Security group
   public static final String HDFS_AUTHENTICATION_KERBEROS_CONFIG = "hdfs.authentication.kerberos";
@@ -337,7 +343,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private final Map<String, ComposableConfig> propertyToConfig = new HashMap<>();
   private final Set<AbstractConfig> allConfigs = new HashSet<>();
   private Configuration hadoopConfig;
-  private List<Integer> partsToReplace;
+  private List<Integer> topicDirPartsToReplace;
+  private List<Integer> logDirPartsToReplace;
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
     this(newConfigDef() , addDefaults(props));
@@ -368,8 +375,10 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       );
     }
 
-    partsToReplace = getPartsToReplace();
-    if (!partsToReplace.isEmpty() && topixRegexCaptureGroup == null) {
+    topicDirPartsToReplace = getPartsToReplace(getString(TOPICS_DIR_CONFIG));
+    logDirPartsToReplace = getPartsToReplace(getString(LOGS_DIR_CONFIG));
+    if ((!topicDirPartsToReplace.isEmpty() || !logDirPartsToReplace.isEmpty())
+        && topixRegexCaptureGroup == null) {
       throw new ConfigException(
           TOPICS_DIR_CONFIG + " cannot contain ${} without a valid "
               + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " being configured."
@@ -430,58 +439,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return url;
   }
 
-  /**
-   * Performs all substitutions and calculates the final topic directory for a topic
-   *
-   * @param topic - String - the topic whose directory to find
-   * @return String - the directory name and path
-   */
-  public String getTopicDirFromTopic(String topic) {
-    String topicsDir = getString(TOPICS_DIR_CONFIG);
-    topicsDir = topicsDir.replace("${topic}", topic);
-
-    // only if configured
-    if (topixRegexCaptureGroup != null) {
-
-      // find all of the captured groups by the regex
-      Matcher matcher = topixRegexCaptureGroup.matcher(topic);
-      if (!matcher.matches()) {
-        throw new ConfigException(
-            String.format(
-                "Configuration %s with value %s does not fully match the specified regex %s in %s",
-                TOPICS_DIR_CONFIG,
-                topicsDir,
-                topixRegexCaptureGroup.pattern(),
-                TOPIC_REGEX_CAPTURE_GROUP_CONFIG
-            )
-        );
-      }
-
-      // make sure that all references to captured groups actually exist
-      if (!partsToReplace.isEmpty()) {
-        int largestVar = partsToReplace.get(partsToReplace.size() - 1);
-        if (largestVar > matcher.groupCount()) {
-          throw new ConfigException(
-              String.format(
-                  "Topic %s must have at least %d capture groups using regex pattern %s, "
-                      + "but actually had %d capture groups.",
-                  topic,
-                  largestVar,
-                  topixRegexCaptureGroup.pattern(),
-                  matcher.groupCount()
-              )
-          );
-        }
-      }
-
-      for (int i = 1; i < matcher.groupCount() + 1; i++) {
-        topicsDir = topicsDir.replace("${" + i + "}", matcher.group(i));
-      }
-    }
-
-    return topicsDir;
-  }
-
   @Override
   public Object get(String key) {
     ComposableConfig config = propertyToConfig.get(key);
@@ -511,6 +468,101 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
     return map;
   }
+
+  /**
+   * Performs all substitutions on `logs.dir` and calculates the final directory for a topic
+   *
+   * @param topic - String - the topic whose directory to find
+   * @return String - the directory name and path
+   */
+  public String getLogsDirFromTopic(String topic) {
+    return getDirFromTopic(getString(LOGS_DIR_CONFIG), topic);
+  }
+
+  /**
+   * Performs all substitutions on `topics.dir` and calculates the final directory for a topic
+   *
+   * @param topic - String - the topic whose directory to find
+   * @return String - the directory name and path
+   */
+  public String getTopicsDirFromTopic(String topic) {
+    return getDirFromTopic(getString(TOPICS_DIR_CONFIG), topic);
+  }
+
+  /**
+   * Performs all substitutions and calculates the final directory for a topic
+   *
+   * @param dir - String - the directory to perform substitutions on
+   * @param topic - String - the topic whose directory to find
+   * @return String - the directory name and path
+   */
+  private String getDirFromTopic(String dir, String topic) {
+    dir = dir.replace("${topic}", topic);
+
+    // only if configured
+    if (topixRegexCaptureGroup != null) {
+
+      // find all of the captured groups by the regex
+      Matcher matcher = topixRegexCaptureGroup.matcher(topic);
+      if (!matcher.matches()) {
+        throw new ConfigException(
+            String.format(
+                "Topic %s does not fully match the specified regex %s in %s",
+                topic,
+                topixRegexCaptureGroup.pattern(),
+                TOPIC_REGEX_CAPTURE_GROUP_CONFIG
+            )
+        );
+      }
+
+      // make sure that all references to captured groups actually exist
+      if (!topicDirPartsToReplace.isEmpty()) {
+        int largestVar = topicDirPartsToReplace.get(topicDirPartsToReplace.size() - 1);
+        if (largestVar > matcher.groupCount()) {
+          throw new ConfigException(
+              String.format(
+                  "Topic %s must have at least %d capture groups using regex pattern %s, "
+                      + "but actually had %d capture groups.",
+                  topic,
+                  largestVar,
+                  topixRegexCaptureGroup.pattern(),
+                  matcher.groupCount()
+              )
+          );
+        }
+      }
+
+      for (int i = 1; i < matcher.groupCount() + 1; i++) {
+        dir = dir.replace("${" + i + "}", matcher.group(i));
+      }
+    }
+
+    return dir;
+  }
+
+  /**
+   * Finds all instances of `${[0-9]+}` in a string and returns an ordered list.
+   * @return ordered list of all numbers found in the regex pattern
+   */
+  private List<Integer> getPartsToReplace(String string) {
+
+    List<Integer> toReplace = new ArrayList<>();
+    Pattern pattern = Pattern.compile("\\$\\{\\d+}");
+    Matcher partsMatcher = pattern.matcher(string);
+
+    while (partsMatcher.find()) {
+      String part = partsMatcher.group();
+      if (!part.isEmpty()) {
+        part = part.substring(2, part.length() - 1); // trim "${" and "}"
+        toReplace.add(Integer.valueOf(part));
+      }
+    }
+
+    Collections.sort(toReplace);
+
+    return toReplace;
+  }
+
 
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
 
@@ -577,10 +629,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         Type.STRING,
         TOPICS_DIR_DEFAULT,
         Importance.HIGH,
-        TOPICS_DIR_DOC + " Supports ``${topic}`` in the value, which will be "
-            + "replaced by the actual topic name. Supports ``${1}``, ..., ``${n}`` in "
-            + "conjunction with " + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + ". See "
-            + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " configuration documentation for details.",
+        TOPICS_DIR_DOC + DIR_REGEX_DOC,
         "Storage",
         2,
         Width.NONE,
@@ -596,29 +645,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         container.define(key);
       }
     }
-  }
-
-  /**
-   * Finds all instances of `${[0-9]+}` in `topics.dir` and returns a list.
-   * @return list of all numbers found in the regex pattern
-   */
-  private List<Integer> getPartsToReplace() {
-
-    List<Integer> toReplace = new ArrayList<>();
-    Pattern pattern = Pattern.compile("\\$\\{\\d+}");
-    Matcher partsMatcher = pattern.matcher(getString(TOPICS_DIR_CONFIG));
-
-    while (partsMatcher.find()) {
-      String part = partsMatcher.group();
-      if (!part.isEmpty()) {
-        part = part.substring(2, part.length() - 1); // trim "${" and "}"
-        toReplace.add(Integer.valueOf(part));
-      }
-    }
-
-    Collections.sort(toReplace);
-
-    return toReplace;
   }
 
   public static void main(String[] args) {

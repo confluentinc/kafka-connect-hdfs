@@ -200,7 +200,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     List<String> expectedPartitions = new ArrayList<>();
     String directory = TOPIC_WITH_DOTS + "/" + "partition=" + String.valueOf(PARTITION);
-    String topicsDir = connectorConfig.getTopicDirFromTopic(TOPIC_WITH_DOTS);
+    String topicsDir = connectorConfig.getTopicsDirFromTopic(TOPIC_WITH_DOTS);
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC_WITH_DOTS, (short)-1);

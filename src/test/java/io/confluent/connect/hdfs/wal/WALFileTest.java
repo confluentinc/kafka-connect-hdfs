@@ -35,10 +35,11 @@ public class WALFileTest extends TestWithMiniDFSCluster {
   @Test
   public void testAppend() throws Exception {
     setUp();
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "(.*)");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
 
     String topic = "topic";
-    String topicsDir = connectorConfig.getTopicDirFromTopic(topic);
+    String topicsDir = connectorConfig.getTopicsDirFromTopic(topic);
 
     int partition = 0;
     TopicPartition topicPart = new TopicPartition(topic, partition);
