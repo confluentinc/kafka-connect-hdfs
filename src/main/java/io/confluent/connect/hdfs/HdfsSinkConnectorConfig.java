@@ -93,7 +93,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       + "`topics.dir`, `${1}` will refer to the first captured group. Example config value of "
       + "`([a-zA-Z]*)_([a-zA-Z]*)` match a topic that is two words delimited by a - and will "
       + "capture both words as separate groupds, so for `topic.dir = ${1}/${2}` and "
-      + "`topic = topic_name` the corresponding `topic.dir` will be `topic/name/`. By default, "
+      + "`topic = example_name` the corresponding `topic.dir` will be `example/name/`. By default, "
       + "this functionality is not enabled.";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DEFAULT = null;
 
@@ -343,8 +343,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private final Map<String, ComposableConfig> propertyToConfig = new HashMap<>();
   private final Set<AbstractConfig> allConfigs = new HashSet<>();
   private Configuration hadoopConfig;
-  private List<Integer> topicDirPartsToReplace;
-  private List<Integer> logDirPartsToReplace;
+  private int topicDirGroupsMaxIndex;
+  private int logDirGroupsMaxIndex;
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
     this(newConfigDef() , addDefaults(props));
@@ -375,15 +375,10 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       );
     }
 
-    topicDirPartsToReplace = getPartsToReplace(getString(TOPICS_DIR_CONFIG));
-    logDirPartsToReplace = getPartsToReplace(getString(LOGS_DIR_CONFIG));
-    if ((!topicDirPartsToReplace.isEmpty() || !logDirPartsToReplace.isEmpty())
-        && topixRegexCaptureGroup == null) {
-      throw new ConfigException(
-          TOPICS_DIR_CONFIG + " cannot contain ${} without a valid "
-              + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " being configured."
-      );
-    }
+    topicDirGroupsMaxIndex = getMaxIndexToReplace(getString(TOPICS_DIR_CONFIG));
+    logDirGroupsMaxIndex = getMaxIndexToReplace(getString(LOGS_DIR_CONFIG));
+
+    validateDirsAndRegex();
   }
 
   public static Map<String, String> addDefaults(Map<String, String> props) {
@@ -476,7 +471,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
    * @return String - the directory name and path
    */
   public String getLogsDirFromTopic(String topic) {
-    return getDirFromTopic(getString(LOGS_DIR_CONFIG), topic);
+    return getDirFromTopic(getString(LOGS_DIR_CONFIG), topic, logDirGroupsMaxIndex);
   }
 
   /**
@@ -486,7 +481,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
    * @return String - the directory name and path
    */
   public String getTopicsDirFromTopic(String topic) {
-    return getDirFromTopic(getString(TOPICS_DIR_CONFIG), topic);
+    return getDirFromTopic(getString(TOPICS_DIR_CONFIG), topic, topicDirGroupsMaxIndex);
   }
 
   /**
@@ -496,7 +491,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
    * @param topic - String - the topic whose directory to find
    * @return String - the directory name and path
    */
-  private String getDirFromTopic(String dir, String topic) {
+  private String getDirFromTopic(String dir, String topic, int maxIndexParts) {
     dir = dir.replace("${topic}", topic);
 
     // only if configured
@@ -516,24 +511,21 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       }
 
       // make sure that all references to captured groups actually exist
-      if (!topicDirPartsToReplace.isEmpty()) {
-        int largestVar = topicDirPartsToReplace.get(topicDirPartsToReplace.size() - 1);
-        if (largestVar > matcher.groupCount()) {
-          throw new ConfigException(
-              String.format(
-                  "Topic %s must have at least %d capture groups using regex pattern %s, "
-                      + "but actually had %d capture groups.",
-                  topic,
-                  largestVar,
-                  topixRegexCaptureGroup.pattern(),
-                  matcher.groupCount()
-              )
-          );
-        }
+      if (maxIndexParts > 0 && maxIndexParts > matcher.groupCount()) {
+        throw new ConfigException(
+            String.format(
+                "Topic %s must have at least %d capture groups using regex pattern %s, "
+                    + "but actually had %d capture groups.",
+                topic,
+                maxIndexParts,
+                topixRegexCaptureGroup.pattern(),
+                matcher.groupCount()
+            )
+        );
       }
 
-      for (int i = 1; i < matcher.groupCount() + 1; i++) {
-        dir = dir.replace("${" + i + "}", matcher.group(i));
+      for (int index = 1; index < matcher.groupCount() + 1; index++) {
+        dir = dir.replace("${" + index + "}", matcher.group(index));
       }
     }
 
@@ -541,28 +533,73 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   /**
-   * Finds all instances of `${[0-9]+}` in a string and returns an ordered list.
-   * @return ordered list of all numbers found in the regex pattern
+   * Finds all instances of `${[0-9]+}` in a string and returns the maximum integer.
+   * @return int - largest number found in the regex pattern - 0 if none found
    */
-  private List<Integer> getPartsToReplace(String string) {
+  private int getMaxIndexToReplace(String string) {
 
     List<Integer> toReplace = new ArrayList<>();
-    Pattern pattern = Pattern.compile("\\$\\{\\d+}");
+    Pattern pattern = Pattern.compile("\\$\\{(\\d+)}");
     Matcher partsMatcher = pattern.matcher(string);
 
     while (partsMatcher.find()) {
       String part = partsMatcher.group();
-      if (!part.isEmpty()) {
-        part = part.substring(2, part.length() - 1); // trim "${" and "}"
-        toReplace.add(Integer.valueOf(part));
+      if (!part.isEmpty() && partsMatcher.groupCount() == 1) {
+        toReplace.add(Integer.valueOf(partsMatcher.group(1))); // should be the first group
       }
     }
 
-    Collections.sort(toReplace);
-
-    return toReplace;
+    return toReplace.isEmpty() ? 0 : Collections.max(toReplace);
   }
 
+  /**
+   * Validates that the `topics.dir`, `logs.dir`, and `topic.regex.capture.group` configs are all
+   * within valid ranges.
+   */
+  private void validateDirsAndRegex() {
+    if (topicDirGroupsMaxIndex > 0 && topixRegexCaptureGroup == null) {
+      throw new ConfigException(
+          TOPICS_DIR_CONFIG + " cannot contain ${} without a valid "
+              + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " being configured."
+      );
+    }
+
+    if (logDirGroupsMaxIndex > 0 && topixRegexCaptureGroup == null) {
+      throw new ConfigException(
+          LOGS_DIR_CONFIG + " cannot contain ${} without a valid "
+              + TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " being configured."
+      );
+    }
+
+    validateReplacements(TOPICS_DIR_CONFIG);
+    validateReplacements(LOGS_DIR_CONFIG);
+  }
+
+  /**
+   * Validates that the config has no invalid substitutions
+   *
+   * @param config - String - the config to validate
+   */
+  private void validateReplacements(String config) {
+    // remove all valid ${} substitutions
+    Pattern pattern = Pattern.compile("\\$\\{(\\d+)}");
+    Matcher partsMatcher = pattern.matcher(getString(config));
+    String dir = partsMatcher.replaceAll("").replace("${topic}", "");
+
+    // check for invalid ${} substitutions
+    Pattern invalid = Pattern.compile("\\$\\{.*}");
+    Matcher invalidMatcher = invalid.matcher(dir);
+    if (invalidMatcher.find()) {
+      throw new ConfigException(
+          String.format(
+              "%s: %s contains an invalid ${} substitution %s",
+              config,
+              getString(config),
+              invalidMatcher.group()
+          )
+      );
+    }
+  }
 
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
 
