@@ -94,12 +94,13 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   // Storage group
   public static final String TOPIC_REGEX_CAPTURE_GROUP_CONFIG = "topic.regex.capture.group";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DISPLAY = "Topic Regex Capture Group";
-  public static final String TOPIC_REGEX_CAPTURE_GROUP_DOC = "A regex that specifies what groups "
-      + "to capture in the topic, so when specifying `${1}` in `topics.dir`, `${1}` will refer to "
-      + "the first captured group. Example config value of `[a-zA-Z]*` will capture all characters "
-      + "between [-._0-9], so for `topic.dir = ${1}/${2}` and `topic = topic.name_suffix` "
-      + "the corresponding `topic.dir` will be `topic/name/`. By default, this functionality is "
-      + "not enabled.";
+  public static final String TOPIC_REGEX_CAPTURE_GROUP_DOC = "A regex that matches the entire "
+      + "topic and  specifies what groups to capture in the topic, so when specifying `${1}` in "
+      + "`topics.dir`, `${1}` will refer to the first captured group. Example config value of "
+      + "`([a-zA-Z]*)_([a-zA-Z]*)` match a topic that is two words delimited by a - and will "
+      + "capture both words as separate groupds, so for `topic.dir = ${1}/${2}` and "
+      + "`topic = topic_name` the corresponding `topic.dir` will be `topic/name/`. By default, "
+      + "this functionality is not enabled.";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DEFAULT = null;
   
   // Security group
@@ -437,33 +438,38 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     if (topixRegexCaptureGroup != null) {
 
       // find all of the captured groups by the regex
-      List<String> topicGroups = new ArrayList<>();
       Matcher matcher = topixRegexCaptureGroup.matcher(topic);
-      while (matcher.find()) {
-        if (!matcher.group().isEmpty()) {
-          topicGroups.add(matcher.group());
-        }
+      if (!matcher.matches()) {
+        throw new ConfigException(
+            String.format(
+                "Configuration %s with value %s does not fully match the specified regex %s in %s",
+                TOPICS_DIR_CONFIG,
+                topicsDir,
+                topixRegexCaptureGroup.pattern(),
+                TOPIC_REGEX_CAPTURE_GROUP_CONFIG
+            )
+        );
       }
 
       // make sure that all references to captured groups actually exist
       if (!partsToReplace.isEmpty()) {
         int largestVar = partsToReplace.get(partsToReplace.size() - 1);
-        if (largestVar > topicGroups.size()) {
+        if (largestVar > matcher.groupCount()) {
           throw new ConfigException(
               String.format(
-                  "Topic %s must be split into at least %d parts using regex pattern %s, "
-                      + "but was actually split into %d parts",
+                  "Topic %s must have at least %d capture groups using regex pattern %s, "
+                      + "but actually had %d capture groups.",
                   topic,
                   largestVar,
                   topixRegexCaptureGroup.pattern(),
-                  topicGroups.size()
+                  matcher.groupCount()
               )
           );
         }
       }
 
-      for (int index : partsToReplace) {
-        topicsDir = topicsDir.replace("${" + index + "}", topicGroups.get(index - 1));
+      for (int i = 1; i < matcher.groupCount() + 1; i++) {
+        topicsDir = topicsDir.replace("${" + i + "}", matcher.group(i));
       }
     }
 

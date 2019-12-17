@@ -58,7 +58,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topic = "topica";
     String topicDir = "topic.another.${topic}.again";
 
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]*");
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, ".*");
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
 
@@ -73,7 +73,10 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topic = "a.b.c.d";
     String topicDir = "${1}-${2}-${3}-${4}";
 
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]*");
+    properties.put(
+        HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+        "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
+    );
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
 
@@ -88,7 +91,10 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topic = "a.b.c.d";
     String topicDir = "${1}-${2}-${3}-${4}-1000";
 
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]*");
+    properties.put(
+        HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+        "([a-z])[\\.\\-_]([a-z])[\\.\\-_]([a-z])[\\.\\-_]([a-z])"
+    );
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
 
@@ -103,7 +109,10 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topic = "a.b.c.d";
     String topicDir = "${100}-${2}-${3}-${4}";
 
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-zA-Z]*");
+    properties.put(
+        HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+        "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
+    );
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
 
@@ -117,6 +126,17 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a");
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testInvalidRegexCaptureGroupDoesntMatchTopic() {
+    String topic = "topica";
+    String topicDir = "topic.another.${topic}.again";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-z]");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    connectorConfig.getTopicDirFromTopic(topic);
   }
 
   @Test(expected = ConfigException.class)
