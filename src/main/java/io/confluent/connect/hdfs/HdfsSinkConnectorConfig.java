@@ -88,13 +88,14 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   // Storage group
   public static final String TOPIC_REGEX_CAPTURE_GROUP_CONFIG = "topic.regex.capture.group";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DISPLAY = "Topic Regex Capture Group";
-  public static final String TOPIC_REGEX_CAPTURE_GROUP_DOC = "A regex that matches the entire "
-      + "topic and  specifies what groups to capture in the topic, so when specifying `${1}` in "
-      + "`topics.dir`, `${1}` will refer to the first captured group. Example config value of "
-      + "`([a-zA-Z]*)_([a-zA-Z]*)` match a topic that is two words delimited by a - and will "
-      + "capture both words as separate groupds, so for `topic.dir = ${1}/${2}` and "
-      + "`topic = example_name` the corresponding `topic.dir` will be `example/name/`. By default, "
-      + "this functionality is not enabled.";
+  public static final String TOPIC_REGEX_CAPTURE_GROUP_DOC = "A Java Pattern regex that matches "
+      + "the entire topic and captures values for substituting into ``topics.dir``. Indexed "
+      + "capture groups are accessible with ``${n}``, where ``${0}`` refers to the whole match and "
+      + "``${1}`` refers to the first capture group. Example config value of "
+      + "``([a-zA-Z]*)_([a-zA-Z]*)`` will match topics that are two words delimited by an "
+      + "underscore and will capture each word separately. With ``topic.dir = ${1}/${2}``, a "
+      + "record from the topic ``example_name`` will be written into a subdirectory of "
+      + "``example/name/``. By default, this functionality is not enabled.";
   public static final String TOPIC_REGEX_CAPTURE_GROUP_DEFAULT = null;
 
   private static final String DIR_REGEX_DOC = " Supports ``${topic}`` in the value, which will be "
@@ -141,6 +142,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       "The period in milliseconds to renew the Kerberos ticket.";
   private static final String KERBEROS_TICKET_RENEW_PERIOD_MS_DISPLAY = "Kerberos Ticket Renew "
       + "Period (ms)";
+
+  private static final String SUBSTITUTION_STRING = "\\$\\{(\\d+)}";
 
   private static final ConfigDef.Recommender hdfsAuthenticationKerberosDependentsRecommender =
       new BooleanParentRecommender(
@@ -314,7 +317,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     for (ConfigDef.ConfigKey key : storageConfigDef.configKeys().values()) {
       configDef.define(key);
       group = key.group;
-      lastOrder = key.orderInGroup;
+      lastOrder = Math.max(key.orderInGroup, lastOrder);
     }
 
     // add the topic.regex.capture.group config to storage
@@ -365,9 +368,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     addToGlobal(this);
     this.url = extractUrl();
     try {
-      this.topixRegexCaptureGroup = getString(TOPIC_REGEX_CAPTURE_GROUP_CONFIG) != null
-          ? Pattern.compile(getString(TOPIC_REGEX_CAPTURE_GROUP_CONFIG))
-          : null;
+      String topicRegex = getString(TOPIC_REGEX_CAPTURE_GROUP_CONFIG);
+      this.topixRegexCaptureGroup = topicRegex != null ? Pattern.compile(topicRegex) : null;
     } catch (PatternSyntaxException e) {
       throw new ConfigException(
           TOPIC_REGEX_CAPTURE_GROUP_CONFIG + " is an invalid regex pattern: ",
@@ -501,12 +503,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       Matcher matcher = topixRegexCaptureGroup.matcher(topic);
       if (!matcher.matches()) {
         throw new ConfigException(
-            String.format(
-                "Topic %s does not fully match the specified regex %s in %s",
-                topic,
-                topixRegexCaptureGroup.pattern(),
-                TOPIC_REGEX_CAPTURE_GROUP_CONFIG
-            )
+            TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+            topixRegexCaptureGroup.pattern(),
+            String.format("Topic %s does not fully match the specified regex.", topic)
         );
       }
 
@@ -524,7 +523,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         );
       }
 
-      for (int index = 1; index < matcher.groupCount() + 1; index++) {
+      for (int index = 0; index < matcher.groupCount() + 1; index++) {
         dir = dir.replace("${" + index + "}", matcher.group(index));
       }
     }
@@ -539,7 +538,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private int getMaxIndexToReplace(String string) {
 
     List<Integer> toReplace = new ArrayList<>();
-    Pattern pattern = Pattern.compile("\\$\\{(\\d+)}");
+    Pattern pattern = Pattern.compile(SUBSTITUTION_STRING);
     Matcher partsMatcher = pattern.matcher(string);
 
     while (partsMatcher.find()) {
@@ -582,7 +581,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
    */
   private void validateReplacements(String config) {
     // remove all valid ${} substitutions
-    Pattern pattern = Pattern.compile("\\$\\{(\\d+)}");
+    Pattern pattern = Pattern.compile(SUBSTITUTION_STRING);
     Matcher partsMatcher = pattern.matcher(getString(config));
     String dir = partsMatcher.replaceAll("").replace("${topic}", "");
 
@@ -592,7 +591,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     if (invalidMatcher.find()) {
       throw new ConfigException(
           String.format(
-              "%s: %s contains an invalid ${} substitution %s",
+              "%s: %s contains an invalid ${} substitution %s. Valid substitutions are ${topic} "
+                  + "and ${n} where n > 0.",
               config,
               getString(config),
               invalidMatcher.group()
