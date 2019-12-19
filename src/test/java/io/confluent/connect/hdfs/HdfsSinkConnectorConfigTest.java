@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs;
 
-import io.confluent.connect.storage.Storage;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
@@ -58,7 +57,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topic = "topica";
     String topicDir = "topic.another.${topic}.again";
 
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, ".*");
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, ".*");
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
 
@@ -74,7 +73,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topicDir = "${1}-${2}-${3}-${4}";
 
     properties.put(
-        HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
         "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
     );
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
@@ -92,7 +91,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topicDir = "${1}-${2}-${3}-${4}-1000";
 
     properties.put(
-        HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
         "([a-z])[\\.\\-_]([a-z])[\\.\\-_]([a-z])[\\.\\-_]([a-z])"
     );
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
@@ -110,7 +109,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topicDir = "${100}-${2}-${3}-${4}";
 
     properties.put(
-        HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
         "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
     );
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
@@ -125,7 +124,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topicDir = "${-1}-${2}-${3}-${4}";
 
     properties.put(
-        HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG,
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
         "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
     );
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
@@ -138,7 +137,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   public void testInvalidRegexCaptureGroup() {
     String topicDir = "topic.another.${topic}.again";
 
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a");
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "[a");
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
   }
@@ -148,7 +147,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     String topic = "topica";
     String topicDir = "topic.another.${topic}.again";
 
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "[a-z]");
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "[a-z]");
     properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
     connectorConfig.getTopicsDirFromTopic(topic);

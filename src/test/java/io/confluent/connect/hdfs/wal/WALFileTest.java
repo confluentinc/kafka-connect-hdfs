@@ -20,12 +20,10 @@ import org.apache.kafka.common.TopicPartition;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Map;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.storage.common.StorageCommonConfig;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -35,7 +33,7 @@ public class WALFileTest extends TestWithMiniDFSCluster {
   @Test
   public void testAppend() throws Exception {
     setUp();
-    properties.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "(.*)");
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "(.*)");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
 
     String topic = "topic";

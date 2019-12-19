@@ -71,7 +71,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     props.put(PartitionerConfig.LOCALE_CONFIG, "en");
     props.put(PartitionerConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
 
-    props.put(HdfsSinkConnectorConfig.TOPIC_REGEX_CAPTURE_GROUP_CONFIG, "(.*)[\\.\\-](.*)");
+    props.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "(.*)[\\.\\-](.*)");
     props.put(StorageCommonConfig.TOPICS_DIR_CONFIG, "${1}/${topic}");
 
     return props;
