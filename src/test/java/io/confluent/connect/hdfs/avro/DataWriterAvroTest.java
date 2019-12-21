@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.storage.common.StorageCommonConfig;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -90,13 +91,14 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
     wal.append(WAL.beginMarker, "");
 
+    String fileDelim = connectorConfig.getString(StorageCommonConfig.FILE_DELIM_CONFIG);
     for (int i = 0; i < 5; ++i) {
       long startOffset = i * 10;
       long endOffset = (i + 1) * 10 - 1;
       String tempfile = FileUtils.tempFileName(url, topicsDir, getDirectory(), extension);
       fs.createNewFile(new Path(tempfile));
       String committedFile = FileUtils.committedFileName(url, topicsDir, getDirectory(), TOPIC_PARTITION, startOffset,
-                                                         endOffset, extension, zeroPadFormat);
+                                                         endOffset, extension, zeroPadFormat, fileDelim);
       wal.append(tempfile, committedFile);
     }
     wal.append(WAL.endMarker, "");
@@ -178,6 +180,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
     long[] startOffsets = {0, 3};
     long[] endOffsets = {2, 5};
+    String file
 
     for (int i = 0; i < startOffsets.length; ++i) {
       Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, startOffsets[i],

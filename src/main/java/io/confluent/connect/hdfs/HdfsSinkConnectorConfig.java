@@ -54,6 +54,11 @@ import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CL
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DISPLAY;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DOC;
 
+import static io.confluent.connect.storage.common.StorageCommonConfig.FILE_DELIM_CONFIG;
+import static io.confluent.connect.storage.common.StorageCommonConfig.FILE_DELIM_DOC;
+import static io.confluent.connect.storage.common.StorageCommonConfig.FILE_DELIM_DISPLAY;
+import static io.confluent.connect.storage.common.StorageCommonConfig.FILE_DELIM_DEFAULT;
+
 public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   // HDFS Group
@@ -124,6 +129,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
   private static final ParentValueRecommender AVRO_COMPRESSION_RECOMMENDER
       = new ParentValueRecommender(FORMAT_CLASS_CONFIG, AvroFormat.class, AVRO_SUPPORTED_CODECS);
+  private static final GenericRecommender FILE_DELIM_RECOMMENDER = new GenericRecommender();
 
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
@@ -321,6 +327,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     ConcurrentMap<String, String> propsCopy = new ConcurrentHashMap<>(props);
     propsCopy.putIfAbsent(STORAGE_CLASS_CONFIG, HdfsStorage.class.getName());
     propsCopy.putIfAbsent(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
+    propsCopy.putIfAbsent(FILE_DELIM_CONFIG, FILE_DELIM_DEFAULT);
     return propsCopy;
   }
 
@@ -424,6 +431,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     Set<String> skip = new HashSet<>();
     skip.add(STORAGE_CLASS_CONFIG);
     skip.add(FORMAT_CLASS_CONFIG);
+    skip.add(FILE_DELIM_CONFIG);
 
     // Order added is important, so that group order is maintained
     ConfigDef visible = new ConfigDef();
@@ -457,6 +465,19 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         Width.NONE,
         FORMAT_CLASS_DISPLAY,
         FORMAT_CLASS_RECOMMENDER
+    );
+
+    visible.define(
+      FILE_DELIM_CONFIG,
+      Type.STRING,
+      FILE_DELIM_DEFAULT,
+      Importance.MEDIUM,
+      FILE_DELIM_DOC,
+      "Storage",
+      1,
+      Width.NONE,
+      FILE_DELIM_DISPLAY,
+      FILE_DELIM_RECOMMENDER
     );
 
     return visible;

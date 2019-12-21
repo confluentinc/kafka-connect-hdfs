@@ -83,17 +83,18 @@ public class FileUtils {
       long startOffset,
       long endOffset,
       String extension,
-      String zeroPadFormat
+      String zeroPadFormat,
+      String fileDelim
   ) {
     String topic = topicPart.topic();
     int partition = topicPart.partition();
     StringBuilder sb = new StringBuilder();
     sb.append(topic);
-    sb.append(HdfsSinkConnectorConstants.COMMMITTED_FILENAME_SEPARATOR);
+    sb.append(fileDelim);
     sb.append(partition);
-    sb.append(HdfsSinkConnectorConstants.COMMMITTED_FILENAME_SEPARATOR);
+    sb.append(fileDelim);
     sb.append(String.format(zeroPadFormat, startOffset));
-    sb.append(HdfsSinkConnectorConstants.COMMMITTED_FILENAME_SEPARATOR);
+    sb.append(fileDelim);
     sb.append(String.format(zeroPadFormat, endOffset));
     sb.append(extension);
     String name = sb.toString();

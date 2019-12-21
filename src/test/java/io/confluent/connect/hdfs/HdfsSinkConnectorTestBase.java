@@ -59,6 +59,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
         "io.confluent.connect.hdfs.storage.HdfsStorage"
     );
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
+    props.put(StorageCommonConfig.FILE_DELIM_CONFIG, StorageCommonConfig.FILE_DELIM_DEFAULT);
     props.put(
         PartitionerConfig.PARTITIONER_CLASS_CONFIG,
         DefaultPartitioner.class.getName()
