@@ -19,6 +19,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -388,6 +389,34 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
           break;
       }
     }
+  }
+
+  @Test
+  public void testParquetCompressionTypeSupported() {
+    properties.put(HdfsSinkConnectorConfig.PARQUET_CODEC_CONFIG, "snappy");
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    assertEquals(CompressionCodecName.SNAPPY, connectorConfig.parquetCompressionCodecName());
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testUnsupportedParquetCompressionType() {
+    properties.put(HdfsSinkConnectorConfig.PARQUET_CODEC_CONFIG, "uncompressed");
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    connectorConfig.parquetCompressionCodecName();
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testNotYetSupportedParquetCompressionTypeGzip() {
+    properties.put(HdfsSinkConnectorConfig.PARQUET_CODEC_CONFIG, "gzip");
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    connectorConfig.parquetCompressionCodecName();
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testNotYetSupportedParquetCompressionTypeLz4() {
+    properties.put(HdfsSinkConnectorConfig.PARQUET_CODEC_CONFIG, "lz4");
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    connectorConfig.parquetCompressionCodecName();
   }
 }
 

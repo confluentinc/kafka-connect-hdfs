@@ -23,8 +23,12 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.utils.Utils;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -33,9 +37,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import io.confluent.connect.hdfs.avro.AvroFormat;
 import io.confluent.connect.hdfs.json.JsonFormat;
+import io.confluent.connect.hdfs.parquet.ParquetFormat;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.ComposableConfig;
@@ -124,6 +131,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final GenericRecommender PARTITIONER_CLASS_RECOMMENDER = new GenericRecommender();
   private static final ParentValueRecommender AVRO_COMPRESSION_RECOMMENDER
       = new ParentValueRecommender(FORMAT_CLASS_CONFIG, AvroFormat.class, AVRO_SUPPORTED_CODECS);
+  private static final ParquetCodecRecommender PARQUET_COMPRESSION_RECOMMENDER =
+      new ParquetCodecRecommender();
 
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
@@ -280,7 +289,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     // Put the storage group(s) last ...
     ConfigDef storageConfigDef = StorageSinkConnectorConfig.newConfigDef(
         FORMAT_CLASS_RECOMMENDER,
-        AVRO_COMPRESSION_RECOMMENDER);
+        AVRO_COMPRESSION_RECOMMENDER,
+        PARQUET_COMPRESSION_RECOMMENDER);
 
     for (ConfigDef.ConfigKey key : storageConfigDef.configKeys().values()) {
       configDef.define(key);
@@ -399,6 +409,51 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
     return map;
   }
+
+  public CompressionCodecName parquetCompressionCodecName() {
+    return parquetCodec().equals("none")
+           ? CompressionCodecName.fromConf(null)
+           : CompressionCodecName.fromConf(parquetCodec());
+  }
+
+  private static class ParquetCodecRecommender extends ParentValueRecommender
+      implements ConfigDef.Validator {
+    public static final Map<String, CompressionCodecName> TYPES_BY_NAME;
+    public static final List<String> ALLOWED_VALUES;
+
+    static {
+      // TODO: Enable all the compression codec on the next major release and change the
+      //  extension format from filename.parquet to filename.codec_extension.parquet Until then,
+      //  keep snappy as default codec and filename.parquet as filaname format
+      TYPES_BY_NAME = new HashMap<>();
+      TYPES_BY_NAME.put(CompressionCodecName.SNAPPY.name().toLowerCase(),
+          CompressionCodecName.SNAPPY);
+      ALLOWED_VALUES = new ArrayList<>(TYPES_BY_NAME.keySet());
+      // Not a hard requirement but this call usually puts 'none' first in the list of allowed
+      // values
+      Collections.reverse(ALLOWED_VALUES);
+    }
+
+    public ParquetCodecRecommender() {
+      super(FORMAT_CLASS_CONFIG, ParquetFormat.class, ALLOWED_VALUES.toArray());
+    }
+
+    @Override
+    public void ensureValid(String name, Object compressionCodecName) {
+      String compressionCodecNameString = ((String) compressionCodecName).trim();
+      if (!TYPES_BY_NAME.containsKey(compressionCodecNameString)) {
+        throw new ConfigException(name, compressionCodecName,
+            "Value must be one of: " + ALLOWED_VALUES);
+      }
+    }
+
+    @Override
+    public String toString() {
+      return "[" + Utils.join(ALLOWED_VALUES, ", ") + "]";
+
+    }
+  }
+
 
   private static class BooleanParentRecommender implements ConfigDef.Recommender {
 
