@@ -130,7 +130,7 @@ public class FSWAL implements WAL {
           WALEntry mapKey = new WALEntry(key.getName());
           WALEntry mapValue = new WALEntry(value.getName());
           entries.put(mapKey, mapValue);
-          if (value.getName().equals(RecoveryHelper.RECOVERY_RECORD_KEY)) {
+          if (key.getName().equals(RecoveryHelper.RECOVERY_RECORD_KEY)) {
             RecoveryHelper.getInstance().addFile(value.getName());
           }
         }

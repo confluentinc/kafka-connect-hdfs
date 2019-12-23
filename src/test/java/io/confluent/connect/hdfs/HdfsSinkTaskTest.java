@@ -185,17 +185,27 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
     Map<TopicPartition, String> recoveryPoints = new HashMap<>();
     Map<TopicPartition, List<String>> committedFiles = new HashMap<>();
-    // simulate deleted temp file
-    tempfiles.put(TOPIC_PARTITION, Collections.singletonList(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension)));
+
+    tempfiles.put(TOPIC_PARTITION, new ArrayList<>());
+
     String fileName1 = FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 200, 300,
         extension, ZERO_PAD_FMT);
     String fileName2 = FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 301, 400,
         extension, ZERO_PAD_FMT);
+
+    committedFiles.put(TOPIC_PARTITION, new ArrayList<>());
+
+    tempfiles.get(TOPIC_PARTITION).add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
     fs.createNewFile(new Path(fileName1));
+    committedFiles.get(TOPIC_PARTITION).add(fileName1);
+    tempfiles.get(TOPIC_PARTITION).add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
+    committedFiles.get(TOPIC_PARTITION).add(fileName2);
     fs.createNewFile(new Path(fileName2));
 
-    committedFiles.put(TOPIC_PARTITION, Collections.singletonList(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 401, 500,
-        extension, ZERO_PAD_FMT)));
+    // simulate deleted temp file
+    tempfiles.get(TOPIC_PARTITION).add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
+    committedFiles.get(TOPIC_PARTITION)
+        .add(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 401, 500, extension, ZERO_PAD_FMT));
 
     recoveryPoints.put(TOPIC_PARTITION, fileName1);
 

@@ -18,9 +18,8 @@ package io.confluent.connect.hdfs;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 
@@ -34,15 +33,19 @@ public class RecoveryHelper {
     return instance;
   }
 
-  private final Map<TopicPartition, List<String>> files = new HashMap<>();
+  private final ConcurrentHashMap<TopicPartition, List<String>> files = new ConcurrentHashMap<>();
 
   public List<String> getCommittedFiles(TopicPartition tp) {
     return files.get(tp);
   }
 
   public void addFile(TopicPartition tp, String name) {
-    files.computeIfAbsent(tp, (x) -> new ArrayList<>());
-    files.get(tp).add(name);
+    List<String> newList = new ArrayList<>();
+    newList.add(name);
+    files.merge(tp, newList, (a, b) -> {
+      a.addAll(b);
+      return a;
+    });
   }
 
   public void addFile(String name) {
