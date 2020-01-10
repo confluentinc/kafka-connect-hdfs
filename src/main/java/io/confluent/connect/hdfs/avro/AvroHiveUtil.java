@@ -29,7 +29,6 @@ import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
 
@@ -42,7 +41,7 @@ public class AvroHiveUtil extends HiveUtil {
       + ".AvroContainerOutputFormat";
   private static final String AVRO_SCHEMA_LITERAL = "avro.schema.literal";
   private final AvroData avroData;
-  private final String topicsDir;
+  private final HdfsSinkConnectorConfig config;
 
   public AvroHiveUtil(
       HdfsSinkConnectorConfig conf, AvroData avroData, HiveMetaStore
@@ -50,7 +49,7 @@ public class AvroHiveUtil extends HiveUtil {
   ) {
     super(conf, hiveMetaStore);
     this.avroData = avroData;
-    this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    this.config = conf;
   }
 
   @Override
@@ -81,7 +80,8 @@ public class AvroHiveUtil extends HiveUtil {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
-    String tablePath = hiveDirectoryName(url, topicsDir, tableName);
+    // tableName is always the topic name
+    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(tableName), tableName);
     table.setDataLocation(new Path(tablePath));
     table.setSerializationLib(AVRO_SERDE);
     try {

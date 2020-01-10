@@ -53,7 +53,6 @@ import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
-import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
@@ -189,7 +188,7 @@ public class TopicPartitionWriter {
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
 
-    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    topicsDir = connectorConfig.getTopicsDirFromTopic(tp.topic());
     flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
     rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig
@@ -198,7 +197,7 @@ public class TopicPartitionWriter {
     compatibility = StorageSchemaCompatibility.getCompatibility(
         connectorConfig.getString(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
 
-    String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
+    String logsDir = connectorConfig.getLogsDirFromTopic(tp.topic());
     wal = storage.wal(logsDir, tp);
 
     buffer = new LinkedList<>();

@@ -99,6 +99,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
     List<String> expectedPartitions = new ArrayList<>();
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
@@ -138,6 +139,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
     List<String> expectedPartitions = new ArrayList<>();
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
@@ -182,6 +184,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     String directory2 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(17);
     String directory3 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(18);
 
+    String topicsDir = this.topicsDir.get(TOPIC);
     List<String> expectedPartitions = new ArrayList<>();
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory1));
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory2));
@@ -264,6 +267,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
+    String topicsDir = this.topicsDir.get(TOPIC);
     List<String> expectedPartitions = new ArrayList<>();
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=mx/state=null"));
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=ca"));
@@ -330,6 +334,8 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
         .encodeTimestamp(TimeUnit.HOURS.toMillis(24), pathFormat, "America/Los_Angeles",
                          dateTime.getMillis());
     String directory =  TOPIC + "/" + encodedPartition;
+
+    String topicsDir = this.topicsDir.get(TOPIC);
     List<String> expectedPartitions = new ArrayList<>();
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 

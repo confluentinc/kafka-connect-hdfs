@@ -34,12 +34,12 @@
 
     <suppress
             checks="MethodLength"
-            files="(DataWriter).java"
+            files="(DataWriter|HdfsSinkConnectorConfig).java"
     />
 
     <suppress
             checks="NPathComplexity"
-            files="(TopicPartitionWriter|WALFile).java"
+            files="(TopicPartitionWriter|WALFile|DataWriter).java"
     />
 
     <suppress

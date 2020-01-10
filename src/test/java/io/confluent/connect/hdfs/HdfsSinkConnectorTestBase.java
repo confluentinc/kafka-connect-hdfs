@@ -32,7 +32,6 @@ import io.confluent.connect.hdfs.avro.AvroFormat;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.storage.StorageSinkTestBase;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
@@ -40,7 +39,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
   protected HdfsSinkConnectorConfig connectorConfig;
   protected Map<String, Object> parsedConfig;
   protected Configuration conf;
-  protected String topicsDir;
+  protected HashMap<String, String> topicsDir;
   protected String logsDir;
   protected AvroData avroData;
 
@@ -71,6 +70,9 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     props.put(PartitionerConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH/");
     props.put(PartitionerConfig.LOCALE_CONFIG, "en");
     props.put(PartitionerConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
+
+    props.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "(.*)[\\.\\-](.*)");
+    props.put(StorageCommonConfig.TOPICS_DIR_CONFIG, "${1}/${topic}");
 
     return props;
   }
@@ -113,7 +115,10 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
     parsedConfig = new HashMap<>(connectorConfig.plainValues());
     conf = connectorConfig.getHadoopConfiguration();
-    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    topicsDir = new HashMap<>();
+    for (TopicPartition tp : context.assignment()) {
+      topicsDir.computeIfAbsent(tp.topic(), topic -> connectorConfig.getTopicsDirFromTopic(topic));
+    }
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
     avroData = new AvroData(
         connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)

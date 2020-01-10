@@ -104,6 +104,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     newWriterProvider = format.getRecordWriterProvider();
     dataFileReader = new AvroDataFileReader();
     extension = newWriterProvider.getExtension();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     createTopicDir(url, topicsDir, TOPIC);
     createLogsDir(url, logsDir);
   }
@@ -141,6 +142,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     topicPartitionWriter.close();
 
     Set<Path> expectedFiles = new HashSet<>();
+    String topicsDir = this.topicsDir.get(TOPIC);
     expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
                                "/" + TOPIC + "+" + PARTITION + "+00+02" + extension));
     expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
@@ -208,6 +210,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     String directory3 = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + String.valueOf(18));
 
     Set<Path> expectedFiles = new HashSet<>();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory1, TOPIC_PARTITION, 0, 2, extension, zeroPadFormat)));
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory2, TOPIC_PARTITION, 3, 5, extension, zeroPadFormat)));
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory3, TOPIC_PARTITION, 6, 8, extension, zeroPadFormat)));
@@ -264,6 +267,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     String directory = partitioner.generatePartitionedPath(TOPIC, encodedPartition);
 
     Set<Path> expectedFiles = new HashSet<>();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, 0, 2, extension, zeroPadFormat)));
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, 3, 5, extension, zeroPadFormat)));
     expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, 6, 8, extension, zeroPadFormat)));
@@ -349,6 +353,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
     String dirPrefixFirst = partitioner.generatePartitionedPath(TOPIC, encodedPartitionFirst);
     Set<Path> expectedFiles = new HashSet<>();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     for (int i : new int[]{0, 3, 6}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixFirst, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
     }
@@ -409,6 +414,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     String encodedPartitionLater = getTimebasedEncodedPartition(timestampLater);
 
     String dirPrefixFirst = partitioner.generatePartitionedPath(TOPIC, encodedPartitionFirst);
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     Set<Path> expectedFiles = new HashSet<>();
     for (int i : new int[]{0, 3, 6}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixFirst, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
@@ -473,6 +479,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
 
     String dirPrefixFirst = partitioner.generatePartitionedPath(TOPIC, encodedPartitionFirst);
     Set<Path> expectedFiles = new HashSet<>();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     for (int i : new int[]{0, 3, 6}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixFirst, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
     }
@@ -568,6 +575,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     String encodedPartitionLater = getTimebasedEncodedPartition(timestampLater);
 
     String dirPrefixFirst = partitioner.generatePartitionedPath(TOPIC, encodedPartitionFirst);
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     Set<Path> expectedFiles = new HashSet<>();
     for (int i : new int[]{0}) {
       expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, dirPrefixFirst, TOPIC_PARTITION, i, i + 2, extension, zeroPadFormat)));
@@ -602,6 +610,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   }
 
   private void verify(Set<Path> expectedFiles, int expectedSize, List<Struct> records, Schema schema) throws IOException {
+    String topicsDir = this.topicsDir.get(TOPIC);
     Path path = new Path(FileUtils.topicDirectory(url, topicsDir, TOPIC));
     FileStatus[] statuses = FileUtils.traverse(storage, path, new CommittedFileFilter());
     assertEquals(expectedFiles.size(), statuses.length);

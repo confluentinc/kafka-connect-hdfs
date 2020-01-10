@@ -105,6 +105,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     List<String> expectedPartitions = new ArrayList<>();
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
+    String topicsDir = this.topicsDir.get(TOPIC);
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
@@ -152,6 +153,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     List<String> expectedPartitions = new ArrayList<>();
     String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
@@ -198,6 +200,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     List<String> expectedPartitions = new ArrayList<>();
     String directory = TOPIC_WITH_DOTS + "/" + "partition=" + String.valueOf(PARTITION);
+    String topicsDir = connectorConfig.getTopicsDirFromTopic(TOPIC_WITH_DOTS);
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC_WITH_DOTS, (short)-1);
@@ -254,6 +257,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     String directory2 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(17);
     String directory3 = TOPIC + "/" + partitionFieldName + "=" + String.valueOf(18);
 
+    String topicsDir = this.topicsDir.get(TOPIC);
     List<String> expectedPartitions = new ArrayList<>();
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory1));
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory2));
@@ -342,6 +346,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
+    String topicsDir = this.topicsDir.get(TOPIC);
     List<String> expectedPartitions = new ArrayList<>();
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=mx/state=null"));
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=ca"));
@@ -427,6 +432,8 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     DateTime dateTime = DateTime.now(DateTimeZone.forID("America/Los_Angeles"));
     String encodedPartition = TimeUtils.encodeTimestamp(TimeUnit.HOURS.toMillis(24), pathFormat, "America/Los_Angeles", dateTime.getMillis());
     String directory =  TOPIC + "/" + encodedPartition;
+
+    String topicsDir = this.topicsDir.get(TOPIC);
     List<String> expectedPartitions = new ArrayList<>();
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
 

@@ -72,7 +72,8 @@ public class DataWriter {
   private final Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
   private HdfsStorage storage;
-  private String topicsDir;
+  private HashMap<String, String> logDirs;
+  private HashMap<String, String> topicDirs;
   private Format format;
   private RecordWriterProvider writerProvider;
   private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
@@ -207,7 +208,6 @@ public class DataWriter {
       }
 
       url = connectorConfig.getUrl();
-      topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
 
       @SuppressWarnings("unchecked")
       Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) connectorConfig
@@ -219,10 +219,24 @@ public class DataWriter {
           url
       );
 
-      createDir(topicsDir);
-      createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
-      String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
-      createDir(logsDir);
+      topicDirs = new HashMap<>();
+      for (TopicPartition tp : context.assignment()) {
+        topicDirs.computeIfAbsent(tp.topic(), top -> connectorConfig.getTopicsDirFromTopic(top));
+      }
+
+      for (String directory : topicDirs.values()) {
+        createDir(directory);
+        createDir(directory + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
+      }
+
+      logDirs = new HashMap<>();
+      for (TopicPartition tp : context.assignment()) {
+        logDirs.computeIfAbsent(tp.topic(), topic -> connectorConfig.getLogsDirFromTopic(topic));
+      }
+
+      for (String directory : logDirs.values()) {
+        createDir(directory);
+      }
 
       // Try to instantiate as a new-style storage-common type class, then fall back to old-style
       // with no parameters
@@ -388,7 +402,7 @@ public class DataWriter {
 
     try {
       for (String topic : topics) {
-        String topicDir = FileUtils.topicDirectory(url, topicsDir, topic);
+        String topicDir = FileUtils.topicDirectory(url, topicDirs.get(topic), topic);
         CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
         FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
             storage,
