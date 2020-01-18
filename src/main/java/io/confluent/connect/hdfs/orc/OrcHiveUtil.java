@@ -1,13 +1,11 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+/*
+ * Copyright 2020 Confluent Inc.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,11 +35,11 @@ import org.apache.kafka.connect.data.Schema;
 import java.util.List;
 
 public class OrcHiveUtil extends HiveUtil {
-  private final String topicsDir;
+  private final HdfsSinkConnectorConfig config;
 
-  public OrcHiveUtil(HdfsSinkConnectorConfig conf, HiveMetaStore hiveMetaStore) {
-    super(conf, hiveMetaStore);
-    this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+  public OrcHiveUtil(HdfsSinkConnectorConfig config, HiveMetaStore hiveMetaStore) {
+    super(config, hiveMetaStore);
+    this.config = config;
   }
 
   @Override
@@ -65,7 +63,7 @@ public class OrcHiveUtil extends HiveUtil {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
-    String tablePath = hiveDirectoryName(url, topicsDir, tableName);
+    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(tableName), tableName);
     table.setDataLocation(new Path(tablePath));
     table.setSerializationLib(getHiveOrcSerde());
     try {

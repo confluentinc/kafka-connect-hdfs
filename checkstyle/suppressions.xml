@@ -14,7 +14,7 @@
 
     <suppress
             checks="ClassDataAbstractionCoupling"
-            files="(DataWriter|WALFile).java"
+            files="(DataWriter|WALFile|OrcUtil).java"
     />
 
     <suppress
@@ -24,12 +24,12 @@
 
     <suppress
             checks="CyclomaticComplexity"
-            files="(DataWriter|HdfsSinkConnectorConfig|TopicPartitionWriter|WALFile).java"
+            files="(DataWriter|HdfsSinkConnectorConfig|TopicPartitionWriter|WALFile|OrcUtil).java"
     />
 
     <suppress
             checks="JavaNCSS"
-            files="(DataWriter|TopicPartitionWriter).java"
+            files="(DataWriter|TopicPartitionWriter|OrcUtil).java"
     />
 
     <suppress
