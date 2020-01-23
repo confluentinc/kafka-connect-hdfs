@@ -202,8 +202,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <compilerArgs>
-                        <arg>-Xlint:all</arg>
-                        <arg>-Xlint:-deprecation</arg>
+                        <arg>-Xlint:all,-deprecation,-processing</arg>
                         <arg>-Werror</arg>
                     </compilerArgs>
                     <showWarnings>true</showWarnings>
