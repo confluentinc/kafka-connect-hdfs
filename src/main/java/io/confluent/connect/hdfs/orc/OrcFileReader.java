@@ -1,22 +1,22 @@
 /*
  * Copyright 2020 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.storage.format.SchemaFileReader;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile.ReaderOptions;
@@ -31,6 +31,7 @@ import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Timestamp;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,15 +39,14 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Iterator;
 
-public class OrcFileReader
-    implements io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path> {
+public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, Path> {
 
   private static final Logger log = LoggerFactory.getLogger(OrcFileReader.class);
 
   @Override
   public Schema getSchema(HdfsSinkConnectorConfig conf, Path path) {
     try {
-      log.info("Opening record reader for: {}", path);
+      log.info("Opening ORC record reader for: {}", path);
 
       ReaderOptions readerOptions = new ReaderOptions(conf.getHadoopConfiguration());
       Reader reader = OrcFile.createReader(path, readerOptions);
@@ -87,10 +87,13 @@ public class OrcFileReader
 
         return schemaBuilder.build();
       } else {
-        throw new DataException("Top level type must be STRUCT");
+        throw new ConnectException(
+            "Top level type must be of type STRUCT, but was "
+                + reader.getObjectInspector().getCategory().name()
+        );
       }
     } catch (IOException e) {
-      throw new DataException(e);
+      throw new ConnectException("Failed to get schema for file " + path, e);
     }
   }
 

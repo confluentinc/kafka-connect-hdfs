@@ -19,6 +19,7 @@ package io.confluent.connect.hdfs.orc;
 import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
+import io.confluent.connect.storage.hive.HiveSchemaConverter;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
