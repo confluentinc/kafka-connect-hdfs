@@ -370,7 +370,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     String result = HiveTestUtils.runHive(
         hiveExec,
-        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC) + " order by country, state"
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
     );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);

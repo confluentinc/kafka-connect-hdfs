@@ -286,8 +286,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     String result = HiveTestUtils.runHive(
         hiveExec,
         "SELECT * FROM " +
-            hiveMetaStore.tableNameConverter(TOPIC) +
-            " order by country, state"
+            hiveMetaStore.tableNameConverter(TOPIC)
     );
     String[] rows = result.split("\n");
     assertEquals(expectedResults.size(), rows.length);
