@@ -22,8 +22,12 @@ import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.hive.HiveTestBase;
 import io.confluent.connect.hdfs.hive.HiveTestUtils;
 import io.confluent.connect.hdfs.hive.HiveUtil;
-import io.confluent.connect.hdfs.parquet.ParquetHiveUtilTest;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.common.TopicPartition;
@@ -33,8 +37,6 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.Test;
-
-import java.util.*;
 
 import static org.junit.Assert.assertEquals;
 
@@ -64,7 +66,7 @@ public class OrcHiveUtilTest extends HiveTestBase {
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
-    String location = "partition=" + String.valueOf(PARTITION);
+    String location = "partition=" + PARTITION;
     hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
 
     Struct expectedRecord = createRecord(schema);
@@ -110,7 +112,7 @@ public class OrcHiveUtilTest extends HiveTestBase {
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 
-    String location = "partition=" + String.valueOf(PARTITION);
+    String location = "partition=" + PARTITION;
     hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
 
     Schema newSchema = createNewSchema();

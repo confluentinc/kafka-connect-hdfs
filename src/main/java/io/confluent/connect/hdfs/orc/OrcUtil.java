@@ -71,7 +71,7 @@ public final class OrcUtil {
     List<Object> data = new LinkedList<>();
     for (Field field : struct.schema().fields()) {
       if (struct.get(field) == null) {
-        data.add((Writable) null);
+        data.add(null);
       } else {
         Schema.Type schemaType = field.schema().type();
         String name = field.name();

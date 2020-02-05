@@ -77,7 +77,7 @@ public class ParquetHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    // convert copycat schema schema to Hive columns
+    // convert Connect schema schema to Hive columns
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());

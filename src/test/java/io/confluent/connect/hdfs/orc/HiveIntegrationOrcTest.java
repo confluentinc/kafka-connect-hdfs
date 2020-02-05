@@ -26,6 +26,12 @@ import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
 import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Field;
@@ -35,9 +41,6 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
-
-import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 
@@ -93,7 +96,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     assertEquals(expectedColumnNames, actualColumnNames);
 
     List<String> expectedPartitions = new ArrayList<>();
-    String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
+    String directory = TOPIC + "/" + "partition=" + PARTITION;
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir.get(TOPIC), directory));
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);

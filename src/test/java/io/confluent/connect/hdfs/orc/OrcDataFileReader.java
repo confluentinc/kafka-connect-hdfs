@@ -37,7 +37,7 @@ public class OrcDataFileReader implements DataFileReader {
     RecordReader rows = reader.rows();
 
     Object row = null;
-    for (; rows.hasNext(); ) {
+    while (rows.hasNext()) {
       row = rows.next(row);
       collection.add(row);
     }

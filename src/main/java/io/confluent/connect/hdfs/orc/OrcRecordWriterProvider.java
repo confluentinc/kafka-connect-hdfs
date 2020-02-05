@@ -36,7 +36,7 @@ import java.io.IOException;
 
 public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkConnectorConfig> {
 
-  private static Logger log = LoggerFactory.getLogger(OrcRecordWriterProvider.class);
+  private static final Logger log = LoggerFactory.getLogger(OrcRecordWriterProvider.class);
   private static final String EXTENSION = ".orc";
 
   @Override
@@ -48,9 +48,9 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
   public RecordWriter getRecordWriter(final HdfsSinkConnectorConfig conf, final String filename) {
     final Path path = new Path(filename);
     return new RecordWriter() {
-      Writer writer = null;
-      TypeInfo typeInfo = null;
-      Schema schema = null;
+      Writer writer;
+      TypeInfo typeInfo;
+      Schema schema;
 
       @Override
       public void write(SinkRecord record) {
@@ -81,14 +81,12 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
           }
 
           if (schema.type() == Schema.Type.STRUCT) {
-            if (log.isTraceEnabled()) {
-              log.trace(
-                  "Writing record from topic {} partition {} offset {}",
-                  record.topic(),
-                  record.kafkaPartition(),
-                  record.kafkaOffset()
-              );
-            }
+            log.trace(
+                "Writing record from topic {} partition {} offset {}",
+                record.topic(),
+                record.kafkaPartition(),
+                record.kafkaOffset()
+            );
 
             Struct struct = (Struct) record.value();
             OrcStruct row = OrcUtil.createOrcStruct(typeInfo, OrcUtil.convertStruct(struct));
