@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.parquet;
 
+import io.confluent.connect.storage.format.RecordWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
@@ -48,17 +49,14 @@ public class ParquetRecordWriterProvider
   }
 
   @Override
-  public io.confluent.connect.storage.format.RecordWriter getRecordWriter(
-      final HdfsSinkConnectorConfig conf,
-      final String filename
-  ) {
-    return new io.confluent.connect.storage.format.RecordWriter() {
+  public RecordWriter getRecordWriter(HdfsSinkConnectorConfig conf, String filename) {
+    return new RecordWriter() {
       final CompressionCodecName compressionCodecName = CompressionCodecName.SNAPPY;
       final int blockSize = 256 * 1024 * 1024;
       final int pageSize = 64 * 1024;
-      final Path path = new Path(filename);
-      Schema schema = null;
-      ParquetWriter<GenericRecord> writer = null;
+      Path path = new Path(filename);
+      Schema schema;
+      ParquetWriter<GenericRecord> writer;
 
       @Override
       public void write(SinkRecord record) {

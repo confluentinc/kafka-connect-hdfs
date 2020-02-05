@@ -17,6 +17,7 @@ package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.storage.format.SchemaFileReader;
+import javax.annotation.Nonnull;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile.ReaderOptions;
@@ -46,7 +47,7 @@ public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, 
   @Override
   public Schema getSchema(HdfsSinkConnectorConfig conf, Path path) {
     try {
-      log.info("Opening ORC record reader for: {}", path);
+      log.debug("Opening ORC record reader for: {}", path);
 
       ReaderOptions readerOptions = new ReaderOptions(conf.getHadoopConfiguration());
       Reader reader = OrcFile.createReader(path, readerOptions);
@@ -97,6 +98,7 @@ public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, 
     }
   }
 
+  @Override
   public boolean hasNext() {
     throw new UnsupportedOperationException();
   }
@@ -109,6 +111,8 @@ public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, 
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  @Nonnull
   public Iterator<Object> iterator() {
     throw new UnsupportedOperationException();
   }

@@ -45,8 +45,9 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
   }
 
   @Override
-  public RecordWriter getRecordWriter(final HdfsSinkConnectorConfig conf, final String filename) {
-    final Path path = new Path(filename);
+  public RecordWriter getRecordWriter(HdfsSinkConnectorConfig conf, String filename) {
+    Path path = new Path(filename);
+
     return new RecordWriter() {
       Writer writer;
       TypeInfo typeInfo;
