@@ -16,11 +16,11 @@
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.hive.HiveMetaStore;
-import io.confluent.connect.hdfs.hive.HiveUtil;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
+import io.confluent.connect.storage.hive.HiveMetaStore;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
+import io.confluent.connect.storage.hive.HiveUtil;
+import io.confluent.connect.storage.partitioner.Partitioner;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -54,7 +54,7 @@ public class OrcHiveUtil extends HiveUtil {
       String database,
       String tableName,
       Schema schema,
-      Partitioner partitioner
+      Partitioner<FieldSchema> partitioner
   ) throws HiveMetaStoreException {
     Table table = constructOrcTable(database, tableName, schema, partitioner);
     hiveMetaStore.createTable(table);
@@ -64,7 +64,7 @@ public class OrcHiveUtil extends HiveUtil {
       String database,
       String tableName,
       Schema schema,
-      Partitioner partitioner
+      Partitioner<FieldSchema> partitioner
   ) throws HiveMetaStoreException {
 
     Table table = newTable(database, tableName);

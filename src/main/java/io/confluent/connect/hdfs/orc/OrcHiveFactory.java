@@ -16,23 +16,15 @@
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.storage.hive.HiveFactory;
+import io.confluent.connect.storage.hive.HiveMetaStore;
 import io.confluent.connect.storage.hive.HiveUtil;
 import org.apache.kafka.common.config.AbstractConfig;
 
 public class OrcHiveFactory implements HiveFactory {
 
   @Override
-  public HiveUtil createHiveUtil(
-      AbstractConfig conf,
-      io.confluent.connect.storage.hive.HiveMetaStore hiveMetaStore
-  ) {
-    return createHiveUtil((HdfsSinkConnectorConfig) conf, (HiveMetaStore) hiveMetaStore);
-  }
-
-  @Deprecated
-  public HiveUtil createHiveUtil(HdfsSinkConnectorConfig conf, HiveMetaStore hiveMetaStore) {
-    return new OrcHiveUtil(conf, hiveMetaStore);
+  public HiveUtil createHiveUtil(AbstractConfig conf, HiveMetaStore hiveMetaStore) {
+    return new OrcHiveUtil((HdfsSinkConnectorConfig) conf, hiveMetaStore);
   }
 }
