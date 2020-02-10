@@ -15,6 +15,22 @@
 
 package io.confluent.connect.hdfs.orc;
 
+import static org.apache.kafka.connect.data.Schema.Type.ARRAY;
+import static org.apache.kafka.connect.data.Schema.Type.BOOLEAN;
+import static org.apache.kafka.connect.data.Schema.Type.BYTES;
+import static org.apache.kafka.connect.data.Schema.Type.FLOAT32;
+import static org.apache.kafka.connect.data.Schema.Type.FLOAT64;
+import static org.apache.kafka.connect.data.Schema.Type.INT16;
+import static org.apache.kafka.connect.data.Schema.Type.INT32;
+import static org.apache.kafka.connect.data.Schema.Type.INT64;
+import static org.apache.kafka.connect.data.Schema.Type.INT8;
+import static org.apache.kafka.connect.data.Schema.Type.MAP;
+import static org.apache.kafka.connect.data.Schema.Type.STRING;
+import static org.apache.kafka.connect.data.Schema.Type.STRUCT;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.BiFunction;
 import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
@@ -36,6 +52,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Schema.Type;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.data.Time;
 import org.apache.kafka.connect.data.Timestamp;
@@ -44,6 +61,23 @@ import java.util.LinkedList;
 import java.util.List;
 
 public final class OrcUtil {
+
+  private static Map<Type, BiFunction<Struct, Field, Object>> CONVERSION_MAP = new HashMap<>();
+
+  static {
+    CONVERSION_MAP.put(ARRAY, OrcUtil::convertArray);
+    CONVERSION_MAP.put(BOOLEAN, OrcUtil::convertBoolean);
+    CONVERSION_MAP.put(BYTES, OrcUtil::convertBytes);
+    CONVERSION_MAP.put(FLOAT32, OrcUtil::convertFloat32);
+    CONVERSION_MAP.put(FLOAT64, OrcUtil::convertFloat64);
+    CONVERSION_MAP.put(INT8, OrcUtil::convertInt8);
+    CONVERSION_MAP.put(INT16, OrcUtil::convertInt16);
+    CONVERSION_MAP.put(INT32, OrcUtil::convertInt32);
+    CONVERSION_MAP.put(INT64, OrcUtil::convertInt64);
+    CONVERSION_MAP.put(MAP, OrcUtil::convertMap);
+    CONVERSION_MAP.put(STRING, OrcUtil::convertString);
+    CONVERSION_MAP.put(STRUCT, OrcUtil::convertStruct);
+  }
 
   /**
    * Create an object of OrcStruct given a type string and a list of objects
@@ -73,69 +107,80 @@ public final class OrcUtil {
         data.add(null);
       } else {
         Schema.Type schemaType = field.schema().type();
-        String name = field.name();
-        switch (schemaType) {
-          case BOOLEAN:
-            data.add(new BooleanWritable(struct.getBoolean(name)));
-            break;
-          case STRING:
-            data.add(new Text(struct.getString(name)));
-            break;
-          case BYTES:
-            data.add(new BytesWritable(struct.getBytes(name)));
-            break;
-          case INT8:
-            data.add(new ByteWritable(struct.getInt8(name)));
-            break;
-          case INT16:
-            data.add(new ShortWritable(struct.getInt16(name)));
-            break;
-          case INT32:
-            if (Date.LOGICAL_NAME.equals(field.schema().name())) {
-              java.util.Date date = (java.util.Date) struct.get(field);
-              data.add(new DateWritable(new java.sql.Date(date.getTime())));
-            } else if (Time.LOGICAL_NAME.equals(field.schema().name())) {
-              java.util.Date date = (java.util.Date) struct.get(field);
-              data.add(new TimestampWritable(new java.sql.Timestamp(date.getTime())));
-            } else {
-              data.add(new IntWritable(struct.getInt32(name)));
-            }
-            break;
-          case INT64:
-            if (Timestamp.LOGICAL_NAME.equals(field.schema().name())) {
-              java.util.Date date = (java.util.Date) struct.get(field);
-              data.add(new TimestampWritable(new java.sql.Timestamp(date.getTime())));
-            } else {
-              data.add(new LongWritable(struct.getInt64(name)));
-            }
-            break;
-          case FLOAT32:
-            data.add(new FloatWritable(struct.getFloat32(name)));
-            break;
-          case FLOAT64:
-            data.add(new DoubleWritable(struct.getFloat64(name)));
-            break;
-          case ARRAY:
-            data.add(new ArrayPrimitiveWritable(struct.getArray(name).toArray()));
-            break;
-          case STRUCT:
-            data.add(convertStruct(struct.getStruct(name)));
-            break;
-          case MAP:
-            MapWritable mapWritable = new MapWritable();
-            struct.getMap(name).forEach(
-                (key, value) -> mapWritable.put(new ObjectWritable(key), new ObjectWritable(value))
-            );
-
-            data.add(mapWritable);
-            break;
-          default:
-            break;
-        }
+        data.add(CONVERSION_MAP.get(schemaType).apply(struct, field));
       }
     }
 
     return data.toArray();
   }
 
+  private static Object convertStruct(Struct struct, Field field) {
+    return convertStruct(struct.getStruct(field.name()));
+  }
+
+  private static Object convertArray(Struct struct, Field field) {
+    return new ArrayPrimitiveWritable(struct.getArray(field.name()).toArray());
+  }
+
+  private static Object convertBoolean(Struct struct, Field field) {
+    return new BooleanWritable(struct.getBoolean(field.name()));
+  }
+
+  private static Object convertBytes(Struct struct, Field field) {
+    return new BytesWritable(struct.getBytes(field.name()));
+  }
+
+  private static Object convertFloat32(Struct struct, Field field) {
+    return new FloatWritable(struct.getFloat32(field.name()));
+  }
+
+  private static Object convertFloat64(Struct struct, Field field) {
+    return new DoubleWritable(struct.getFloat64(field.name()));
+  }
+
+  private static Object convertInt8(Struct struct, Field field) {
+    return new ByteWritable(struct.getInt8(field.name()));
+  }
+
+  private static Object convertInt16(Struct struct, Field field) {
+    return new ShortWritable(struct.getInt16(field.name()));
+  }
+
+  private static Object convertInt32(Struct struct, Field field) {
+
+    if (Date.LOGICAL_NAME.equals(field.schema().name())) {
+      java.util.Date date = (java.util.Date) struct.get(field);
+      return new DateWritable(new java.sql.Date(date.getTime()));
+    }
+
+    if (Time.LOGICAL_NAME.equals(field.schema().name())) {
+      java.util.Date date = (java.util.Date) struct.get(field);
+      return new TimestampWritable(new java.sql.Timestamp(date.getTime()));
+    }
+
+    return new IntWritable(struct.getInt32(field.name()));
+  }
+
+  private static Object convertInt64(Struct struct, Field field) {
+
+    if (Timestamp.LOGICAL_NAME.equals(field.schema().name())) {
+      java.util.Date date = (java.util.Date) struct.get(field);
+      return new TimestampWritable(new java.sql.Timestamp(date.getTime()));
+    }
+
+    return new LongWritable(struct.getInt64(field.name()));
+  }
+
+  private static Object convertMap(Struct struct, Field field) {
+    MapWritable mapWritable = new MapWritable();
+    struct.getMap(field.name()).forEach(
+        (key, value) -> mapWritable.put(new ObjectWritable(key), new ObjectWritable(value))
+    );
+
+    return mapWritable;
+  }
+
+  private static Object convertString(Struct struct, Field field) {
+    return new Text(struct.getString(field.name()));
+  }
 }

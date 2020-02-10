@@ -24,12 +24,12 @@
 
     <suppress
             checks="CyclomaticComplexity"
-            files="(DataWriter|HdfsSinkConnectorConfig|TopicPartitionWriter|WALFile|OrcUtil).java"
+            files="(DataWriter|HdfsSinkConnectorConfig|TopicPartitionWriter|WALFile).java"
     />
 
     <suppress
             checks="JavaNCSS"
-            files="(DataWriter|TopicPartitionWriter|OrcUtil).java"
+            files="(DataWriter|TopicPartitionWriter).java"
     />
 
     <suppress
