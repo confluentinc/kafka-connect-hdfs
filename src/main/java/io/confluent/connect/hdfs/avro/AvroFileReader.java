@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import javax.annotation.Nonnull;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.FileReader;
 import org.apache.avro.file.SeekableInput;
@@ -53,6 +54,7 @@ public class AvroFileReader
     }
   }
 
+  @Override
   public boolean hasNext() {
     throw new UnsupportedOperationException();
   }
@@ -65,6 +67,8 @@ public class AvroFileReader
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  @Nonnull
   public Iterator<Object> iterator() {
     throw new UnsupportedOperationException();
   }

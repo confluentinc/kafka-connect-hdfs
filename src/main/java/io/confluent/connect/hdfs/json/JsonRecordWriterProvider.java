@@ -65,7 +65,7 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
   }
 
   @Override
-  public RecordWriter getRecordWriter(final HdfsSinkConnectorConfig conf, final String filename) {
+  public RecordWriter getRecordWriter(HdfsSinkConnectorConfig conf, String filename) {
     try {
       return new RecordWriter() {
         final OutputStream out = storage.create(filename, true);

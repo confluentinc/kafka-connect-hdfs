@@ -16,6 +16,7 @@
 package io.confluent.connect.hdfs.avro;
 
 import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.storage.format.RecordWriter;
 import java.io.OutputStream;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
@@ -51,13 +52,10 @@ public class AvroRecordWriterProvider
   }
 
   @Override
-  public io.confluent.connect.storage.format.RecordWriter getRecordWriter(
-      final HdfsSinkConnectorConfig conf,
-      final String filename
-  ) {
-    return new io.confluent.connect.storage.format.RecordWriter() {
+  public RecordWriter getRecordWriter(HdfsSinkConnectorConfig conf, String filename) {
+    return new RecordWriter() {
       final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
-      Schema schema = null;
+      Schema schema;
 
       @Override
       public void write(SinkRecord record) {
