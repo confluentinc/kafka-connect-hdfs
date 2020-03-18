@@ -1,6 +1,6 @@
 #!/usr/bin/env groovy
 common {
   slackChannel = '#connect-warn'
-  upstreamProjects = 'confluentinc/schema-registry'
+  upstreamProjects = ['confluentinc/schema-registry','confluentinc/common']
   nodeLabel = 'docker-oraclejdk8'
 }
