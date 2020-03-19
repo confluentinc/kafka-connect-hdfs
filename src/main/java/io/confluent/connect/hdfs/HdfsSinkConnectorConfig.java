@@ -15,6 +15,8 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.parquet.ParquetFormat;
+import io.confluent.connect.hdfs.string.StringFormat;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.config.AbstractConfig;
@@ -131,7 +133,12 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     );
 
     FORMAT_CLASS_RECOMMENDER.addValidValues(
-        Arrays.<Object>asList(AvroFormat.class, JsonFormat.class)
+        Arrays.<Object>asList(
+            AvroFormat.class,
+            JsonFormat.class,
+            ParquetFormat.class,
+            StringFormat.class
+        )
     );
 
     PARTITIONER_CLASS_RECOMMENDER.addValidValues(
