@@ -306,7 +306,7 @@ public class DataWriter {
       }
 
       topicPartitionWriters = new HashMap<>();
-      for (TopicPartition tp : topicPartitionWriters.keySet()) {
+      for (TopicPartition tp : context.assignment()) {
         TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
             tp,
             storage,
