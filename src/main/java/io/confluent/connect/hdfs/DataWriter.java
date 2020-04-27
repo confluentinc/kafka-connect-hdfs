@@ -447,7 +447,7 @@ public class DataWriter {
     // data may have continued to be processed and we'd have to restart from the recovery stage,
     // make sure we apply the WAL, and only reuse the temp file if the starting offset is still
     // valid. For now, we prefer the simpler solution that may result in a bit of wasted effort.
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : topicPartitionWriters.keySet()) {
       try {
         topicPartitionWriters.get(tp).close();
       } catch (ConnectException e) {
