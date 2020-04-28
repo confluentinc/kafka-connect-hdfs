@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.orc.OrcFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.regex.Matcher;
@@ -167,6 +168,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         Arrays.<Object>asList(
             AvroFormat.class,
             JsonFormat.class,
+            OrcFormat.class,
             ParquetFormat.class,
             StringFormat.class
         )
