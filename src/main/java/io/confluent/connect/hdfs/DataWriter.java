@@ -81,7 +81,6 @@ public class DataWriter {
   private io.confluent.connect.storage.format.SchemaFileReader<HdfsSinkConnectorConfig, Path>
       schemaFileReader;
   private io.confluent.connect.storage.format.Format<HdfsSinkConnectorConfig, Path> newFormat;
-  private Set<TopicPartition> assignment;
   private Partitioner partitioner;
   private HdfsSinkConnectorConfig connectorConfig;
   private AvroData avroData;
@@ -293,8 +292,6 @@ public class DataWriter {
 
       partitioner = newPartitioner(connectorConfig);
 
-      assignment = new HashSet<>(context.assignment());
-
       hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
         hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
@@ -327,7 +324,7 @@ public class DataWriter {
       }
 
       topicPartitionWriters = new HashMap<>();
-      for (TopicPartition tp : assignment) {
+      for (TopicPartition tp : context.assignment()) {
         TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
             tp,
             storage,
@@ -385,7 +382,7 @@ public class DataWriter {
       }
     }
 
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : topicPartitionWriters.keySet()) {
       topicPartitionWriters.get(tp).write();
     }
   }
@@ -396,7 +393,7 @@ public class DataWriter {
 
   public void syncWithHive() throws ConnectException {
     Set<String> topics = new HashSet<>();
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : topicPartitionWriters.keySet()) {
       topics.add(tp.topic());
     }
 
@@ -434,8 +431,7 @@ public class DataWriter {
   }
 
   public void open(Collection<TopicPartition> partitions) {
-    assignment = new HashSet<>(partitions);
-    for (TopicPartition tp : assignment) {
+    for (TopicPartition tp : partitions) {
       TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
           tp,
           storage,
@@ -479,7 +475,6 @@ public class DataWriter {
       }
     }
     topicPartitionWriters.clear();
-    assignment.clear();
   }
 
   public void stop() {
@@ -529,8 +524,10 @@ public class DataWriter {
    */
   public Map<TopicPartition, Long> getCommittedOffsets() {
     Map<TopicPartition, Long> offsets = new HashMap<>();
-    log.debug("Writer looking for last offsets for topic partitions {}", assignment);
-    for (TopicPartition tp : assignment) {
+    log.debug("Writer looking for last offsets for topic partitions {}",
+        topicPartitionWriters.keySet()
+    );
+    for (TopicPartition tp : topicPartitionWriters.keySet()) {
       long committedOffset = topicPartitionWriters.get(tp).offset();
       log.debug("Writer found last offset {} for topic partition {}", committedOffset, tp);
       if (committedOffset >= 0) {
