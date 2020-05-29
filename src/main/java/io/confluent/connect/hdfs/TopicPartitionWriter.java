@@ -730,9 +730,28 @@ public class TopicPartitionWriter {
   }
 
   private void closeTempFile() {
+    ConnectException connectException = null;
     for (String encodedPartition : tempFiles.keySet()) {
       // Close the file and propagate any errors
-      closeTempFile(encodedPartition);
+      try {
+        closeTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        // still want to close all of the other data writers
+        connectException = e;
+      }
+    }
+
+    if (connectException != null) {
+      // at least one tmp file did not close properly
+      for (String encodedPartition : tempFiles.keySet()) {
+        deleteTempFile(encodedPartition);
+        startOffsets.remove(encodedPartition);
+        offsets.remove(encodedPartition);
+        buffer.clear();
+      }
+
+      recordCounter = 0;
+      throw connectException;
     }
   }
 
