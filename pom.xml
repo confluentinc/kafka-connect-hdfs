@@ -22,13 +22,13 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>[6.0.0-0, 6.0.1-0)</version>
+        <version>6.0.0-4</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
     <packaging>jar</packaging>
     <name>kafka-connect-hdfs</name>
-    <version>6.0.0-0</version>
+    <version>6.0.0-2</version>
     <organization>
         <name>Confluent, Inc.</name>
         <url>http://confluent.io</url>
@@ -57,7 +57,7 @@
         <confluent.maven.repo>http://packages.confluent.io/maven/</confluent.maven.repo>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
-        <io.confluent.kafka-connect-hdfs.version>6.0.0-0</io.confluent.kafka-connect-hdfs.version>
+        <io.confluent.kafka-connect-hdfs.version>6.0.0-2</io.confluent.kafka-connect-hdfs.version>
     </properties>
 
     <repositories>
