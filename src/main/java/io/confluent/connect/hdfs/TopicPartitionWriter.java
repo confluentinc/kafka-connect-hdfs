@@ -738,6 +738,10 @@ public class TopicPartitionWriter {
       } catch (ConnectException e) {
         // still want to close all of the other data writers
         connectException = e;
+        log.error(
+            "Failed to close temporary file for partition " + encodedPartition
+                + ". The connector will attempt to rewrite the temporary file."
+        );
       }
     }
 
