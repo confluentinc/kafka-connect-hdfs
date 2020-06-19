@@ -754,6 +754,9 @@ public class TopicPartitionWriter {
         buffer.clear();
       }
 
+      log.debug("Resetting offset for {} to {}", tp, offset);
+      context.offset(tp, offset);
+
       recordCounter = 0;
       throw connectException;
     }
