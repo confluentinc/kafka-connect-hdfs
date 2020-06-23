@@ -750,7 +750,11 @@ public class TopicPartitionWriter {
       // delete all buffered records + tmp files and start over because otherwise there will be
       // duplicates, since there is no way to reclaim the records in the tmp file.
       for (String encodedPartition : tempFiles.keySet()) {
-        deleteTempFile(encodedPartition);
+        try {
+          deleteTempFile(encodedPartition);
+        } catch (ConnectException e) {
+          log.error("Failed to delete tmp file " + tempFiles.get(encodedPartition), e);
+        }
         startOffsets.remove(encodedPartition);
         offsets.remove(encodedPartition);
         buffer.clear();
