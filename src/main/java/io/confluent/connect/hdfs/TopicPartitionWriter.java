@@ -746,7 +746,9 @@ public class TopicPartitionWriter {
     }
 
     if (connectException != null) {
-      // at least one tmp file did not close properly
+      // at least one tmp file did not close properly therefore will try to recreate the tmp and
+      // delete all buffered records + tmp files and start over because otherwise there will be
+      // duplicates, since there is no way to reclaim the records in the tmp file.
       for (String encodedPartition : tempFiles.keySet()) {
         deleteTempFile(encodedPartition);
         startOffsets.remove(encodedPartition);
