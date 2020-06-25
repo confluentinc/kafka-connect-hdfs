@@ -132,13 +132,13 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
     // Perform a normal write immediately afterwards
     deliver(consumerOffset, hdfsWriter, key, schema, record, 6);
-    // 3 has been lost when the writer is re-opened and overwrites the existing file
-    // 4, 5 are written to the file and the file is committed as 3-4-5
-    // 6 and beyond are written normally
+    // 3 is appended to the wal and committed
+    // 4, 5, 6 are written to a new file
+    // 7 and beyond are written normally
 
     Data.logContents("After test");
 
-    long[] validOffsets = {-1, 2, 5, 8};
+    long[] validOffsets = {-1, 2, 3, 6, 9};
     for (int i = 1; i < validOffsets.length; i++) {
       long startOffset = validOffsets[i - 1] + 1;
       long endOffset = validOffsets[i];
