@@ -16,6 +16,8 @@ package io.confluent.connect.hdfs;
 
 import io.confluent.common.utils.MockTime;
 import io.confluent.common.utils.Time;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -33,6 +35,7 @@ import io.confluent.connect.hdfs.utils.MemoryRecordWriter;
 import io.confluent.connect.hdfs.utils.MemoryStorage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 
+import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertEquals;
 
 public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
@@ -53,6 +56,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     Map<String, String> props = super.createProps();
     props.put(StorageCommonConfig.STORAGE_CLASS_CONFIG, MemoryStorage.class.getName());
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, MemoryFormat.class.getName());
+    props.put(StorageSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG, "60000");
     return props;
   }
 
@@ -93,6 +97,93 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
     hdfsWriter.close();
     hdfsWriter.stop();
+  }
+
+  @Test
+  public void testRotateAppendFailure() throws Exception {
+    String key = "key";
+    Schema schema = createSchema();
+    Struct record = createRecord(schema);
+    AtomicLong consumerOffset = new AtomicLong();
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
+    MemoryStorage storage = (MemoryStorage) hdfsWriter.getStorage();
+
+    // Simulate a recovery after starting the task
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    deliver(consumerOffset, hdfsWriter, key, schema, record, 4);
+    // 0,1,2 are committed
+    // 3 is in a tmp file
+
+    // Trigger time-based rotation of the file
+    time.sleep(2 * (long) connectorConfig.get(StorageSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG));
+
+    // Simulate an exception thrown from HDFS during WAL append
+    storage.setFailure(MemoryStorage.Failure.appendFailure);
+    Data.logContents("Before failure");
+    deliver(consumerOffset, hdfsWriter, key, schema, record, 0);
+    Data.logContents("After failure");
+    // 3 is in a tmp file with the writer closed
+
+    // Perform a timed backoff so that the writer may retry.
+    assertEquals(context.timeout(), (long) connectorConfig.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG));
+    time.sleep(context.timeout());
+    storage.setFailure(null);
+
+    // Perform a normal write immediately afterwards
+    deliver(consumerOffset, hdfsWriter, key, schema, record, 6);
+    // 3 has been lost when the writer is re-opened and overwrites the existing file
+    // 4, 5 are written to the file and the file is committed as 3-4-5
+    // 6 and beyond are written normally
+
+    Data.logContents("After test");
+
+    long[] validOffsets = {-1, 2, 5, 8};
+    for (int i = 1; i < validOffsets.length; i++) {
+      long startOffset = validOffsets[i - 1] + 1;
+      long endOffset = validOffsets[i];
+      String path = FileUtils.committedFileName(
+          url,
+          topicsDir,
+          TOPIC + "/" + "partition=" + String.valueOf(PARTITION),
+          TOPIC_PARTITION,
+          startOffset,
+          endOffset,
+          extension,
+          ZERO_PAD_FMT
+      );
+      long size = endOffset - startOffset + 1;
+      List<Object> records = Data.getData().get(path);
+      assertNotNull(path + " should have been created", records);
+      assertEquals(path + " should contain a full batch of records", size, records.size());
+    }
+
+    hdfsWriter.close();
+    hdfsWriter.stop();
+  }
+
+  // Simulates the offset tracking in the framework
+  private void deliver(
+      AtomicLong backgroundOffset,
+      DataWriter hdfsWriter,
+      String key,
+      Schema schema,
+      Struct record,
+      int count
+  ) {
+    if (context.offsets().get(TOPIC_PARTITION) != null) {
+      backgroundOffset.set(context.offsets().get(TOPIC_PARTITION));
+    }
+    long startOffset = backgroundOffset.get();
+    long endOffset = startOffset + count;
+    Collection<SinkRecord> records = new ArrayList<>();
+    for (long offset = startOffset; offset < endOffset; offset++) {
+      records.add(
+          new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset)
+      );
+    }
+    backgroundOffset.addAndGet(count);
+    hdfsWriter.write(records);
   }
 
   @Test
