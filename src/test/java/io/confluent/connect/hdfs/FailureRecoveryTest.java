@@ -15,8 +15,9 @@
 package io.confluent.connect.hdfs;
 
 import io.confluent.common.utils.MockTime;
-import io.confluent.common.utils.Time;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
+import java.util.HashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
@@ -42,7 +43,8 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
   private static final String ZERO_PAD_FMT = "%010d";
   private static final String extension = "";
 
-  private Time time;
+  private Map<String, String> localProps = new HashMap<>();
+  private MockTime time;
 
   @Before
   public void setUp() throws Exception {
@@ -56,7 +58,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     Map<String, String> props = super.createProps();
     props.put(StorageCommonConfig.STORAGE_CLASS_CONFIG, MemoryStorage.class.getName());
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, MemoryFormat.class.getName());
-    props.put(StorageSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG, "60000");
+    props.putAll(localProps);
     return props;
   }
 
@@ -101,6 +103,11 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
   @Test
   public void testRotateAppendFailure() throws Exception {
+    localProps.put(
+        HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG,
+        String.valueOf(TimeUnit.MINUTES.toMillis(10))
+    );
+    setUp();
     String key = "key";
     Schema schema = createSchema();
     Struct record = createRecord(schema);
