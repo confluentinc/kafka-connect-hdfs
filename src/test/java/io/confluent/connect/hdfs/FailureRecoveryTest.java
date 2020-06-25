@@ -32,7 +32,6 @@ import io.confluent.connect.hdfs.utils.MemoryFormat;
 import io.confluent.connect.hdfs.utils.MemoryRecordWriter;
 import io.confluent.connect.hdfs.utils.MemoryStorage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.format.*;
 
 import static org.junit.Assert.assertEquals;
 
