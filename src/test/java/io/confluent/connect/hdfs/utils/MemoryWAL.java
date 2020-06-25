@@ -94,5 +94,10 @@ public class MemoryWAL implements WAL {
     public String value() {
       return value;
     }
+
+    @Override
+    public String toString() {
+      return key + "=" + value;
+    }
   }
 }
