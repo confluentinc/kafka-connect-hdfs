@@ -18,7 +18,6 @@ import io.confluent.common.utils.MockTime;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -111,14 +110,20 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     String key = "key";
     Schema schema = createSchema();
     Struct record = createRecord(schema);
-    AtomicLong consumerOffset = new AtomicLong();
+    Collection<SinkRecord> sinkRecordsA = new ArrayList<>();
+    Collection<SinkRecord> sinkRecordsB = new ArrayList<>();
+    for (long offset = 0; offset < 7; offset++) {
+      SinkRecord sinkRecord =
+          new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset);
+      (offset < 4 ? sinkRecordsA : sinkRecordsB).add(sinkRecord);
+    }
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
     MemoryStorage storage = (MemoryStorage) hdfsWriter.getStorage();
 
     // Simulate a recovery after starting the task
     hdfsWriter.recover(TOPIC_PARTITION);
 
-    deliver(consumerOffset, hdfsWriter, key, schema, record, 4);
+    hdfsWriter.write(sinkRecordsA);
     // 0,1,2 are committed
     // 3 is in a tmp file
 
@@ -128,7 +133,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     // Simulate an exception thrown from HDFS during WAL append
     storage.setFailure(MemoryStorage.Failure.appendFailure);
     Data.logContents("Before failure");
-    deliver(consumerOffset, hdfsWriter, key, schema, record, 0);
+    hdfsWriter.write(new ArrayList<SinkRecord>());
     Data.logContents("After failure");
     // 3 is in a tmp file with the writer closed
 
@@ -138,14 +143,13 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     storage.setFailure(null);
 
     // Perform a normal write immediately afterwards
-    deliver(consumerOffset, hdfsWriter, key, schema, record, 6);
+    hdfsWriter.write(sinkRecordsB);
     // 3 is appended to the wal and committed
     // 4, 5, 6 are written to a new file
-    // 7 and beyond are written normally
 
     Data.logContents("After test");
 
-    long[] validOffsets = {-1, 2, 3, 6, 9};
+    long[] validOffsets = {-1, 2, 3, 6};
     for (int i = 1; i < validOffsets.length; i++) {
       long startOffset = validOffsets[i - 1] + 1;
       long endOffset = validOffsets[i];
@@ -167,30 +171,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
     hdfsWriter.close();
     hdfsWriter.stop();
-  }
-
-  // Simulates the offset tracking in the framework
-  private void deliver(
-      AtomicLong backgroundOffset,
-      DataWriter hdfsWriter,
-      String key,
-      Schema schema,
-      Struct record,
-      int count
-  ) {
-    if (context.offsets().get(TOPIC_PARTITION) != null) {
-      backgroundOffset.set(context.offsets().get(TOPIC_PARTITION));
-    }
-    long startOffset = backgroundOffset.get();
-    long endOffset = startOffset + count;
-    Collection<SinkRecord> records = new ArrayList<>();
-    for (long offset = startOffset; offset < endOffset; offset++) {
-      records.add(
-          new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset)
-      );
-    }
-    backgroundOffset.addAndGet(count);
-    hdfsWriter.write(records);
   }
 
   @Test
