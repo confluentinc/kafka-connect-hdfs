@@ -15,6 +15,10 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.common.utils.MockTime;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
+import java.util.HashMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -31,16 +35,21 @@ import io.confluent.connect.hdfs.utils.MemoryFormat;
 import io.confluent.connect.hdfs.utils.MemoryRecordWriter;
 import io.confluent.connect.hdfs.utils.MemoryStorage;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.format.*;
 
+import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertEquals;
 
 public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
   private static final String ZERO_PAD_FMT = "%010d";
   private static final String extension = "";
 
+  private Map<String, String> localProps = new HashMap<>();
+  private MockTime time;
+
   @Before
   public void setUp() throws Exception {
+    time = new MockTime();
+    time.sleep(System.currentTimeMillis());
     super.setUp();
   }
 
@@ -49,6 +58,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     Map<String, String> props = super.createProps();
     props.put(StorageCommonConfig.STORAGE_CLASS_CONFIG, MemoryStorage.class.getName());
     props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, MemoryFormat.class.getName());
+    props.putAll(localProps);
     return props;
   }
 
@@ -65,7 +75,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
       sinkRecords.add(sinkRecord);
     }
 
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
     MemoryStorage storage = (MemoryStorage) hdfsWriter.getStorage();
     storage.setFailure(MemoryStorage.Failure.appendFailure);
 
@@ -82,10 +92,83 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     content = data.get(logFile);
     assertEquals(null, content);
 
-    Thread.sleep(context.timeout());
+    time.sleep(context.timeout());
     hdfsWriter.write(new ArrayList<SinkRecord>());
     content = data.get(logFile);
     assertEquals(6, content.size());
+
+    hdfsWriter.close();
+    hdfsWriter.stop();
+  }
+
+  @Test
+  public void testRotateAppendFailure() throws Exception {
+    localProps.put(
+        HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG,
+        String.valueOf(TimeUnit.MINUTES.toMillis(10))
+    );
+    setUp();
+    String key = "key";
+    Schema schema = createSchema();
+    Struct record = createRecord(schema);
+    Collection<SinkRecord> sinkRecordsA = new ArrayList<>();
+    Collection<SinkRecord> sinkRecordsB = new ArrayList<>();
+    for (long offset = 0; offset < 7; offset++) {
+      SinkRecord sinkRecord =
+          new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, offset);
+      (offset < 4 ? sinkRecordsA : sinkRecordsB).add(sinkRecord);
+    }
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
+    MemoryStorage storage = (MemoryStorage) hdfsWriter.getStorage();
+
+    // Simulate a recovery after starting the task
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    hdfsWriter.write(sinkRecordsA);
+    // 0,1,2 are committed
+    // 3 is in a tmp file
+
+    // Trigger time-based rotation of the file
+    time.sleep(2 * (long) connectorConfig.get(StorageSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG));
+
+    // Simulate an exception thrown from HDFS during WAL append
+    storage.setFailure(MemoryStorage.Failure.appendFailure);
+    Data.logContents("Before failure");
+    hdfsWriter.write(new ArrayList<SinkRecord>());
+    Data.logContents("After failure");
+    // 3 is in a tmp file with the writer closed
+
+    // Perform a timed backoff so that the writer may retry.
+    assertEquals(context.timeout(), (long) connectorConfig.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG));
+    time.sleep(context.timeout());
+    storage.setFailure(null);
+
+    // Perform a normal write immediately afterwards
+    hdfsWriter.write(sinkRecordsB);
+    // 3 is appended to the wal and committed
+    // 4, 5, 6 are written to a new file
+
+    Data.logContents("After test");
+
+    long[] validOffsets = {-1, 2, 3, 6};
+    for (int i = 1; i < validOffsets.length; i++) {
+      long startOffset = validOffsets[i - 1] + 1;
+      long endOffset = validOffsets[i];
+      String path = FileUtils.committedFileName(
+          url,
+          topicsDir,
+          TOPIC + "/" + "partition=" + String.valueOf(PARTITION),
+          TOPIC_PARTITION,
+          startOffset,
+          endOffset,
+          extension,
+          ZERO_PAD_FMT
+      );
+      long size = endOffset - startOffset + 1;
+      List<Object> records = Data.getData().get(path);
+      assertNotNull(path + " should have been created", records);
+      assertEquals(path + " should contain a full batch of records", size, records.size());
+    }
 
     hdfsWriter.close();
     hdfsWriter.stop();
@@ -101,7 +184,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     sinkRecords.add(new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, 0L));
     sinkRecords.add(new SinkRecord(TOPIC, PARTITION2, Schema.STRING_SCHEMA, key, schema, record, 0L));
 
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
     hdfsWriter.write(sinkRecords);
     sinkRecords.clear();
 
@@ -152,7 +235,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
       assertEquals(refSinkRecord, content.get(i));
     }
 
-    Thread.sleep(context.timeout());
+    time.sleep(context.timeout());
     hdfsWriter.write(new ArrayList<SinkRecord>());
     assertEquals(3, content.size());
     for (int i = 0; i < content.size(); ++i) {
@@ -175,7 +258,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
     ArrayList<SinkRecord> sinkRecords = new ArrayList<>();
     sinkRecords.add(new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record, 0L));
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
     hdfsWriter.write(sinkRecords);
 
     sinkRecords.clear();
@@ -208,7 +291,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
       assertEquals(refSinkRecord, content.get(i));
     }
 
-    Thread.sleep(context.timeout());
+    time.sleep(context.timeout());
     hdfsWriter.write(new ArrayList<SinkRecord>());
 
     tempFileNames = hdfsWriter.getTempFileNames(TOPIC_PARTITION);
