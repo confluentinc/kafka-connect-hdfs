@@ -420,14 +420,14 @@ public class TopicPartitionWriter {
           case WRITE_PARTITION_PAUSED:
             // committing files after waiting for rotateIntervalMs time but less than flush.size
             // records available
-            if (recordCounter > 0 && shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
-              log.info(
+            if (recordCounter == 0 || !shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
+              break;
+            } 
+            
+            log.info(
                   "committing files after waiting for rotateIntervalMs time but less than "
                       + "flush.size records available."
-              );
-            } else {
-              break;
-            }
+            );
             nextState();
           case SHOULD_ROTATE:
             updateRotationTimers(currentRecord);
