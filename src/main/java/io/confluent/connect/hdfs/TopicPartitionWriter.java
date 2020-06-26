@@ -115,6 +115,7 @@ public class TopicPartitionWriter {
   private final ExecutorService executorService;
   private final Queue<Future<Void>> hiveUpdateFutures;
   private final Set<String> hivePartitions;
+  private int failedTempFileCloseAttempts = 1;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -271,6 +272,7 @@ public class TopicPartitionWriter {
           resume();
           nextState();
           log.info("Finished recovery for topic partition {}", tp);
+          this.failedTempFileCloseAttempts = 1;
           break;
         default:
           log.error(
@@ -389,7 +391,19 @@ public class TopicPartitionWriter {
             }
           case SHOULD_ROTATE:
             updateRotationTimers(currentRecord);
-            closeTempFile();
+            try {
+              closeTempFile();
+            } catch (Exception e) {
+              log.error("Failed to close temp file.",e);
+              if (this.failedTempFileCloseAttempts < 4) {
+                log.info("Preparing recovery for the "
+                    + "partition attempt : {}",failedTempFileCloseAttempts);
+                startRecovery();
+                failedTempFileCloseAttempts += 1;
+                // exit from the write() method call itself once state changes are done.
+                return;
+              }
+            }
             nextState();
           case TEMP_FILE_CLOSED:
             appendToWAL();
@@ -423,7 +437,19 @@ public class TopicPartitionWriter {
         updateRotationTimers(currentRecord);
 
         try {
-          closeTempFile();
+          try {
+            closeTempFile();
+          } catch (Exception e) {
+            log.error("Failed to close temp file.",e);
+            if (this.failedTempFileCloseAttempts < 4) {
+              log.info("Preparing recovery for the partition "
+                  + "attempt : {}",failedTempFileCloseAttempts);
+              startRecovery();
+              failedTempFileCloseAttempts += 1;
+              // exit from the write() method call itself once state changes are done.
+              return;
+            }
+          }
           appendToWAL();
           commitFile();
         } catch (ConnectException e) {
@@ -438,6 +464,26 @@ public class TopicPartitionWriter {
     }
   }
 
+  private void startRecovery() {
+    buffer.clear();
+    writers.clear();
+    tempFiles.clear();
+    appended.clear();
+    startOffsets.clear();
+    offsets.clear();
+    state = State.RECOVERY_STARTED;
+    /*
+     recovered would be "true" at this time since, this is
+     not a new TopicPartitionWriter. resetting this to false
+     manually is required to trigger WAL operations and reset
+     consumer offsets based on hdfs files.
+    */
+    recovered = false;
+    recordCounter = 0;
+    /* resume() makes sure the consumer is resumed on this partition */
+    resume();
+  }
+  
   public void close() throws ConnectException {
     log.debug("Closing TopicPartitionWriter {}", tp);
     List<Exception> exceptions = new ArrayList<>();
