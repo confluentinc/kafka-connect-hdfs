@@ -412,24 +412,43 @@ public class TopicPartitionWriter {
       }
     }
     if (buffer.isEmpty()) {
-      // committing files after waiting for rotateIntervalMs time but less than flush.size
-      // records available
-      if (recordCounter > 0 && shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
-        log.info(
-            "committing files after waiting for rotateIntervalMs time but less than flush.size "
-                + "records available."
-        );
-        updateRotationTimers(currentRecord);
-
-        try {
-          closeTempFile();
-          appendToWAL();
-          commitFile();
-        } catch (ConnectException e) {
-          log.error("Exception on topic partition {}: ", tp, e);
-          failureTime = time.milliseconds();
-          setRetryTimeout(timeoutMs);
+      try {
+        switch (state) {
+          case WRITE_STARTED:
+            pause();
+            nextState();
+          case WRITE_PARTITION_PAUSED:
+            // committing files after waiting for rotateIntervalMs time but less than flush.size
+            // records available
+            if (recordCounter == 0 || !shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
+              break;
+            } 
+            
+            log.info(
+                  "committing files after waiting for rotateIntervalMs time but less than "
+                      + "flush.size records available."
+            );
+            nextState();
+          case SHOULD_ROTATE:
+            updateRotationTimers(currentRecord);
+            closeTempFile();
+            nextState();
+          case TEMP_FILE_CLOSED:
+            appendToWAL();
+            nextState();
+          case WAL_APPENDED:
+            commitFile();
+            nextState();
+          case FILE_COMMITTED:
+            break;
+          default:
+            log.error("{} is not a valid state to empty batch for topic partition {}.", state, tp);
         }
+      } catch (ConnectException e) {
+        log.error("Exception on topic partition {}: ", tp, e);
+        failureTime = time.milliseconds();
+        setRetryTimeout(timeoutMs);
+        return;
       }
 
       resume();

@@ -37,9 +37,8 @@ public class MemoryRecordWriterProvider
   ) {
     final Map<String, List<Object>> data = Data.getData();
 
-    if (!data.containsKey(filename)) {
-      data.put(filename, new LinkedList<>());
-    }
+    // Overwrite the existing file in storage like every other writer provider
+    data.put(filename, new LinkedList<>());
 
     return new MemoryRecordWriter(filename);
   }
