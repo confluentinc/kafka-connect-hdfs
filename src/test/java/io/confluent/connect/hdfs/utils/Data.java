@@ -19,11 +19,37 @@ package io.confluent.connect.hdfs.utils;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Data {
   private static final Map<String, List<Object>> data = new HashMap<>();
 
+  private static final Logger log = LoggerFactory.getLogger(Data.class);
+
   public static Map<String, List<Object>> getData() {
     return data;
+  }
+
+  public static void logContents(String message) {
+    if (log.isDebugEnabled()) {
+      log.debug("{}: {}",
+          message,
+          data.entrySet()
+              .stream()
+              .map(e -> e.getKey()
+                      + "="
+                      + (
+                      e.getValue() != null
+                          ? (e.getValue()
+                          .stream()
+                          .map(Object::toString)
+                          .collect(Collectors.joining(",\n\t", "[\n\t", "]")))
+                          : "null"
+                  )
+              )
+              .collect(Collectors.joining(",\n")));
+    }
   }
 }
