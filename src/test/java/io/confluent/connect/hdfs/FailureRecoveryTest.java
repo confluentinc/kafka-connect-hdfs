@@ -156,7 +156,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
       long endOffset = validOffsets[i];
       String path = FileUtils.committedFileName(
           url,
-          topicsDir,
+          topicsDir.getOrDefault(TOPIC, StorageCommonConfig.TOPICS_DIR_DEFAULT),
           TOPIC + "/" + "partition=" + String.valueOf(PARTITION),
           TOPIC_PARTITION,
           startOffset,
