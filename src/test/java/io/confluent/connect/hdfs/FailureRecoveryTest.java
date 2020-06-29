@@ -275,7 +275,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
 
     ArrayList<SinkRecord> sinkRecords = createRecords(PARTITION, 0, 1);
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
     hdfsWriter.write(sinkRecords);
 
     sinkRecords = createRecords(PARTITION, 1, 6);
@@ -292,7 +292,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     sinkRecords = createRecords(PARTITION, 0, 7);
     hdfsWriter.write(sinkRecords);
 
-    Thread.sleep(context.timeout());
+    time.sleep(context.timeout());
     hdfsWriter.write(new ArrayList<>());
 
     Map<String, List<Object>> data = Data.getData();
@@ -308,7 +308,7 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     writer.setFailure(Failure.closeFailure);
     hdfsWriter.write(createRecords(PARTITION, 7, 2));
 
-    Thread.sleep(context.timeout());
+    time.sleep(context.timeout());
     hdfsWriter.write(new ArrayList<>());
     assertEquals(6, hdfsWriter.getCommittedOffsets().get(new TopicPartition(TOPIC, PARTITION)).longValue());
 
