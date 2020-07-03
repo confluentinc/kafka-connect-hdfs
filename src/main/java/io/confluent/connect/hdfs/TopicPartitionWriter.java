@@ -19,7 +19,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.errors.IllegalWorkerStateException;
 import org.apache.kafka.connect.errors.SchemaProjectorException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -459,18 +458,31 @@ public class TopicPartitionWriter {
   public void close() throws ConnectException {
     log.debug("Closing TopicPartitionWriter {}", tp);
     List<Exception> exceptions = new ArrayList<>();
-    for (String encodedPartition : tempFiles.keySet()) {
+    for (String encodedPartition : writers.keySet()) {
+      log.debug(
+          "Discarding in progress tempfile {} for {} {}",
+          tempFiles.get(encodedPartition),
+          tp,
+          encodedPartition
+      );
+
       try {
-        if (writers.containsKey(encodedPartition)) {
-          log.debug("Discarding in progress tempfile {} for {} {}",
-              tempFiles.get(encodedPartition), tp, encodedPartition
-          );
-          closeTempFile(encodedPartition);
-          deleteTempFile(encodedPartition);
-        }
-      } catch (DataException e) {
+        closeTempFile(encodedPartition);
+      } catch (ConnectException e) {
         log.error(
-            "Error discarding temp file {} for {} {} when closing TopicPartitionWriter:",
+            "Error closing temp file {} for {} {} when closing TopicPartitionWriter:",
+            tempFiles.get(encodedPartition),
+            tp,
+            encodedPartition,
+            e
+        );
+      }
+
+      try {
+        deleteTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        log.error(
+            "Error deleting temp file {} for {} {} when closing TopicPartitionWriter:",
             tempFiles.get(encodedPartition),
             tp,
             encodedPartition,
