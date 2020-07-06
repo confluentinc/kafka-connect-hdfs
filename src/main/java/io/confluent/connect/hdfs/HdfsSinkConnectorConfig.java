@@ -390,6 +390,25 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     logDirGroupsMaxIndex = getMaxIndexToReplace(getString(LOGS_DIR_CONFIG));
 
     validateDirsAndRegex();
+    validateTimezone();
+  }
+
+  /**
+   * Validate the timezone with the rotate.schedule.interval.ms config,
+   * these need validation before use in the TopicPartitionWriter.
+   */
+  private void validateTimezone() {
+    String timezone = getString(PartitionerConfig.TIMEZONE_CONFIG);
+    long rotateScheduleIntervalMs = getLong(ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
+    if (rotateScheduleIntervalMs > 0 && timezone.isEmpty()) {
+      throw new ConfigException(
+          String.format(
+              "%s configuration must be set when using %s",
+              PartitionerConfig.TIMEZONE_CONFIG,
+              ROTATE_SCHEDULE_INTERVAL_MS_CONFIG
+          )
+      );
+    }
   }
 
   public static Map<String, String> addDefaults(Map<String, String> props) {

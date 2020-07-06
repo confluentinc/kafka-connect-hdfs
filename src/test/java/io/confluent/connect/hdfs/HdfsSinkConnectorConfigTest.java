@@ -213,6 +213,36 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   }
 
   @Test
+  public void testValidTimezoneWithScheduleIntervalAccepted (){
+    properties.put(PartitionerConfig.TIMEZONE_CONFIG, "CET");
+    properties.put(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG, "30");
+    new HdfsSinkConnectorConfig(properties);
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testEmptyTimezoneThrowsExceptionOnScheduleInterval() {
+    properties.put(PartitionerConfig.TIMEZONE_CONFIG, PartitionerConfig.TIMEZONE_DEFAULT);
+    properties.put(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG, "30");
+    new HdfsSinkConnectorConfig(properties);
+  }
+
+  @Test
+  public void testEmptyTimezoneExceptionMessage() {
+    properties.put(PartitionerConfig.TIMEZONE_CONFIG, PartitionerConfig.TIMEZONE_DEFAULT);
+    properties.put(HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG, "30");
+    String expectedError =  String.format(
+        "%s configuration must be set when using %s",
+        PartitionerConfig.TIMEZONE_CONFIG,
+        HdfsSinkConnectorConfig.ROTATE_SCHEDULE_INTERVAL_MS_CONFIG
+    );
+    try {
+      new HdfsSinkConnectorConfig(properties);
+    } catch (ConfigException e) {
+      assertEquals(expectedError, e.getMessage());
+    }
+  }
+
+  @Test
   public void testRecommendedValues() throws Exception {
     List<Object> expectedStorageClasses = Arrays.<Object>asList(HdfsStorage.class);
 
