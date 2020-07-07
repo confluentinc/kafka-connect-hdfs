@@ -751,8 +751,9 @@ public class TopicPartitionWriter {
         // still want to close all of the other data writers
         connectException = e;
         log.error(
-            "Failed to close temporary file for partition " + encodedPartition
-                + ". The connector will attempt to rewrite the temporary file."
+            "Failed to close temporary file for partition {}. The connector will attempt to"
+                + " rewrite the temporary file.",
+            encodedPartition
         );
       }
     }
@@ -765,7 +766,7 @@ public class TopicPartitionWriter {
         try {
           deleteTempFile(encodedPartition);
         } catch (ConnectException e) {
-          log.error("Failed to delete tmp file " + tempFiles.get(encodedPartition), e);
+          log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
         }
         startOffsets.remove(encodedPartition);
         offsets.remove(encodedPartition);
