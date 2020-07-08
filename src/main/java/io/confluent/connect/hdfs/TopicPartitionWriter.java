@@ -19,7 +19,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.errors.IllegalWorkerStateException;
 import org.apache.kafka.connect.errors.SchemaProjectorException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -459,18 +458,31 @@ public class TopicPartitionWriter {
   public void close() throws ConnectException {
     log.debug("Closing TopicPartitionWriter {}", tp);
     List<Exception> exceptions = new ArrayList<>();
-    for (String encodedPartition : tempFiles.keySet()) {
+    for (String encodedPartition : writers.keySet()) {
+      log.debug(
+          "Discarding in progress tempfile {} for {} {}",
+          tempFiles.get(encodedPartition),
+          tp,
+          encodedPartition
+      );
+
       try {
-        if (writers.containsKey(encodedPartition)) {
-          log.debug("Discarding in progress tempfile {} for {} {}",
-              tempFiles.get(encodedPartition), tp, encodedPartition
-          );
-          closeTempFile(encodedPartition);
-          deleteTempFile(encodedPartition);
-        }
-      } catch (DataException e) {
+        closeTempFile(encodedPartition);
+      } catch (ConnectException e) {
         log.error(
-            "Error discarding temp file {} for {} {} when closing TopicPartitionWriter:",
+            "Error closing temp file {} for {} {} when closing TopicPartitionWriter:",
+            tempFiles.get(encodedPartition),
+            tp,
+            encodedPartition,
+            e
+        );
+      }
+
+      try {
+        deleteTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        log.error(
+            "Error deleting temp file {} for {} {} when closing TopicPartitionWriter:",
             tempFiles.get(encodedPartition),
             tp,
             encodedPartition,
@@ -730,9 +742,42 @@ public class TopicPartitionWriter {
   }
 
   private void closeTempFile() {
+    ConnectException connectException = null;
     for (String encodedPartition : tempFiles.keySet()) {
       // Close the file and propagate any errors
-      closeTempFile(encodedPartition);
+      try {
+        closeTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        // still want to close all of the other data writers
+        connectException = e;
+        log.error(
+            "Failed to close temporary file for partition {}. The connector will attempt to"
+                + " rewrite the temporary file.",
+            encodedPartition
+        );
+      }
+    }
+
+    if (connectException != null) {
+      // at least one tmp file did not close properly therefore will try to recreate the tmp and
+      // delete all buffered records + tmp files and start over because otherwise there will be
+      // duplicates, since there is no way to reclaim the records in the tmp file.
+      for (String encodedPartition : tempFiles.keySet()) {
+        try {
+          deleteTempFile(encodedPartition);
+        } catch (ConnectException e) {
+          log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
+        }
+        startOffsets.remove(encodedPartition);
+        offsets.remove(encodedPartition);
+        buffer.clear();
+      }
+
+      log.debug("Resetting offset for {} to {}", tp, offset);
+      context.offset(tp, offset);
+
+      recordCounter = 0;
+      throw connectException;
     }
   }
 
