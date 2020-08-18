@@ -156,6 +156,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
 
     Schema schema = createSchema();
+	Field partitionField = schema.field("int");
     List<Struct> records = createRecordBatches(schema, 3, 3);
     List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
 
@@ -167,7 +168,8 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
     List<String> expectedColumnNames = new ArrayList<>();
     for (Field field : schema.fields()) {
-      expectedColumnNames.add(field.name());
+      if(!field.name().equals(partitionField.name()))
+        expectedColumnNames.add(field.name());
     }
 
     List<String> actualColumnNames = new ArrayList<>();
@@ -199,7 +201,8 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
       for (int j = 0; j < 3; ++j) {
         List<String> result = new ArrayList<>();
         for (Field field : schema.fields()) {
-          result.add(String.valueOf(records.get(i).get(field.name())));
+          if(!field.name().equals(partitionField.name()))
+            result.add(String.valueOf(records.get(i).get(field.name())));
         }
         expectedResults.add(result);
       }
@@ -233,6 +236,10 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
         .field("country", Schema.STRING_SCHEMA)
         .field("state", Schema.OPTIONAL_STRING_SCHEMA)
         .build();
+		
+	List<String> partitionFieldNames = new ArrayList<>();
+    partitionFieldNames.add("country");
+    partitionFieldNames.add("state");
 
     List<Struct> records = Arrays.asList(
         new Struct(schema)
@@ -258,7 +265,8 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
     List<String> expectedColumnNames = new ArrayList<>();
     for (Field field : schema.fields()) {
-      expectedColumnNames.add(field.name());
+      if(!partitionFieldNames.contains(field.name()))
+        expectedColumnNames.add(field.name());
     }
 
     List<String> actualColumnNames = new ArrayList<>();
@@ -278,7 +286,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     assertEquals(expectedPartitions, partitions);
 
     List<List<String>> expectedResults = Arrays.asList(
-        Arrays.asList("1", "mx", "NULL"),
+        Arrays.asList("1", "mx", "null"),
         Arrays.asList("1", "us", "ca"),
         Arrays.asList("1", "us", "tx")
     );

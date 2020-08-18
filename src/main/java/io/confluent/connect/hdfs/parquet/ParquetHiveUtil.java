@@ -54,6 +54,15 @@ public class ParquetHiveUtil extends HiveUtil {
   public void alterSchema(String database, String tableName, Schema schema) {
     Table table = hiveMetaStore.getTable(database, tableName);
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> partitions = table.getPartCols();
+    for (FieldSchema partition : partitions) {
+      for (FieldSchema column : columns) {
+        if (partition.getName().equals(column.getName())) {
+          columns.remove(column);
+          break;
+        }
+      }
+    }
     table.setFields(columns);
     hiveMetaStore.alterTable(table);
   }
@@ -79,8 +88,17 @@ public class ParquetHiveUtil extends HiveUtil {
     }
     // convert Connect schema schema to Hive columns
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> partitions = partitioner.partitionFields();
+    for (FieldSchema partition : partitions) {
+      for (FieldSchema column : columns) {
+        if (partition.getName().equals(column.getName())) {
+          columns.remove(column);
+          break;
+        }
+      }
+    }
     table.setFields(columns);
-    table.setPartCols(partitioner.partitionFields());
+    table.setPartCols(partitions);
     return table;
   }
 
