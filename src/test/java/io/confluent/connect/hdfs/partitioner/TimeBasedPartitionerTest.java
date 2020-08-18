@@ -66,6 +66,7 @@ public class TimeBasedPartitionerTest extends HdfsSinkConnectorTestBase {
 
     @Override
     public void configure(Map<String, Object> config) {
+      super.configure(config);
       init(partitionDurationMs, pathFormat, Locale.FRENCH, DATE_TIME_ZONE, config);
     }
 
