@@ -31,6 +31,7 @@ import java.util.regex.Matcher;
 
 import io.confluent.connect.hdfs.filter.CommittedFileFilter;
 import io.confluent.connect.hdfs.storage.Storage;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
 public class FileUtils {
   private static final Logger log = LoggerFactory.getLogger(FileUtils.class);
@@ -101,7 +102,12 @@ public class FileUtils {
   }
 
   public static String topicDirectory(String url, String topicsDir, String topic) {
-    return url + "/" + topicsDir + "/" + topic;
+    boolean topicInPath = Boolean.valueOf(StorageCommonConfig.PATH_INCLUDE_TOPICNAME_CONFIG);
+    if (topicInPath) {
+      return url + "/" + topicsDir + "/" + topic;
+    } else {
+      return url + "/" + topicsDir;
+    }
   }
 
   public static FileStatus fileStatusWithMaxOffset(
