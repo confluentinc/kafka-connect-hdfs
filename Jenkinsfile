@@ -4,4 +4,5 @@ common {
   upstreamProjects = ['confluentinc/schema-registry','confluentinc/common']
   nodeLabel = 'docker-oraclejdk8'
   twistlockCveScan = true
+  downStreamValidate = false
 }
