@@ -22,11 +22,12 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>6.0.0-SNAPSHOT</version>
+        <version>10.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
     <packaging>jar</packaging>
+    <version>10.0.0-SNAPSHOT</version>
     <name>kafka-connect-hdfs</name>
     <organization>
         <name>Confluent, Inc.</name>
@@ -56,6 +57,7 @@
         <confluent.maven.repo>http://packages.confluent.io/maven/</confluent.maven.repo>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
+        <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
     </properties>
 
     <repositories>
@@ -81,32 +83,32 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common</artifactId>
-            <version>${confluent.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-core</artifactId>
-            <version>${confluent.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-format</artifactId>
-            <version>${confluent.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-partitioner</artifactId>
-            <version>${confluent.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-wal</artifactId>
-            <version>${confluent.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-hive</artifactId>
-            <version>${confluent.version}</version>
+            <version>${project.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.netty</groupId>
@@ -178,7 +180,7 @@
                         </goals>
                         <configuration>
                             <title>Kafka Connect HDFS</title>
-                            <documentationUrl>https://docs.confluent.io/${project.version}/connect/connect-hdfs/docs/index.html</documentationUrl>
+                            <documentationUrl>https://docs.confluent.io/${confluent.version}/connect/connect-hdfs/docs/index.html</documentationUrl>
                             <description>
                                 The HDFS connector allows you to export data from Kafka topics to HDFS files in a variety of formats and integrates with Hive to make data immediately available for querying with HiveQL.
 
@@ -197,10 +199,6 @@
                             <ownerName>Confluent, Inc.</ownerName>
                             <ownerUrl>https://confluent.io/</ownerUrl>
                             <ownerLogo>logos/confluent.png</ownerLogo>
-
-                            <dockerNamespace>confluentinc</dockerNamespace>
-                            <dockerName>cp-kafka-connect</dockerName>
-                            <dockerTag>${project.version}</dockerTag>
 
                             <componentTypes>
                                 <componentType>sink</componentType>
@@ -292,6 +290,16 @@
                             </includes>
                         </fileset>
                     </filesets>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>${maven.release.plugin.version}</version>
+                <configuration>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <remoteTagging>false</remoteTagging>
+                    <tagNameFormat>v@{project.version}</tagNameFormat>
                 </configuration>
             </plugin>
         </plugins>
