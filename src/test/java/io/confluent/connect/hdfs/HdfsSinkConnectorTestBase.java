@@ -115,9 +115,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     conf = connectorConfig.getHadoopConfiguration();
     topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
-    avroData = new AvroData(
-        connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
-    );
+    avroData = new AvroData(connectorConfig.avroDataConfig());
   }
 
   @After

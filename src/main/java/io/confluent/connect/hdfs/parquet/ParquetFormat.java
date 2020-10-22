@@ -30,9 +30,7 @@ public class ParquetFormat
 
   // DO NOT change this signature, it is required for instantiation via reflection
   public ParquetFormat(HdfsStorage storage) {
-    this.avroData = new AvroData(
-        storage.conf().getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
-    );
+    this.avroData = new AvroData(storage.conf().avroDataConfig());
   }
 
   @Override
