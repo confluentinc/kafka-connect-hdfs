@@ -77,10 +77,7 @@ public class HdfsSinkTask extends SinkTask {
         DateTimeZone.forID(timeZoneString);
       }
 
-      int schemaCacheSize = connectorConfig.getInt(
-          HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG
-      );
-      avroData = new AvroData(schemaCacheSize);
+      avroData = new AvroData(connectorConfig.avroDataConfig());
       hdfsWriter = new DataWriter(connectorConfig, context, avroData);
       recover(assignment);
       if (hiveIntegration) {
