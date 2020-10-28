@@ -57,6 +57,7 @@
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
         <kafka.connect.storage.common.version>10.0.0-SNAPSHOT</kafka.connect.storage.common.version>
+        <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
     </properties>
 
     <repositories>
@@ -141,6 +142,10 @@
                     <groupId>io.netty</groupId>
                     <artifactId>netty-all</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -155,7 +160,17 @@
                     <groupId>org.apache.directory.jdbm</groupId>
                     <artifactId>apacheds-jdbm1</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>confluent-log4j</artifactId>
+            <version>${confluent-log4j.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <!-- add this to satisfy the dependency requirement of apacheds-jdbm1-->
