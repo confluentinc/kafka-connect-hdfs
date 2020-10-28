@@ -26,8 +26,8 @@
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
-    <packaging>jar</packaging>
     <version>10.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
     <name>kafka-connect-hdfs</name>
     <organization>
         <name>Confluent, Inc.</name>
@@ -58,6 +58,7 @@
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
+        <kafka.connect.storage.common.version>10.0.0-SNAPSHOT</kafka.connect.storage.common.version>
     </properties>
 
     <repositories>
@@ -83,32 +84,32 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common</artifactId>
-            <version>${project.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-core</artifactId>
-            <version>${project.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-format</artifactId>
-            <version>${project.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-partitioner</artifactId>
-            <version>${project.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-wal</artifactId>
-            <version>${project.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-hive</artifactId>
-            <version>${project.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.netty</groupId>
