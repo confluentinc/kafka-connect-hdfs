@@ -80,7 +80,11 @@ public final class OrcUtil {
   }
 
   /**
-   * Create an object of OrcStruct given a type string and a list of objects
+   * Create an object of OrcStruct given a type and a list of objects
+   *
+   * @param typeInfo the type info
+   * @param objs the objects corresponding to the struct fields
+   * @return the struct object
    */
   @SuppressWarnings("unchecked")
   public static OrcStruct createOrcStruct(TypeInfo typeInfo, Object... objs) {
@@ -99,6 +103,9 @@ public final class OrcUtil {
 
   /**
    * Convert a Struct into a Writable array
+   *
+   * @param struct the struct to convert
+   * @return the struct as a writable array
    */
   public static Object[] convertStruct(Struct struct) {
     List<Object> data = new LinkedList<>();
