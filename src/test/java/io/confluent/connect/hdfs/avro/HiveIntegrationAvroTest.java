@@ -236,6 +236,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
+    // getAllCols is needed to include columns used for partitioning in result
     for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
@@ -334,6 +335,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
+    // getAllCols is needed to include columns used for partitioning in result
     for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
@@ -366,9 +368,8 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     assertEquals(expectedResults.size(), rows.length);
     for (int i = 0; i < rows.length; ++i) {
       String[] parts = HiveTestUtils.parseOutput(rows[i]);
-      int j = 0;
-      for (String expectedValue : expectedResults.get(i)) {
-        assertEquals(expectedValue, parts[j++]);
+      for (int j = 0; j < expectedResults.get(i).size(); ++j) {
+        assertEquals(expectedResults.get(i).get(j), parts[j++]);
       }
     }
   }

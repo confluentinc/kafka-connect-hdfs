@@ -70,7 +70,7 @@ public class AvroHiveUtil extends HiveUtil {
       Schema schema
   ) throws HiveMetaStoreException {
     Table table = hiveMetaStore.getTable(database, tableName);
-    Schema filteredSchema = filterSchema(schema, table.getPartitionKeys());
+    Schema filteredSchema = excludePartitionFieldsFromSchema(schema, table.getPartitionKeys());
     table.getParameters().put(AVRO_SCHEMA_LITERAL,
         avroData.fromConnectSchema(filteredSchema).toString());
     hiveMetaStore.alterTable(table);
@@ -96,7 +96,7 @@ public class AvroHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    Schema filteredSchema = filterSchema(schema, partitioner.partitionFields());
+    Schema filteredSchema = excludePartitionFieldsFromSchema(schema, partitioner.partitionFields());
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(filteredSchema);
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
@@ -109,18 +109,18 @@ public class AvroHiveUtil extends HiveUtil {
    * Remove the column(s) that is later re-created by Hive when using the
    * {@code partition.field.name} config.
    *
-   * @param oldSchema the old schema to remove fields from
+   * @param originalSchema the old schema to remove fields from
    * @param partitionFields the fields used for partitioning
    * @return the new schema without the fields used for partitioning
    */
-  private Schema filterSchema(Schema oldSchema, List<FieldSchema> partitionFields) {
+  private Schema excludePartitionFieldsFromSchema(Schema originalSchema, List<FieldSchema> partitionFields) {
     Set<String> partitions = partitionFields.stream()
         .map(FieldSchema::getName).collect(Collectors.toSet());
 
     SchemaBuilder newSchema = SchemaBuilder.struct();
-    for (Field f : oldSchema.fields()) {
-      if (!partitions.contains(f.name())) {
-        newSchema.field(f.name(), f.schema());
+    for (Field field : originalSchema.fields()) {
+      if (!partitions.contains(field.name())) {
+        newSchema.field(field.name(), field.schema());
       }
     }
     return newSchema;

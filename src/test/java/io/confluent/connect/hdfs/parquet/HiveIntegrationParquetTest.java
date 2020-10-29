@@ -175,6 +175,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
+    // getAllCols is needed to include columns used for partitioning in result
     for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
@@ -273,6 +274,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
+    // getAllCols is needed to include columns used for partitioning in result
     for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
