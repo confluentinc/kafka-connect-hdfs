@@ -132,8 +132,10 @@ public class ParquetHiveUtil extends HiveUtil {
    *                {@link HiveSchemaConverter#convertSchema(Schema) convertSchema}.
    * @param partitionFields the fields used for partitioning
    */
-  private void removeFieldPartitionColumn(List<FieldSchema> columns,
-      List<FieldSchema> partitionFields) {
+  private void removeFieldPartitionColumn(
+      List<FieldSchema> columns,
+      List<FieldSchema> partitionFields
+  ) {
     Set<String> partitions = partitionFields.stream()
         .map(FieldSchema::getName).collect(Collectors.toSet());
 
