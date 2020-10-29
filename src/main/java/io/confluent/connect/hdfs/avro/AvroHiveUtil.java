@@ -15,11 +15,14 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 
 import java.util.List;
@@ -31,6 +34,7 @@ import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
+import org.apache.kafka.connect.data.SchemaBuilder;
 
 public class AvroHiveUtil extends HiveUtil {
 
@@ -66,7 +70,9 @@ public class AvroHiveUtil extends HiveUtil {
       Schema schema
   ) throws HiveMetaStoreException {
     Table table = hiveMetaStore.getTable(database, tableName);
-    table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
+    Schema filteredSchema = filteredSchema(schema, table.getPartitionKeys());
+    table.getParameters().put(AVRO_SCHEMA_LITERAL,
+        avroData.fromConnectSchema(filteredSchema).toString());
     hiveMetaStore.alterTable(table);
   }
 
@@ -91,9 +97,49 @@ public class AvroHiveUtil extends HiveUtil {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    removeFieldPartitionColumn(columns, partitioner.partitionFields());
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
-    table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
+    Schema filteredSchema = filteredSchema(schema, partitioner.partitionFields());
+    table.getParameters().put(AVRO_SCHEMA_LITERAL,
+        avroData.fromConnectSchema(filteredSchema).toString());
     return table;
+  }
+
+  /**
+   * Remove the column(s) that is later re-created by Hive when using the
+   * {@code partition.field.name} config.
+   *
+   * @param oldSchema the old schema to remove fields from
+   * @param partitionFields the fields used for partitioning
+   * @return the new schema without the fields used for partitioning
+   */
+  private Schema filteredSchema(Schema oldSchema, List<FieldSchema> partitionFields) {
+    Set<String> partitions = partitionFields.stream()
+        .map(FieldSchema::getName).collect(Collectors.toSet());
+
+    SchemaBuilder newSchema = SchemaBuilder.struct();
+    for (Field f : oldSchema.fields()) {
+      if (!partitions.contains(f.name())) {
+        newSchema.field(f.name(), f.schema());
+      }
+    }
+    return newSchema;
+  }
+
+  /**
+   * Remove the column(s) that is later re-created by Hive when using the
+   * {@code partition.field.name} config.
+   *
+   * @param columns the hive columns from
+   *                {@link HiveSchemaConverter#convertSchema(Schema) convertSchema}.
+   * @param partitionFields the fields used for partitioning
+   */
+  private void removeFieldPartitionColumn(List<FieldSchema> columns,
+      List<FieldSchema> partitionFields) {
+    Set<String> partitions = partitionFields.stream()
+        .map(FieldSchema::getName).collect(Collectors.toSet());
+
+    columns.removeIf(column -> partitions.contains(column.getName()));
   }
 }
