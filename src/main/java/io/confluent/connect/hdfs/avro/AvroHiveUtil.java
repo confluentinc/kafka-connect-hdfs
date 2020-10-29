@@ -70,7 +70,7 @@ public class AvroHiveUtil extends HiveUtil {
       Schema schema
   ) throws HiveMetaStoreException {
     Table table = hiveMetaStore.getTable(database, tableName);
-    Schema filteredSchema = filteredSchema(schema, table.getPartitionKeys());
+    Schema filteredSchema = filterSchema(schema, table.getPartitionKeys());
     table.getParameters().put(AVRO_SCHEMA_LITERAL,
         avroData.fromConnectSchema(filteredSchema).toString());
     hiveMetaStore.alterTable(table);
@@ -100,7 +100,7 @@ public class AvroHiveUtil extends HiveUtil {
     removeFieldPartitionColumn(columns, partitioner.partitionFields());
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
-    Schema filteredSchema = filteredSchema(schema, partitioner.partitionFields());
+    Schema filteredSchema = filterSchema(schema, partitioner.partitionFields());
     table.getParameters().put(AVRO_SCHEMA_LITERAL,
         avroData.fromConnectSchema(filteredSchema).toString());
     return table;
@@ -114,7 +114,7 @@ public class AvroHiveUtil extends HiveUtil {
    * @param partitionFields the fields used for partitioning
    * @return the new schema without the fields used for partitioning
    */
-  private Schema filteredSchema(Schema oldSchema, List<FieldSchema> partitionFields) {
+  private Schema filterSchema(Schema oldSchema, List<FieldSchema> partitionFields) {
     Set<String> partitions = partitionFields.stream()
         .map(FieldSchema::getName).collect(Collectors.toSet());
 
