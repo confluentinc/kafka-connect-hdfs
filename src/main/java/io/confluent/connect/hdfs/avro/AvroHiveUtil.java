@@ -96,11 +96,10 @@ public class AvroHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
-    removeFieldPartitionColumn(columns, partitioner.partitionFields());
+    Schema filteredSchema = filterSchema(schema, partitioner.partitionFields());
+    List<FieldSchema> columns = HiveSchemaConverter.convertSchema(filteredSchema);
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
-    Schema filteredSchema = filterSchema(schema, partitioner.partitionFields());
     table.getParameters().put(AVRO_SCHEMA_LITERAL,
         avroData.fromConnectSchema(filteredSchema).toString());
     return table;
@@ -125,21 +124,5 @@ public class AvroHiveUtil extends HiveUtil {
       }
     }
     return newSchema;
-  }
-
-  /**
-   * Remove the column(s) that is later re-created by Hive when using the
-   * {@code partition.field.name} config.
-   *
-   * @param columns the hive columns from
-   *                {@link HiveSchemaConverter#convertSchema(Schema) convertSchema}.
-   * @param partitionFields the fields used for partitioning
-   */
-  private void removeFieldPartitionColumn(List<FieldSchema> columns,
-      List<FieldSchema> partitionFields) {
-    Set<String> partitions = partitionFields.stream()
-        .map(FieldSchema::getName).collect(Collectors.toSet());
-
-    columns.removeIf(column -> partitions.contains(column.getName()));
   }
 }
