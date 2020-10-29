@@ -113,7 +113,10 @@ public class AvroHiveUtil extends HiveUtil {
    * @param partitionFields the fields used for partitioning
    * @return the new schema without the fields used for partitioning
    */
-  private Schema excludePartitionFieldsFromSchema(Schema originalSchema, List<FieldSchema> partitionFields) {
+  private Schema excludePartitionFieldsFromSchema(
+      Schema originalSchema,
+      List<FieldSchema> partitionFields
+  ) {
     Set<String> partitions = partitionFields.stream()
         .map(FieldSchema::getName).collect(Collectors.toSet());
 
