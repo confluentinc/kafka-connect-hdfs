@@ -57,6 +57,10 @@
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
         <kafka.connect.storage.common.version>10.0.0-SNAPSHOT</kafka.connect.storage.common.version>
+        <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
+        <commons.collections.version>3.2.2</commons.collections.version>
+        <libthrift.version>0.13.0</libthrift.version>
+        <log4j-api.version>2.8.2</log4j-api.version>
     </properties>
 
     <repositories>
@@ -120,6 +124,21 @@
             </exclusions>
         </dependency>
         <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>${commons.collections.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+            <version>${libthrift.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>${log4j-api.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
         </dependency>
@@ -141,6 +160,10 @@
                     <groupId>io.netty</groupId>
                     <artifactId>netty-all</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -155,7 +178,17 @@
                     <groupId>org.apache.directory.jdbm</groupId>
                     <artifactId>apacheds-jdbm1</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>confluent-log4j</artifactId>
+            <version>${confluent-log4j.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <!-- add this to satisfy the dependency requirement of apacheds-jdbm1-->
