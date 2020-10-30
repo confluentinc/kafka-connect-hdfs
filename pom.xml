@@ -58,6 +58,7 @@
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
         <kafka.connect.storage.common.version>10.0.0-SNAPSHOT</kafka.connect.storage.common.version>
         <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
+        <commons.collections.version>3.2.2</commons.collections.version>
     </properties>
 
     <repositories>
@@ -119,6 +120,11 @@
                     <artifactId>netty-all</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>${commons.collections.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.spotbugs</groupId>
