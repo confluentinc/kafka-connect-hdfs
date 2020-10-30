@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.parquet;
 
+import java.util.Collections;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Field;
@@ -149,6 +150,8 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationFieldPartitionerParquet() throws Exception {
+    int batchSize = 3;
+    int batchNum = 3;
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
@@ -156,7 +159,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
 
     Schema schema = createSchema();
-    List<Struct> records = createRecordBatches(schema, 3, 3);
+    List<Struct> records = createRecordBatches(schema, batchSize, batchNum);
     List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
 
     hdfsWriter.write(sinkRecords);
@@ -169,11 +172,15 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
     }
+    Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
-    for (FieldSchema column : table.getSd().getCols()) {
+    // getAllCols is needed to include columns used for partitioning in result
+    for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
+    Collections.sort(actualColumnNames);
+
     assertEquals(expectedColumnNames, actualColumnNames);
 
     List<String> partitionFieldNames = connectorConfig.getList(
@@ -194,13 +201,17 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
 
     assertEquals(expectedPartitions, partitions);
 
+    Struct sampleRecord = createRecord(schema, 16, 12.2f);
     List<List<String>> expectedResults = new ArrayList<>();
-    for (int i = 0; i < 3; ++i) {
-      for (int j = 0; j < 3; ++j) {
-        List<String> result = new ArrayList<>();
-        for (Field field : schema.fields()) {
-          result.add(String.valueOf(records.get(i).get(field.name())));
-        }
+    for (int batch = 0; batch < batchNum; ++batch) {
+      int intForBatch =  sampleRecord.getInt32("int") + batch;
+      float floatForBatch =  sampleRecord.getFloat32("float") + (float) batch;
+      double doubleForBatch = sampleRecord.getFloat64("double") + (double) batch;
+      for (int row = 0; row < batchSize; ++row) {
+        // the partition field as column is last
+        List<String> result = new ArrayList<>(
+            Arrays.asList("true", String.valueOf(intForBatch), String.valueOf(floatForBatch),
+                String.valueOf(doubleForBatch), String.valueOf(intForBatch)));
         expectedResults.add(result);
       }
     }
@@ -210,7 +221,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
         "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
     );
     String[] rows = result.split("\n");
-    assertEquals(9, rows.length);
+    assertEquals(batchNum * batchSize, rows.length);
     for (int i = 0; i < rows.length; ++i) {
       String[] parts = HiveTestUtils.parseOutput(rows[i]);
       int j = 0;
@@ -260,11 +271,15 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
     }
+    Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
-    for (FieldSchema column : table.getSd().getCols()) {
+    // getAllCols is needed to include columns used for partitioning in result
+    for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
+    Collections.sort(actualColumnNames);
+
     assertEquals(expectedColumnNames, actualColumnNames);
 
     String topicsDir = this.topicsDir.get(TOPIC);
@@ -278,7 +293,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     assertEquals(expectedPartitions, partitions);
 
     List<List<String>> expectedResults = Arrays.asList(
-        Arrays.asList("1", "mx", "NULL"),
+        Arrays.asList("1", "mx", "null"),
         Arrays.asList("1", "us", "ca"),
         Arrays.asList("1", "us", "tx")
     );

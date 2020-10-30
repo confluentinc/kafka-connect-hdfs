@@ -15,11 +15,14 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 
 import java.util.List;
@@ -31,6 +34,7 @@ import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
+import org.apache.kafka.connect.data.SchemaBuilder;
 
 public class AvroHiveUtil extends HiveUtil {
 
@@ -66,7 +70,9 @@ public class AvroHiveUtil extends HiveUtil {
       Schema schema
   ) throws HiveMetaStoreException {
     Table table = hiveMetaStore.getTable(database, tableName);
-    table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
+    Schema filteredSchema = excludePartitionFieldsFromSchema(schema, table.getPartitionKeys());
+    table.getParameters().put(AVRO_SCHEMA_LITERAL,
+        avroData.fromConnectSchema(filteredSchema).toString());
     hiveMetaStore.alterTable(table);
   }
 
@@ -90,10 +96,36 @@ public class AvroHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    Schema filteredSchema = excludePartitionFieldsFromSchema(schema, partitioner.partitionFields());
+    List<FieldSchema> columns = HiveSchemaConverter.convertSchema(filteredSchema);
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
-    table.getParameters().put(AVRO_SCHEMA_LITERAL, avroData.fromConnectSchema(schema).toString());
+    table.getParameters().put(AVRO_SCHEMA_LITERAL,
+        avroData.fromConnectSchema(filteredSchema).toString());
     return table;
+  }
+
+  /**
+   * Remove the column(s) that is later re-created by Hive when using the
+   * {@code partition.field.name} config.
+   *
+   * @param originalSchema the old schema to remove fields from
+   * @param partitionFields the fields used for partitioning
+   * @return the new schema without the fields used for partitioning
+   */
+  private Schema excludePartitionFieldsFromSchema(
+      Schema originalSchema,
+      List<FieldSchema> partitionFields
+  ) {
+    Set<String> partitions = partitionFields.stream()
+        .map(FieldSchema::getName).collect(Collectors.toSet());
+
+    SchemaBuilder newSchema = SchemaBuilder.struct();
+    for (Field field : originalSchema.fields()) {
+      if (!partitions.contains(field.name())) {
+        newSchema.field(field.name(), field.schema());
+      }
+    }
+    return newSchema;
   }
 }
