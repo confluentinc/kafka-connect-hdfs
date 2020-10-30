@@ -60,6 +60,7 @@
         <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
+        <log4j-api.version>2.8.2</log4j-api.version>
     </properties>
 
     <repositories>
@@ -131,6 +132,11 @@
             <groupId>org.apache.thrift</groupId>
             <artifactId>libthrift</artifactId>
             <version>${libthrift.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>${log4j-api.version}</version>
         </dependency>
         <dependency>
             <groupId>com.github.spotbugs</groupId>
