@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>10.0.0-SNAPSHOT</version>
+        <version>10.0.0</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -56,11 +56,13 @@
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>10.0.0-SNAPSHOT</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>10.0.0</kafka.connect.storage.common.version>
         <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j-api.version>2.8.2</log4j-api.version>
+        <htrace-core4.version>10.0.0</htrace-core4.version>
+        <avatica.version>10.0.0</avatica.version>
     </properties>
 
     <repositories>
@@ -121,6 +123,22 @@
                     <groupId>io.netty</groupId>
                     <artifactId>netty-all</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.calcite.avatica</groupId>
+                    <artifactId>avatica</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.avro</groupId>
+                    <artifactId>avro-ipc-jetty</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -147,6 +165,16 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-common-htrace-core4-shaded</artifactId>
+            <version>${htrace-core4.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-common-avatica-shaded</artifactId>
+            <version>${avatica.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-minicluster</artifactId>
             <version>${hadoop.version}</version>
@@ -163,6 +191,10 @@
                 <exclusion>
                     <groupId>log4j</groupId>
                     <artifactId>log4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -181,6 +213,10 @@
                 <exclusion>
                     <groupId>log4j</groupId>
                     <artifactId>log4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
