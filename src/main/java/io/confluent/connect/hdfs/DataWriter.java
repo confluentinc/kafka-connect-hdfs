@@ -500,7 +500,7 @@ public class DataWriter {
    * To follow this convention, this methods returns each offset that is one more than the last
    * offset committed to HDFS.
    *
-   * @return Map from TopicPartition to next offset after the most recently committd offset to HDFS
+   * @return Map from TopicPartition to next offset after the most recently committed offset to HDFS
    */
   public Map<TopicPartition, Long> getCommittedOffsets() {
     Map<TopicPartition, Long> offsets = new HashMap<>();
