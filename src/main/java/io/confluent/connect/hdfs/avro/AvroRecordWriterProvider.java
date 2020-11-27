@@ -18,6 +18,8 @@ package io.confluent.connect.hdfs.avro;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.format.RecordWriter;
 import java.io.OutputStream;
+
+import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -84,6 +86,14 @@ public class AvroRecordWriterProvider
           }
         } catch (IOException e) {
           throw new DataException(e);
+        } catch (AvroRuntimeException ex) {
+          // Making schema null to invalidate file corrupted due to connection failure
+          schema = null;
+          /*
+          Wrapped into ConnectException so that setRetryTimeout() is called in the
+          TopicPartitionWriter class to retry the records.
+          */
+          throw new ConnectException(ex);
         }
       }
 
