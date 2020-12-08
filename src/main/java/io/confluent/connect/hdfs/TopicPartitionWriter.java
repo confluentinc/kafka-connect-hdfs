@@ -406,6 +406,7 @@ public class TopicPartitionWriter {
         throw new RuntimeException(e);
       } catch (ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
+        context.offset(tp, offset);
         failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
         break;
