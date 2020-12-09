@@ -42,6 +42,8 @@ import java.util.Set;
 import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.common.StorageCommonConfig;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -49,14 +51,31 @@ import static org.junit.Assert.assertThat;
 
 public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
-  protected MiniDFSCluster cluster;
-  protected FileSystem fs;
+  protected static FileSystem fs;
+  private static MiniDFSCluster cluster;
+
   protected DataFileReader dataFileReader;
   protected Partitioner partitioner;
   protected String extension;
   // The default based on default configuration of 10
   protected String zeroPadFormat = "%010d";
   private Map<String, String> localProps = new HashMap<>();
+
+  @BeforeClass
+  public static void setup() throws IOException {
+    cluster = createDFSCluster();
+    fs = cluster.getFileSystem();
+  }
+
+  @AfterClass
+  public static void cleanup() throws IOException {
+    if (fs != null) {
+      fs.close();
+    }
+    if (cluster != null) {
+      cluster.shutdown(true);
+    }
+  }
 
   @Override
   protected Map<String, String> createProps() {
@@ -71,32 +90,20 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
-    Configuration localConf = new Configuration();
-    cluster = createDFSCluster(localConf);
-    cluster.waitActive();
-    fs = cluster.getFileSystem();
     super.setUp();
   }
 
   @After
   public void tearDown() throws Exception {
-    if (fs != null) {
-      fs.close();
+    if (fs.exists(new Path("/")) && fs.isDirectory(new Path("/"))) {
+      for (FileStatus file : fs.listStatus(new Path("/"))) {
+        if (file.isDirectory()) {
+          fs.delete(file.getPath(), true);
+        } else {
+          fs.delete(file.getPath(), false);
+        }
+      }
     }
-    if (cluster != null) {
-      cluster.shutdown(true);
-    }
-    super.tearDown();
-  }
-
-  private MiniDFSCluster createDFSCluster(Configuration conf) throws IOException {
-    MiniDFSCluster cluster;
-    String[] hosts = {"localhost", "localhost", "localhost"};
-    MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
-    builder.hosts(hosts).nameNodePort(9001).numDataNodes(3);
-    cluster = builder.build();
-    cluster.waitActive();
-    return cluster;
   }
 
   /**
@@ -358,4 +365,14 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     }
   }
 
+  private static MiniDFSCluster createDFSCluster() throws IOException {
+    MiniDFSCluster cluster = new MiniDFSCluster.Builder(new Configuration())
+        .hosts(new String[]{"localhost", "localhost", "localhost"})
+        .nameNodePort(9001)
+        .numDataNodes(3)
+        .build();
+    cluster.waitActive();
+
+    return cluster;
+  }
 }
