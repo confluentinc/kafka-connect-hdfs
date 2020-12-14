@@ -116,7 +116,7 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
               fileSystem.delete(path, true);
             } catch (IOException ex) {
               // connection refused to the HDFS cluster.
-              log.debug("Connection failed while deleting the tmp file from the HDFS cluster.");
+              log.warn("Connection failed while deleting the tmp file from the HDFS cluster.", ex);
             }
           }
           // Making schema null to invalidate corrupted file due to connection failure
