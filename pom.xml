@@ -185,7 +185,7 @@
                         </goals>
                         <configuration>
                             <title>Kafka Connect HDFS</title>
-                            <documentationUrl>https://docs.confluent.io/${project.version}/connect/connect-hdfs/docs/index.html</documentationUrl>
+                            <documentationUrl>https://docs.confluent.io/kafka-connect-hdfs/current/index.html</documentationUrl>
                             <description>
                                 The HDFS connector allows you to export data from Kafka topics to HDFS files in a variety of formats and integrates with Hive to make data immediately available for querying with HiveQL.
 
