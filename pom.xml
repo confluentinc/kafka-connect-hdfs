@@ -60,9 +60,10 @@
         <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
-        <log4j-api.version>2.8.2</log4j-api.version>
+        <log4j.version>2.14.0</log4j.version>
         <htrace-core4.version>10.0.2</htrace-core4.version>
         <avatica.version>10.0.2</avatica.version>
+        <disruptor.version>3.4.2</disruptor.version>
     </properties>
 
     <repositories>
@@ -152,11 +153,6 @@
             <version>${libthrift.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-1.2-api</artifactId>
-            <version>${log4j-api.version}</version>
-        </dependency>
-        <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
         </dependency>
@@ -190,10 +186,6 @@
                     <artifactId>netty-all</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId>log4j</groupId>
-                    <artifactId>log4j</artifactId>
-                </exclusion>
-                <exclusion>
                     <groupId>org.apache.htrace</groupId>
                     <artifactId>htrace-core4</artifactId>
                 </exclusion>
@@ -212,10 +204,6 @@
                     <artifactId>apacheds-jdbm1</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId>log4j</groupId>
-                    <artifactId>log4j</artifactId>
-                </exclusion>
-                <exclusion>
                     <groupId>org.apache.htrace</groupId>
                     <artifactId>htrace-core4</artifactId>
                 </exclusion>
@@ -225,7 +213,6 @@
             <groupId>io.confluent</groupId>
             <artifactId>confluent-log4j</artifactId>
             <version>${confluent-log4j.version}</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <!-- add this to satisfy the dependency requirement of apacheds-jdbm1-->
@@ -235,6 +222,31 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.lmax</groupId>
+                <artifactId>disruptor</artifactId>
+                <version>${disruptor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-1.2-api</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-web</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-slf4j-impl</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>
