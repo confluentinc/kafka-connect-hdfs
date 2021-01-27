@@ -57,6 +57,7 @@ import io.confluent.connect.storage.partitioner.DailyPartitioner;
 import io.confluent.connect.storage.partitioner.HourlyPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
+import static io.confluent.connect.storage.StorageSinkConnectorConfig.FLUSH_SIZE_CONFIG;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -148,6 +149,49 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
                                "/" + TOPIC + "+" + PARTITION + "+06+08" + extension));
     int expectedBatchSize = 3;
     verify(expectedFiles, expectedBatchSize, records, schema);
+  }
+
+  @Test
+  public void testCloseMultipleTempFiles() throws Exception {
+    setUp();
+    Partitioner partitioner = new FieldPartitioner();
+    partitioner.configure(parsedConfig);
+
+    properties.put(FLUSH_SIZE_CONFIG, "10");
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+        TOPIC_PARTITION,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData,
+        time
+    );
+
+    Schema schema = createSchema();
+    List<Struct> records = new ArrayList<>();
+    for (int i = 16; i < 19; ++i) {
+      for (int j = 0; j < 2; ++j) {
+        records.add(createRecord(schema, i, 12.2f));
+      }
+    }
+
+    List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    assertEquals(-1, topicPartitionWriter.offset());
+    topicPartitionWriter.write();
+    // Flush size is 10, so records not committed yet
+    assertEquals(0, topicPartitionWriter.offset());
+
+    // should not throw
+    topicPartitionWriter.close();
   }
 
   @Test
@@ -274,7 +318,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   @Test
   public void testWriteRecordTimeBasedPartitionFieldTimestampHours() throws Exception {
     // Do not roll on size, only based on time.
-    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "1000");
+    localProps.put(FLUSH_SIZE_CONFIG, "1000");
     localProps.put(
         HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.MINUTES.toMillis(1))
@@ -362,7 +406,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   @Test
   public void testWriteRecordTimeBasedPartitionRecordTimestampHours() throws Exception {
     // Do not roll on size, only based on time.
-    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "1000");
+    localProps.put(FLUSH_SIZE_CONFIG, "1000");
     localProps.put(
         HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.MINUTES.toMillis(1))
@@ -424,7 +468,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   @Test
   public void testWriteRecordTimeBasedPartitionRecordTimestampDays() throws Exception {
     // Do not roll on size, only based on time.
-    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "1000");
+    localProps.put(FLUSH_SIZE_CONFIG, "1000");
     localProps.put(
         HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.MINUTES.toMillis(1))
@@ -488,7 +532,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
   public void testWriteRecordTimeBasedPartitionWallclockMockedWithScheduleRotation()
       throws Exception {
     // Do not roll on size, only based on time.
-    localProps.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "1000");
+    localProps.put(FLUSH_SIZE_CONFIG, "1000");
     localProps.put(
         HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG,
         String.valueOf(TimeUnit.HOURS.toMillis(1))
