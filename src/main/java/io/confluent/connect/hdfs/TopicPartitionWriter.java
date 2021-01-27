@@ -459,7 +459,7 @@ public class TopicPartitionWriter {
   public void close() throws ConnectException {
     log.debug("Closing TopicPartitionWriter {}", tp);
     List<Exception> exceptions = new ArrayList<>();
-    for (String encodedPartition : writers.keySet()) {
+    for (String encodedPartition : tempFiles.keySet()) {
       log.debug(
           "Discarding in progress tempfile {} for {} {}",
           tempFiles.get(encodedPartition),
