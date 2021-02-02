@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>10.0.0</version>
+        <version>10.0.4</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -56,13 +56,11 @@
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>10.0.2</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>10.0.4</kafka.connect.storage.common.version>
         <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j-api.version>2.8.2</log4j-api.version>
-        <htrace-core4.version>10.0.0</htrace-core4.version>
-        <avatica.version>10.0.0</avatica.version>
     </properties>
 
     <repositories>
@@ -167,12 +165,12 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common-htrace-core4-shaded</artifactId>
-            <version>${htrace-core4.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common-avatica-shaded</artifactId>
-            <version>${avatica.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
