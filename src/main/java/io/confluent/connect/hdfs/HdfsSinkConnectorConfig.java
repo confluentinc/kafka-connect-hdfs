@@ -57,6 +57,7 @@ import io.confluent.connect.storage.partitioner.HourlyPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnector.TASK_ID_CONFIG_NAME;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_CONFIG;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DISPLAY;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DOC;
@@ -355,6 +356,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private Configuration hadoopConfig;
   private int topicDirGroupsMaxIndex;
   private int logDirGroupsMaxIndex;
+  private int taskId;
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
     this(newConfigDef() , addDefaults(props));
@@ -369,6 +371,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
     this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
+    taskId = props.get(TASK_ID_CONFIG_NAME) != null
+        ? Integer.parseInt(props.get(TASK_ID_CONFIG_NAME)) : -1;
     addToGlobal(hiveConfig);
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
@@ -705,6 +709,10 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         container.define(key);
       }
     }
+  }
+
+  public int getTaskId() {
+    return taskId;
   }
 
   public static void main(String[] args) {
