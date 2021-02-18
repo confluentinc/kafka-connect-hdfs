@@ -72,12 +72,22 @@ public class FSWAL implements WAL {
         if (writer == null) {
           writer = WALFile.createWriter(conf, Writer.file(new Path(logFile)),
                                         Writer.appendIfExists(true));
-          log.info("Successfully acquired lease for {}", logFile);
+          log.info(
+              "Successfully acquired lease, {}-{}, file {}",
+              conf.getName(),
+              conf.getTaskId(),
+              logFile
+          );
         }
         break;
       } catch (RemoteException e) {
         if (e.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          log.info("Cannot acquire lease on WAL {}", logFile);
+          log.info(
+              "Cannot acquire lease on WAL, {}-{}, file {}",
+              conf.getName(),
+              conf.getTaskId(),
+              logFile
+          );
           try {
             Thread.sleep(sleepIntervalMs);
           } catch (InterruptedException ie) {
@@ -88,7 +98,15 @@ public class FSWAL implements WAL {
           throw new ConnectException(e);
         }
       } catch (IOException e) {
-        throw new DataException("Error creating writer for log file " + logFile, e);
+        throw new DataException(
+            String.format(
+                "Error creating writer for log file, %s-%s, file %s",
+                conf.getName(),
+                conf.getTaskId(),
+                logFile
+            ),
+            e
+        );
       }
     }
     if (sleepIntervalMs >= WALConstants.MAX_SLEEP_INTERVAL_MS) {
@@ -150,7 +168,12 @@ public class FSWAL implements WAL {
 
   @Override
   public void close() throws ConnectException {
-    log.debug("Closing WAL");
+    log.info(
+        "Closing WAL, {}-{}, file: {}",
+        conf.getName(),
+        conf.getTaskId(),
+        logFile
+    );
     try {
       if (writer != null) {
         writer.close();

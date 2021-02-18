@@ -33,6 +33,8 @@ import java.util.Map;
  */
 public class HdfsSinkConnector extends SinkConnector {
 
+  public static final String TASK_ID_CONFIG_NAME = "task.id";
+
   private static final Logger log = LoggerFactory.getLogger(HdfsSinkConnector.class);
   private Map<String, String> configProperties;
   private HdfsSinkConnectorConfig config;
@@ -60,9 +62,9 @@ public class HdfsSinkConnector extends SinkConnector {
   @Override
   public List<Map<String, String>> taskConfigs(int maxTasks) {
     List<Map<String, String>> taskConfigs = new ArrayList<>();
-    Map<String, String> taskProps = new HashMap<>();
-    taskProps.putAll(configProperties);
     for (int i = 0; i < maxTasks; i++) {
+      Map<String, String> taskProps = new HashMap<>(configProperties);
+      taskProps.put(TASK_ID_CONFIG_NAME, Integer.toString(i));
       taskConfigs.add(taskProps);
     }
     return taskConfigs;
