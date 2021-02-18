@@ -318,8 +318,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
     this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
-    taskId = props.get(TASK_ID_CONFIG_NAME) != null ?
-        Integer.parseInt(props.get(TASK_ID_CONFIG_NAME)) : -1;
+    taskId = props.get(TASK_ID_CONFIG_NAME) != null
+        ? Integer.parseInt(props.get(TASK_ID_CONFIG_NAME)) : -1;
     addToGlobal(hiveConfig);
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
