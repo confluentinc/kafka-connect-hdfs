@@ -303,7 +303,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private final Map<String, ComposableConfig> propertyToConfig = new HashMap<>();
   private final Set<AbstractConfig> allConfigs = new HashSet<>();
   private Configuration hadoopConfig;
-  private String taskId;
+  private int taskId;
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
     this(newConfigDef() , addDefaults(props));
@@ -318,7 +318,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
     this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
-    taskId = props.get(TASK_ID_CONFIG_NAME);
+    taskId = props.get(TASK_ID_CONFIG_NAME) != null ?
+        Integer.parseInt(props.get(TASK_ID_CONFIG_NAME)) : -1;
     addToGlobal(hiveConfig);
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
@@ -499,7 +500,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   public int getTaskId() {
-    return taskId != null ? Integer.parseInt(taskId) : -1;
+    return taskId;
   }
 
   public static void main(String[] args) {
