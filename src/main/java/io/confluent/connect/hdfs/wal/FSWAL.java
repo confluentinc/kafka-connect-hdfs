@@ -83,7 +83,7 @@ public class FSWAL implements WAL {
         break;
       } catch (RemoteException e) {
         if (e.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          log.info(
+          log.warn(
               "Cannot acquire lease on WAL, {}-{}, file {}",
               conf.getName(),
               conf.getTaskId(),
