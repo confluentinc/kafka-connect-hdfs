@@ -180,7 +180,7 @@ public class WALFile {
 
         init(connectorConfig, out, ownStream);
       } catch (RemoteException re) {
-        log.error("Failed creating a WAL Writer: " + re.getMessage());
+        log.warn("Failed creating a WAL Writer: " + re.getMessage());
         if (fs != null) {
           try {
             fs.close();
