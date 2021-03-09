@@ -130,12 +130,16 @@ public class WALFileTest extends TestWithMiniDFSCluster {
   }
 
   @Test
-  public void testCorruptReadDoesThrowsException() throws Exception {
+  public void testCorruptReadDoesThrowException() throws Exception {
     setUp();
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "(.*)");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
+
     String topic = "topic";
     String topicsDir = connectorConfig.getTopicsDirFromTopic(topic);
-    TopicPartition topicPart = new TopicPartition("topic", 0);
+
+    int partition = 0;
+    TopicPartition topicPart = new TopicPartition(topic, partition);
 
     Path file = new Path(FileUtils.logFileName(url, topicsDir, topicPart));
 
