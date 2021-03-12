@@ -296,7 +296,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return configDef;
   }
 
-  private final String name;
   private final String url;
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
@@ -317,7 +316,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     hiveConfig = new HiveConfig(originalsStrings());
     ConfigDef partitionerConfigDef = PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER);
     partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
-    this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
     taskId = props.get(TASK_ID_CONFIG_NAME) != null
         ? Integer.parseInt(props.get(TASK_ID_CONFIG_NAME)) : -1;
@@ -354,11 +352,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return propsCopy;
   }
 
-  protected static String parseName(Map<String, String> props) {
-    String nameProp = props.get("name");
-    return nameProp != null ? nameProp : "HDFS-sink";
-  }
-
   private void addToGlobal(AbstractConfig config) {
     allConfigs.add(config);
     addConfig(config.values(), (ComposableConfig) config);
@@ -392,11 +385,43 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     );
   }
 
-  public String getName() {
-    return name;
+  public String connectHdfsPrincipal() {
+    return getString(CONNECT_HDFS_PRINCIPAL_CONFIG);
   }
 
-  public String getUrl() {
+  public String connectHdfsKeytab() {
+    return getString(CONNECT_HDFS_KEYTAB_CONFIG);
+  }
+
+  public String hadoopConfDir() {
+    return getString(HADOOP_CONF_DIR_CONFIG);
+  }
+
+  public String hadoopHome() {
+    return getString(HADOOP_HOME_CONFIG);
+  }
+
+  public String hdfsNamenodePrincipal() {
+    return getString(HDFS_NAMENODE_PRINCIPAL_CONFIG);
+  }
+
+  public boolean kerberosAuthentication() {
+    return getBoolean(HDFS_AUTHENTICATION_KERBEROS_CONFIG);
+  }
+
+  public long kerberosTicketRenewPeriodMs() {
+    return getLong(KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG);
+  }
+
+  public String logsDir() {
+    return getString(LOGS_DIR_CONFIG);
+  }
+
+  public String name() {
+    return originalsStrings().getOrDefault("name", "HDFS-sink");
+  }
+
+  public String url() {
     return url;
   }
 
