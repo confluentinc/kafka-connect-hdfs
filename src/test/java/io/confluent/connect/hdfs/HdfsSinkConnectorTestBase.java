@@ -32,7 +32,6 @@ import io.confluent.connect.hdfs.avro.AvroFormat;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.storage.StorageSinkTestBase;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
@@ -114,7 +113,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     parsedConfig = new HashMap<>(connectorConfig.plainValues());
     conf = connectorConfig.getHadoopConfiguration();
     topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
-    logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
+    logsDir = connectorConfig.logsDir();
     avroData = new AvroData(connectorConfig.avroDataConfig());
   }
 
