@@ -152,7 +152,7 @@ public class TopicPartitionWriter {
       io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
           newWriterProvider,
       Partitioner partitioner,
-      HdfsSinkConnectorConfig connectorConfig,
+      HdfsSinkConnectorConfig config,
       SinkTaskContext context,
       AvroData avroData,
       HiveMetaStore hiveMetaStore,
@@ -187,17 +187,16 @@ public class TopicPartitionWriter {
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
 
-    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
-    flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
-    rotateIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
-    rotateScheduleIntervalMs = connectorConfig.getLong(HdfsSinkConnectorConfig
+    topicsDir = config.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    flushSize = config.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
+    rotateIntervalMs = config.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
+    rotateScheduleIntervalMs = config.getLong(HdfsSinkConnectorConfig
         .ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
-    timeoutMs = connectorConfig.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG);
+    timeoutMs = config.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG);
     compatibility = StorageSchemaCompatibility.getCompatibility(
-        connectorConfig.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG));
+        config.getString(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG));
 
-    String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
-    wal = storage.wal(logsDir, tp);
+    wal = storage.wal(config.logsDir(), tp);
 
     buffer = new LinkedList<>();
     writers = new HashMap<>();
@@ -219,12 +218,12 @@ public class TopicPartitionWriter {
       );
     }
     zeroPadOffsetFormat = "%0"
-        + connectorConfig.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG)
+        + config.getInt(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG)
         + "d";
 
-    hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
+    hiveIntegration = config.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
     if (hiveIntegration) {
-      hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
+      hiveDatabase = config.getString(HiveConfig.HIVE_DATABASE_CONFIG);
     } else {
       hiveDatabase = null;
     }
@@ -236,7 +235,7 @@ public class TopicPartitionWriter {
     hivePartitions = new HashSet<>();
 
     if (rotateScheduleIntervalMs > 0) {
-      timeZone = DateTimeZone.forID(connectorConfig.getString(PartitionerConfig.TIMEZONE_CONFIG));
+      timeZone = DateTimeZone.forID(config.getString(PartitionerConfig.TIMEZONE_CONFIG));
     } else {
       timeZone = null;
     }
