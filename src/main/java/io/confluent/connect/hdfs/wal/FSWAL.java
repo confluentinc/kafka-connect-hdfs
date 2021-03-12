@@ -37,7 +37,7 @@ public class FSWAL implements WAL {
 
   private static final Logger log = LoggerFactory.getLogger(FSWAL.class);
 
-  private WALFile.Writer writer = null;
+  protected WALFile.Writer writer = null;
   private WALFile.Reader reader = null;
   private String logFile = null;
   private HdfsSinkConnectorConfig conf = null;
@@ -148,6 +148,10 @@ public class FSWAL implements WAL {
           entries.put(mapKey, mapValue);
         }
       }
+    } catch (CorruptWalFileException e) {
+      log.error("Error applying WAL file '{}' because it is corrupted: {}", logFile, e);
+      log.warn("Truncating and skipping corrupt WAL file '{}'.", logFile);
+      close();
     } catch (IOException e) {
       log.error("Error applying WAL file: {}, {}", logFile, e);
       close();
