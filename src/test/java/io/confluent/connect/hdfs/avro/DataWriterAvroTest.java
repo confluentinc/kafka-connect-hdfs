@@ -15,15 +15,21 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.wal.FSWAL;
+import io.confluent.connect.hdfs.wal.WALFile.Writer;
+import io.confluent.connect.hdfs.wal.WALFileTest;
+import io.confluent.connect.hdfs.wal.WALFileTest.CorruptWriter;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,11 +47,11 @@ import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
-import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -116,6 +122,51 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
     long[] validOffsets = {0, 10, 20, 30, 40, 50, 53};
     verifyFileListing(validOffsets, Collections.singleton(new TopicPartition(TOPIC, PARTITION)));
+  }
+
+  @Test
+  public void testCorruptRecovery() throws Exception {
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
+    fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
+
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+
+    WAL wal = new FSWAL(logsDir, TOPIC_PARTITION, storage) {
+      public void acquireLease() throws ConnectException {
+        super.acquireLease();
+        // initialize a new writer if the writer is not a CorruptWriter
+        if (writer.getClass() != WALFileTest.CorruptWriter.class) {
+          try {
+            writer = new CorruptWriter(storage.conf(), Writer.file(new Path(this.getLogFile())),
+                Writer.appendIfExists(true));
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      }
+    };
+    wal.append(WAL.beginMarker, "");
+
+    // Write enough bytes to trigger a sync
+    for (int i = 0; i < 20; ++i) {
+      long startOffset = i * 10;
+      long endOffset = (i + 1) * 10 - 1;
+      String tempfile = FileUtils.tempFileName(url, topicsDir, getDirectory(), extension);
+      fs.createNewFile(new Path(tempfile));
+      String committedFile = FileUtils.committedFileName(url, topicsDir, getDirectory(), TOPIC_PARTITION, startOffset,
+          endOffset, extension, zeroPadFormat);
+      wal.append(tempfile, committedFile);
+    }
+
+    wal.append(WAL.endMarker, "");
+    wal.close();
+
+    hdfsWriter.recover(TOPIC_PARTITION);
+    Map<TopicPartition, Long> offsets = context.offsets();
+    // Offsets shouldn't exist since corrupt WAL file entries should not not be committed
+    assertFalse(offsets.containsKey(TOPIC_PARTITION));
   }
 
   @Test

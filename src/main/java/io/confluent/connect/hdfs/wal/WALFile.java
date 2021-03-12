@@ -779,7 +779,7 @@ public class WALFile {
         in.readFully(syncCheck);
         if (!Arrays.equals(sync, syncCheck)) {
           // check it
-          throw new IOException("File is corrupt!");
+          throw new CorruptWalFileException("File is corrupt!");
         }
         syncSeen = true;
         if (in.getPos() >= end) {

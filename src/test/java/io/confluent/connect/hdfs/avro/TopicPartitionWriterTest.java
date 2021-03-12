@@ -15,6 +15,11 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.wal.FSWAL;
+import io.confluent.connect.hdfs.wal.WALFile.Writer;
+import io.confluent.connect.hdfs.wal.WALFileTest;
+import io.confluent.connect.hdfs.wal.WALFileTest.CorruptWriter;
+import io.confluent.connect.storage.wal.WAL;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -22,6 +27,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -61,7 +67,6 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import static io.confluent.connect.storage.StorageSinkConnectorConfig.FLUSH_SIZE_CONFIG;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
@@ -150,6 +155,82 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
                                "/" + TOPIC + "+" + PARTITION + "+03+05" + extension));
     expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
                                "/" + TOPIC + "+" + PARTITION + "+06+08" + extension));
+    int expectedBatchSize = 3;
+    verify(expectedFiles, expectedBatchSize, records, schema);
+  }
+
+  @Test
+  public void testWriteRecordDefaultWithPaddingCorruptRecovery() throws Exception {
+    localProps.put(HdfsSinkConnectorConfig.FILENAME_OFFSET_ZERO_PAD_WIDTH_CONFIG, "2");
+    setUp();
+
+    Partitioner partitioner = new DefaultPartitioner();
+    partitioner.configure(parsedConfig);
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+        TOPIC_PARTITION,
+        storage,
+        writerProvider,
+        newWriterProvider,
+        partitioner,
+        connectorConfig,
+        context,
+        avroData,
+        time
+    );
+
+    //create a corrupt WAL
+    WAL wal = new FSWAL(logsDir, TOPIC_PARTITION, storage) {
+      public void acquireLease() throws ConnectException {
+        super.acquireLease();
+        // initialize a new writer if the writer is not a CorruptWriter
+        if (writer.getClass() != WALFileTest.CorruptWriter.class) {
+          try {
+            writer = new CorruptWriter(storage.conf(), Writer.file(new Path(this.getLogFile())),
+                Writer.appendIfExists(true));
+          } catch (IOException e) {
+            e.printStackTrace();
+          }
+        }
+      }
+    };
+    wal.append(WAL.beginMarker, "");
+
+    // Write enough bytes to trigger a sync
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
+    for (int i = 0; i < 20; ++i) {
+      long startOffset = i * 10;
+      long endOffset = (i + 1) * 10 - 1;
+      String tempfile = FileUtils.tempFileName(url, topicsDir, partitioner.generatePartitionedPath(TOPIC, "partition=" + PARTITION), extension);
+      fs.createNewFile(new Path(tempfile));
+      String committedFile = FileUtils.committedFileName(url, topicsDir, partitioner.generatePartitionedPath(TOPIC, "partition=" + PARTITION), TOPIC_PARTITION, startOffset,
+          endOffset, extension, zeroPadFormat);
+      wal.append(tempfile, committedFile);
+    }
+    wal.append(WAL.endMarker, "");
+    wal.close();
+
+    topicPartitionWriter.recover();
+
+    Schema schema = createSchema();
+    List<Struct> records = createRecordBatches(schema, 3, 3);
+    // Add a single records at the end of the batches sequence. Total records: 10
+    records.add(createRecord(schema));
+    List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
+
+    for (SinkRecord record : sinkRecords) {
+      topicPartitionWriter.buffer(record);
+    }
+
+    topicPartitionWriter.write();
+    topicPartitionWriter.close();
+
+    Set<Path> expectedFiles = new HashSet<>();
+    expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
+        "/" + TOPIC + "+" + PARTITION + "+00+02" + extension));
+    expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
+        "/" + TOPIC + "+" + PARTITION + "+03+05" + extension));
+    expectedFiles.add(new Path(url + "/" + topicsDir + "/" + TOPIC + "/partition=" + PARTITION +
+        "/" + TOPIC + "+" + PARTITION + "+06+08" + extension));
     int expectedBatchSize = 3;
     verify(expectedFiles, expectedBatchSize, records, schema);
   }
