@@ -75,7 +75,7 @@ public class FSWAL implements WAL {
                                         Writer.appendIfExists(true));
           log.info(
               "Successfully acquired lease, {}-{}, file {}",
-              conf.getName(),
+              conf.name(),
               conf.getTaskId(),
               logFile
           );
@@ -85,7 +85,7 @@ public class FSWAL implements WAL {
         if (e.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
           log.warn(
               "Cannot acquire lease on WAL, {}-{}, file {}",
-              conf.getName(),
+              conf.name(),
               conf.getTaskId(),
               logFile
           );
@@ -102,7 +102,7 @@ public class FSWAL implements WAL {
         throw new DataException(
             String.format(
                 "Error creating writer for log file, %s-%s, file %s",
-                conf.getName(),
+                conf.name(),
                 conf.getTaskId(),
                 logFile
             ),
@@ -171,7 +171,7 @@ public class FSWAL implements WAL {
   public void close() throws ConnectException {
     log.info(
         "Closing WAL, {}-{}, file: {}",
-        conf.getName(),
+        conf.name(),
         conf.getTaskId(),
         logFile
     );
