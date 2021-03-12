@@ -190,7 +190,6 @@ public class DataWriter {
       }
 
       url = config.url();
-      topicsDir = config.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
 
       @SuppressWarnings("unchecked")
       Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) config
