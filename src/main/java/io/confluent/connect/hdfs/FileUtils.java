@@ -100,8 +100,21 @@ public class FileUtils {
     return fileName(url, topicsDir, directory, name);
   }
 
+  public static String topicDirectory(String url, String topicsDir) {
+    return url + "/" + topicsDir;
+  }
+
   public static String topicDirectory(String url, String topicsDir, String topic) {
     return url + "/" + topicsDir + "/" + topic;
+  }
+
+  public static String topicDirectory(String url, String topicsDir, String topic,
+      Boolean includeTopicName) {
+    if (includeTopicName) {
+      return topicDirectory(url, topicsDir, topic);
+    } else {
+      return topicDirectory(url, topicsDir);
+    }
   }
 
   public static FileStatus fileStatusWithMaxOffset(

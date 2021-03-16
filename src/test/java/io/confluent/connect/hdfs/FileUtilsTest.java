@@ -16,4 +16,10 @@ public class FileUtilsTest {
   public void testExtractOffsetInvalid() {
     assertEquals(1001, FileUtils.extractOffset("namespace+topic+1+1000+1001.avro"));
   }
+
+  @Test
+   public void testTopicDirectories() {
+     assertEquals("hdfs:///topicsDir/topic", FileUtils.topicDirectory("hdfs://", "topicsDir", "topic", true));
+     assertEquals("hdfs:///topicsDir", FileUtils.topicDirectory("hdfs://", "topicsDir", "topic", false));
+   }
 }
