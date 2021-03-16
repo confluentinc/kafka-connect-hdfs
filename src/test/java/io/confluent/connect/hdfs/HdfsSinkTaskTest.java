@@ -28,9 +28,12 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.avro.AvroDataFileReader;
@@ -255,6 +258,62 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   }
 
   @Test
+  public void testSinkTaskStartWithRecoveryHelper() throws Exception {
+    setUp();
+    Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
+
+    Map<TopicPartition, String> recoveryPoints = new HashMap<>();
+    Map<TopicPartition, List<String>> committedFiles = new HashMap<>();
+
+    tempfiles.put(TOPIC_PARTITION, new ArrayList<>());
+
+    String fileName1 = FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 200, 300,
+        extension, ZERO_PAD_FMT);
+    String fileName2 = FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 301, 400,
+        extension, ZERO_PAD_FMT);
+
+    committedFiles.put(TOPIC_PARTITION, new ArrayList<>());
+
+    tempfiles.get(TOPIC_PARTITION).add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
+    fs.createNewFile(new Path(fileName1));
+    committedFiles.get(TOPIC_PARTITION).add(fileName1);
+    tempfiles.get(TOPIC_PARTITION).add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
+    committedFiles.get(TOPIC_PARTITION).add(fileName2);
+    fs.createNewFile(new Path(fileName2));
+
+    // simulate deleted temp file
+    tempfiles.get(TOPIC_PARTITION).add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
+    committedFiles.get(TOPIC_PARTITION)
+        .add(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 401, 500, extension, ZERO_PAD_FMT));
+
+    recoveryPoints.put(TOPIC_PARTITION, fileName1);
+
+    fileName1 = FileUtils.committedFileName(url, topicsDir, DIRECTORY2, TOPIC_PARTITION2, 400, 500,
+        extension, ZERO_PAD_FMT);
+    fileName2 = FileUtils.committedFileName(url, topicsDir, DIRECTORY2, TOPIC_PARTITION2, 501, 800,
+        extension, ZERO_PAD_FMT);
+    fs.createNewFile(new Path(fileName1));
+    fs.createNewFile(new Path(fileName2));
+
+    recoveryPoints.put(TOPIC_PARTITION2, fileName2);
+
+    createWALs(tempfiles, committedFiles, recoveryPoints);
+    HdfsSinkTask task = new HdfsSinkTask();
+
+    task.initialize(context);
+    task.start(properties);
+
+    Map<TopicPartition, Long> offsets = context.offsets();
+    assertEquals(2, offsets.size());
+    assertTrue(offsets.containsKey(TOPIC_PARTITION));
+    assertEquals(401, (long) offsets.get(TOPIC_PARTITION));
+    assertTrue(offsets.containsKey(TOPIC_PARTITION2));
+    assertEquals(801, (long) offsets.get(TOPIC_PARTITION2));
+
+    task.stop();
+  }
+
+  @Test
   public void testSinkTaskPut() throws Exception {
     setUp();
     HdfsSinkTask task = new HdfsSinkTask();
@@ -358,8 +417,13 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   }
 
   private void createWALs(Map<TopicPartition, List<String>> tempfiles,
-                          Map<TopicPartition, List<String>> committedFiles) throws Exception {
-    @SuppressWarnings("unchecked")
+      Map<TopicPartition, List<String>> committedFiles) throws Exception {
+    createWALs(tempfiles, committedFiles, Collections.emptyMap());
+  }
+    private void createWALs(Map<TopicPartition, List<String>> tempfiles,
+        Map<TopicPartition, List<String>> committedFiles,
+        Map<TopicPartition, String> recoveryRecords) throws Exception {
+      @SuppressWarnings("unchecked")
     Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>)
         connectorConfig.getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
     HdfsStorage storage = StorageFactory.createStorage(
@@ -369,15 +433,22 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
         url
     );
 
-    for (TopicPartition tp: tempfiles.keySet()) {
+    Set<TopicPartition> tps = new HashSet<>(tempfiles.keySet());
+    tps.addAll(recoveryRecords.keySet());
+    for (TopicPartition tp: tps) {
       WAL wal = storage.wal(logsDir, tp);
-      List<String> tempList = tempfiles.get(tp);
-      List<String> committedList = committedFiles.get(tp);
-      wal.append(WAL.beginMarker, "");
-      for (int i = 0; i < tempList.size(); ++i) {
-        wal.append(tempList.get(i), committedList.get(i));
+      if (recoveryRecords.containsKey(tp)) {
+        wal.append(RecoveryHelper.RECOVERY_RECORD_KEY,recoveryRecords.get(tp));
       }
-      wal.append(WAL.endMarker, "");
+      if (tempfiles.containsKey(tp)) {
+        List<String> tempList = tempfiles.get(tp);
+        List<String> committedList = committedFiles.get(tp);
+        wal.append(WAL.beginMarker, "");
+        for (int i = 0; i < tempList.size(); ++i) {
+          wal.append(tempList.get(i), committedList.get(i));
+        }
+        wal.append(WAL.endMarker, "");
+      }
       wal.close();
     }
   }
