@@ -15,6 +15,8 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
+import io.confluent.connect.hdfs.partitioner.Partitioner;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -101,7 +103,46 @@ public class FileUtils {
   }
 
   public static String topicDirectory(String url, String topicsDir, String topic) {
-    return url + "/" + topicsDir + "/" + topic;
+    return topicsDirectory(url, topicsDir) + "/" + topic;
+  }
+
+  public static String topicsDirectory(String url, String topicsDir) {
+    return url + "/" + topicsDir;
+  }
+
+  /**
+   * Gets root directory which, in it's subtree, contains data files from the given topic.
+   * <p>
+   * Directory is discovered based on a hint from given partitioner.
+   * Custom partitioner can choose to not to include topic name in the output path,
+   * but e.g. write data from N topics under the same directory (files does use topic
+   * in their names so they will not collide). In such case this will return top level
+   * topics directory. This directory is then typically used to discover committed files.
+   * </p>
+   */
+  public static String topicDataRootDirectory(String url, String topicsDir,
+                                              String topic, Partitioner partitioner) {
+
+    boolean isTopicUsedInOutputDir = partitioner
+        .generatePartitionedPath(topic, "test_hint")
+        .contains(topic);
+
+    return isTopicUsedInOutputDir
+        ? FileUtils.topicDirectory(url, topicsDir, topic)
+        : FileUtils.topicsDirectory(url, topicsDir);
+  }
+
+  public static FileStatus fileStatusWithMaxOffset(String url, String topicsDir,
+                                                   TopicPartition tp,
+                                                   Storage storage,
+                                                   Partitioner partitioner) {
+    String topicDir = FileUtils.topicDataRootDirectory(url, topicsDir, tp.topic(), partitioner);
+    CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
+    return FileUtils.fileStatusWithMaxOffset(
+        storage,
+        new Path(topicDir),
+        filter
+    );
   }
 
   public static FileStatus fileStatusWithMaxOffset(

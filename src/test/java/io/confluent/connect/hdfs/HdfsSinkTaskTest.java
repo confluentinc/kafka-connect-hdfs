@@ -16,9 +16,16 @@
 package io.confluent.connect.hdfs;
 
 import java.net.URI;
+
+import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
+import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.internals.Topic;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -202,41 +209,46 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   public void testSinkTaskStartWithRecovery() throws Exception {
     setUp();
 
-    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
-    Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
-    List<String> list1 = new ArrayList<>();
-    list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
-    list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
-    tempfiles.put(TOPIC_PARTITION, list1);
+    Map<TopicPartition, List<String>> tempfiles = generateTempFiles(
+        TOPIC_PARTITION, DIRECTORY1, this.topicsDir.get(TOPIC_PARTITION.topic()),
+        TOPIC_PARTITION2, DIRECTORY2, this.topicsDir.get(TOPIC_PARTITION2.topic()));
 
-    topicsDir = this.topicsDir.get(TOPIC_PARTITION2.topic());
-    List<String> list2 = new ArrayList<>();
-    list2.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY2, extension));
-    list2.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY2, extension));
-    tempfiles.put(TOPIC_PARTITION2, list2);
+    Map<TopicPartition, List<String>> committedFiles = generateCommittedFiles(
+        TOPIC_PARTITION, DIRECTORY1, this.topicsDir.get(TOPIC_PARTITION.topic()),
+        TOPIC_PARTITION2, DIRECTORY2, this.topicsDir.get(TOPIC_PARTITION2.topic()));
 
-    topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
-    Map<TopicPartition, List<String>> committedFiles = new HashMap<>();
-    List<String> list3 = new ArrayList<>();
-    list3.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 100, 200,
-                                          extension, ZERO_PAD_FMT));
-    list3.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 201, 300,
-                                          extension, ZERO_PAD_FMT));
-    committedFiles.put(TOPIC_PARTITION, list3);
+    createWALs(tempfiles, committedFiles);
+    HdfsSinkTask task = new HdfsSinkTask();
 
-    topicsDir = this.topicsDir.get(TOPIC_PARTITION2.topic());
-    List<String> list4 = new ArrayList<>();
-    list4.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY2, TOPIC_PARTITION2, 400, 500,
-                                          extension, ZERO_PAD_FMT));
-    list4.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY2, TOPIC_PARTITION2, 501, 800,
-                                          extension, ZERO_PAD_FMT));
-    committedFiles.put(TOPIC_PARTITION2, list4);
+    task.initialize(context);
+    task.start(properties);
 
-    for (TopicPartition tp : tempfiles.keySet()) {
-      for (String file : tempfiles.get(tp)) {
-        fs.createNewFile(new Path(file));
-      }
-    }
+    Map<TopicPartition, Long> offsets = context.offsets();
+    assertEquals(2, offsets.size());
+    assertTrue(offsets.containsKey(TOPIC_PARTITION));
+    assertEquals(301, (long) offsets.get(TOPIC_PARTITION));
+    assertTrue(offsets.containsKey(TOPIC_PARTITION2));
+    assertEquals(801, (long) offsets.get(TOPIC_PARTITION2));
+
+    task.stop();
+  }
+
+  @Test
+  public void testSinkTaskStartWithRecoveryAndCustomPartitionerPath() throws Exception {
+    setUp();
+
+    String topicsDir = "data_dir";
+
+    properties.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, CustomMergingTopicDirPartitioner.class.getName());
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicsDir);
+
+    Map<TopicPartition, List<String>> tempfiles = generateTempFiles(
+        TOPIC_PARTITION, CustomMergingTopicDirPartitioner.OUTPUT_DIR_NAME, topicsDir,
+        TOPIC_PARTITION2, CustomMergingTopicDirPartitioner.OUTPUT_DIR_NAME, topicsDir);
+
+    Map<TopicPartition, List<String>> committedFiles = generateCommittedFiles(
+        TOPIC_PARTITION, CustomMergingTopicDirPartitioner.OUTPUT_DIR_NAME, topicsDir,
+        TOPIC_PARTITION2, CustomMergingTopicDirPartitioner.OUTPUT_DIR_NAME, topicsDir);
 
     createWALs(tempfiles, committedFiles);
     HdfsSinkTask task = new HdfsSinkTask();
@@ -257,46 +269,35 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   @Test
   public void testSinkTaskPut() throws Exception {
     setUp();
-    HdfsSinkTask task = new HdfsSinkTask();
 
-    String key = "key";
-    Schema schema = createSchema();
-    Struct record = createRecord(schema);
-    Collection<SinkRecord> sinkRecords = new ArrayList<>();
-    for (TopicPartition tp : context.assignment()) {
-      for (long offset = 0; offset < 7; offset++) {
-        SinkRecord sinkRecord =
-            new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record, offset);
-        sinkRecords.add(sinkRecord);
-      }
-    }
-    task.initialize(context);
-    task.start(properties);
-    task.put(sinkRecords);
-    task.stop();
+    Map<TopicPartition, String> dirs = new HashMap<>();
+    dirs.put(TOPIC_PARTITION, TOPIC_PARTITION.topic());
+    dirs.put(TOPIC_PARTITION2, TOPIC_PARTITION2.topic());
+    Map<TopicPartition, String> topicsDirs = new HashMap<>();
+    topicsDirs.put(TOPIC_PARTITION, this.topicsDir.get(TOPIC_PARTITION.topic()));
+    topicsDirs.put(TOPIC_PARTITION2, this.topicsDir.get(TOPIC_PARTITION2.topic()));
 
-    AvroData avroData = task.getAvroData();
-    // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
-    long[] validOffsets = {-1, 2, 5};
-
-    for (TopicPartition tp : context.assignment()) {
-      String directory = tp.topic() + "/" + "partition=" + String.valueOf(tp.partition());
-      for (int j = 1; j < validOffsets.length; ++j) {
-        long startOffset = validOffsets[j - 1] + 1;
-        long endOffset = validOffsets[j];
-        String topicsDir = this.topicsDir.get(tp.topic());
-        Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
-                                                         startOffset, endOffset, extension,
-                                                         ZERO_PAD_FMT));
-        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
-        long size = endOffset - startOffset + 1;
-        assertEquals(records.size(), size);
-        for (Object avroRecord : records) {
-          assertEquals(avroRecord, avroData.fromConnectData(schema, record));
-        }
-      }
-    }
+    executePutTestCase(dirs, topicsDirs);
   }
+
+  @Test
+  public void testSinkTaskPutWithCustomPartitionerPath() throws Exception {
+    setUp();
+    String topicsDir = "data_dir";
+    properties.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, CustomMergingTopicDirPartitioner.class.getName());
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicsDir);
+
+    Map<TopicPartition, String> dirs = new HashMap<>();
+    dirs.put(TOPIC_PARTITION, CustomMergingTopicDirPartitioner.OUTPUT_DIR_NAME);
+    dirs.put(TOPIC_PARTITION2, CustomMergingTopicDirPartitioner.OUTPUT_DIR_NAME);
+    Map<TopicPartition, String> topicsDirs = new HashMap<>();
+    topicsDirs.put(TOPIC_PARTITION, topicsDir);
+    topicsDirs.put(TOPIC_PARTITION2, topicsDir);
+
+    executePutTestCase(dirs, topicsDirs);
+  }
+
+
 
   @Test
   public void testSinkTaskPutPrimitive() throws Exception {
@@ -341,6 +342,91 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     }
   }
 
+  private void executePutTestCase(Map<TopicPartition, String> dirs,
+                                  Map<TopicPartition, String> topicsDirs) throws Exception {
+
+    HdfsSinkTask task = new HdfsSinkTask();
+
+    String key = "key";
+    Schema schema = createSchema();
+    Struct record = createRecord(schema);
+    Collection<SinkRecord> sinkRecords = new ArrayList<>();
+    for (TopicPartition tp : context.assignment()) {
+      for (long offset = 0; offset < 7; offset++) {
+        SinkRecord sinkRecord =
+            new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record, offset);
+        sinkRecords.add(sinkRecord);
+      }
+    }
+    task.initialize(context);
+    task.start(properties);
+    task.put(sinkRecords);
+    task.stop();
+
+    AvroData avroData = task.getAvroData();
+    // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
+    long[] validOffsets = {-1, 2, 5};
+
+    for (TopicPartition tp : context.assignment()) {
+      String directory = dirs.get(tp) + "/" + "partition=" + tp.partition();
+      for (int j = 1; j < validOffsets.length; ++j) {
+        long startOffset = validOffsets[j - 1] + 1;
+        long endOffset = validOffsets[j];
+        Path path = new Path(FileUtils.committedFileName(url, topicsDirs.get(tp), directory, tp,
+            startOffset, endOffset, extension,
+            ZERO_PAD_FMT));
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
+        long size = endOffset - startOffset + 1;
+        assertEquals(records.size(), size);
+        for (Object avroRecord : records) {
+          assertEquals(avroRecord, avroData.fromConnectData(schema, record));
+        }
+      }
+    }
+  }
+
+  private Map<TopicPartition, List<String>> generateTempFiles(TopicPartition tp1, String dir1, String topicsDir1,
+                                                              TopicPartition tp2, String dir2, String topicsDir2) throws IOException {
+    Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
+    List<String> list1 = new ArrayList<>();
+    list1.add(FileUtils.tempFileName(url, topicsDir1, dir1, extension));
+    list1.add(FileUtils.tempFileName(url, topicsDir1, dir1, extension));
+    tempfiles.put(tp1, list1);
+
+    List<String> list2 = new ArrayList<>();
+    list2.add(FileUtils.tempFileName(url, topicsDir2, dir2, extension));
+    list2.add(FileUtils.tempFileName(url, topicsDir2, dir2, extension));
+    tempfiles.put(tp2, list2);
+
+    for (TopicPartition tp : tempfiles.keySet()) {
+      for (String file : tempfiles.get(tp)) {
+        fs.createNewFile(new Path(file));
+      }
+    }
+
+    return tempfiles;
+  }
+
+  private Map<TopicPartition, List<String>>  generateCommittedFiles(TopicPartition tp1, String dir1, String topicsDir1,
+                                                                    TopicPartition tp2, String dir2, String topicsDir2) {
+    Map<TopicPartition, List<String>> committedFiles = new HashMap<>();
+    List<String> list3 = new ArrayList<>();
+    list3.add(FileUtils.committedFileName(url, topicsDir1, dir1, tp1, 100, 200,
+        extension, ZERO_PAD_FMT));
+    list3.add(FileUtils.committedFileName(url, topicsDir1, dir1, tp1, 201, 300,
+        extension, ZERO_PAD_FMT));
+    committedFiles.put(tp1, list3);
+
+    List<String> list4 = new ArrayList<>();
+    list4.add(FileUtils.committedFileName(url, topicsDir2, dir2, tp2, 400, 500,
+        extension, ZERO_PAD_FMT));
+    list4.add(FileUtils.committedFileName(url, topicsDir2, dir2, tp2, 501, 800,
+        extension, ZERO_PAD_FMT));
+    committedFiles.put(tp2, list4);
+
+    return committedFiles;
+  }
+
   private void createCommittedFiles() throws IOException {
     String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     String file1 = FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 0,
@@ -379,6 +465,16 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       }
       wal.append(WAL.endMarker, "");
       wal.close();
+    }
+  }
+
+  static class CustomMergingTopicDirPartitioner extends DefaultPartitioner {
+
+    static String OUTPUT_DIR_NAME = "some_fixed_dir";
+
+    @Override
+    public String generatePartitionedPath(String topic, String encodedPartition) {
+      return OUTPUT_DIR_NAME + "/" + encodedPartition;
     }
   }
 }
