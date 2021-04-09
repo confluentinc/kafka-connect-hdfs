@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import java.net.UnknownHostException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -58,9 +59,7 @@ import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.storage.Storage;
-import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.format.SchemaFileReader;
-import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.hive.HiveFactory;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
@@ -70,7 +69,6 @@ public class DataWriter {
   private final Time time;
 
   private final Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
-  private String url;
   private HdfsStorage storage;
   private HashMap<String, String> logDirs;
   private HashMap<String, String> topicDirs;
@@ -90,7 +88,6 @@ public class DataWriter {
   private HiveMetaStore hiveMetaStore;
   private HiveUtil hive;
   private Queue<Future<Void>> hiveUpdateFutures;
-  private boolean hiveIntegration;
   private Thread ticketRenewThread;
   private volatile boolean isRunning;
 
@@ -111,115 +108,55 @@ public class DataWriter {
       Time time
   ) {
     this.time = time;
+    this.connectorConfig = config;
+    this.avroData = avroData;
+    this.context = context;
+    topicDirs = new HashMap<>();
+    logDirs = new HashMap<>();
+    topicPartitionWriters = new HashMap<>();
+
     try {
-      System.setProperty("hadoop.home.dir", config.hadoopHome());
-
-      this.connectorConfig = config;
-      this.avroData = avroData;
-      this.context = context;
-
-      log.info("Hadoop configuration directory {}", config.hadoopConfDir());
-      Configuration conf = config.getHadoopConfiguration();
-      if (!config.hadoopConfDir().equals("")) {
-        conf.addResource(new Path(config.hadoopConfDir() + "/core-site.xml"));
-        conf.addResource(new Path(config.hadoopConfDir() + "/hdfs-site.xml"));
-      }
-
-      if (config.kerberosAuthentication()) {
-        SecurityUtil.setAuthenticationMethod(
-            UserGroupInformation.AuthenticationMethod.KERBEROS,
-            conf
-        );
-
-        if (config.connectHdfsPrincipal() == null || config.connectHdfsKeytab() == null) {
-          throw new ConfigException(
-              "Hadoop is using Kerberos for authentication, you need to provide both a connect "
-                  + "principal and the path to the keytab of the principal.");
-        }
-
-        conf.set("hadoop.security.authentication", "kerberos");
-        conf.set("hadoop.security.authorization", "true");
-        String hostname = InetAddress.getLocalHost().getCanonicalHostName();
-
-        String namenodePrincipal = SecurityUtil.getServerPrincipal(
-            config.hdfsNamenodePrincipal(),
-            hostname
-        );
-        // namenode principal is needed for multi-node hadoop cluster
-        if (conf.get("dfs.namenode.kerberos.principal") == null) {
-          conf.set("dfs.namenode.kerberos.principal", namenodePrincipal);
-        }
-        log.info("Hadoop namenode principal: " + conf.get("dfs.namenode.kerberos.principal"));
-
-        UserGroupInformation.setConfiguration(conf);
-        // replace the _HOST specified in the principal config to the actual host
-        String principal = SecurityUtil.getServerPrincipal(config.connectHdfsPrincipal(), hostname);
-        UserGroupInformation.loginUserFromKeytab(principal, config.connectHdfsKeytab());
-        final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
-        log.info("Login as: " + ugi.getUserName());
-
-        isRunning = true;
-        ticketRenewThread = new Thread(new Runnable() {
-          @Override
-          public void run() {
-            synchronized (DataWriter.this) {
-              while (isRunning) {
-                try {
-                  DataWriter.this.wait(config.kerberosTicketRenewPeriodMs());
-                  if (isRunning) {
-                    ugi.reloginFromKeytab();
-                  }
-                } catch (IOException e) {
-                  // We ignore this exception during relogin as each successful relogin gives
-                  // additional 24 hours of authentication in the default config. In normal
-                  // situations, the probability of failing relogin 24 times is low and if
-                  // that happens, the task will fail eventually.
-                  log.error("Error renewing the ticket", e);
-                } catch (InterruptedException e) {
-                  // ignored
-                }
-              }
-            }
-          }
-        });
-        log.info(
-            "Starting the Kerberos ticket renew thread with period {} ms.",
-            config.kerberosTicketRenewPeriodMs()
-        );
-        ticketRenewThread.start();
-      }
-
-      url = config.url();
-
-      @SuppressWarnings("unchecked")
-      Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) config
-          .getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
-      storage = io.confluent.connect.storage.StorageFactory.createStorage(
-          storageClass,
-          HdfsSinkConnectorConfig.class,
-          config,
-          url
+      partitioner = newPartitioner(config);
+    } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+      throw new ConnectException(
+          String.format("Unable to initialize partitioner: %s", e.getMessage()),
+          e
       );
+    }
 
-      topicDirs = new HashMap<>();
-      for (TopicPartition tp : context.assignment()) {
-        topicDirs.computeIfAbsent(tp.topic(), top -> connectorConfig.getTopicsDirFromTopic(top));
-      }
+    System.setProperty("hadoop.home.dir", config.hadoopHome());
+    log.info("Hadoop configuration directory {}", config.hadoopConfDir());
+    Configuration hadoopConfiguration = config.getHadoopConfiguration();
+    if (!config.hadoopConfDir().equals("")) {
+      hadoopConfiguration.addResource(new Path(config.hadoopConfDir() + "/core-site.xml"));
+      hadoopConfiguration.addResource(new Path(config.hadoopConfDir() + "/hdfs-site.xml"));
+    }
 
-      for (String directory : topicDirs.values()) {
-        createDir(directory);
-        createDir(directory + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
-      }
+    if (config.kerberosAuthentication()) {
+      configureKerberosAuthentication(hadoopConfiguration);
+    }
 
-      logDirs = new HashMap<>();
-      for (TopicPartition tp : context.assignment()) {
-        logDirs.computeIfAbsent(tp.topic(), topic -> connectorConfig.getLogsDirFromTopic(topic));
-      }
+    Class<? extends HdfsStorage> storageClass = config.storageClass();
+    storage = io.confluent.connect.storage.StorageFactory.createStorage(
+        storageClass,
+        HdfsSinkConnectorConfig.class,
+        config,
+        connectorConfig.url()
+    );
 
-      for (String directory : logDirs.values()) {
-        createDir(directory);
-      }
+    for (TopicPartition tp : context.assignment()) {
+      String topicDir = connectorConfig.getTopicsDirFromTopic(tp.topic());
+      String logDir = connectorConfig.getLogsDirFromTopic(tp.topic());
 
+      topicDirs.put(tp.topic(), topicDir);
+      logDirs.put(tp.topic(), logDir);
+
+      createDir(topicDir);
+      createDir(topicDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
+      createDir(logDir);
+    }
+
+    try {
       // Try to instantiate as a new-style storage-common type class, then fall back to old-style
       // with no parameters
       try {
@@ -273,68 +210,160 @@ public class DataWriter {
         };
       }
 
-      partitioner = newPartitioner(config);
-
-      hiveIntegration = config.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
-      if (hiveIntegration) {
-        hiveDatabase = config.getString(HiveConfig.HIVE_DATABASE_CONFIG);
-        hiveMetaStore = new HiveMetaStore(conf, config);
-        if (format != null) {
-          hive = format.getHiveUtil(config, hiveMetaStore);
-        } else if (newFormat != null) {
-          final io.confluent.connect.storage.hive.HiveUtil newHiveUtil
-              = ((HiveFactory) newFormat.getHiveFactory())
-              .createHiveUtil(connectorConfig, hiveMetaStore);
-          hive = new HiveUtil(connectorConfig, hiveMetaStore) {
-            @Override
-            public void createTable(
-                String database, String tableName, Schema schema,
-                Partitioner partitioner
-            ) {
-              newHiveUtil.createTable(database, tableName, schema, partitioner);
-            }
-
-            @Override
-            public void alterSchema(String database, String tableName, Schema schema) {
-              newHiveUtil.alterSchema(database, tableName, schema);
-            }
-          };
-        } else {
-          throw new ConnectException("One of old or new format classes must be provided");
-        }
-        executorService = Executors.newSingleThreadExecutor();
-        hiveUpdateFutures = new LinkedList<>();
-      }
-
-      topicPartitionWriters = new HashMap<>();
-      for (TopicPartition tp : context.assignment()) {
-        TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-            tp,
-            storage,
-            writerProvider,
-            newWriterProvider,
-            partitioner,
-            config,
-            context,
-            avroData,
-            hiveMetaStore,
-            hive,
-            schemaFileReader,
-            executorService,
-            hiveUpdateFutures,
-            time
-        );
-        topicPartitionWriters.put(tp, topicPartitionWriter);
-      }
-    } catch (ClassNotFoundException
-            | IllegalAccessException
-            | InstantiationException
-            | InvocationTargetException
-            | NoSuchMethodException e
+    } catch (IllegalAccessException
+              | InstantiationException
+              | InvocationTargetException
+              | NoSuchMethodException e
     ) {
       throw new ConnectException("Reflection exception: ", e);
+    }
+
+    if (connectorConfig.hiveIntegrationEnabled()) {
+      initializeHiveServices(hadoopConfiguration);
+    }
+
+    initializeTopicPartitionWriters(context.assignment());
+  }
+
+  private void configureKerberosAuthentication(Configuration hadoopConfiguration) {
+    SecurityUtil.setAuthenticationMethod(
+        UserGroupInformation.AuthenticationMethod.KERBEROS,
+        hadoopConfiguration
+    );
+
+    if (connectorConfig.connectHdfsPrincipal() == null
+        || connectorConfig.connectHdfsKeytab() == null) {
+      throw new ConfigException(
+          "Hadoop is using Kerberos for authentication, you need to provide both a connect "
+              + "principal and the path to the keytab of the principal.");
+    }
+
+    hadoopConfiguration.set("hadoop.security.authentication", "kerberos");
+    hadoopConfiguration.set("hadoop.security.authorization", "true");
+
+    try {
+      String hostname = InetAddress.getLocalHost().getCanonicalHostName();
+
+      String namenodePrincipal = SecurityUtil.getServerPrincipal(
+          connectorConfig.hdfsNamenodePrincipal(),
+          hostname
+      );
+
+      // namenode principal is needed for multi-node hadoop cluster
+      if (hadoopConfiguration.get("dfs.namenode.kerberos.principal") == null) {
+        hadoopConfiguration.set("dfs.namenode.kerberos.principal", namenodePrincipal);
+      }
+      log.info("Hadoop namenode principal: {}",
+          hadoopConfiguration.get("dfs.namenode.kerberos.principal"));
+
+      UserGroupInformation.setConfiguration(hadoopConfiguration);
+      // replace the _HOST specified in the principal config to the actual host
+      String principal = SecurityUtil.getServerPrincipal(
+          connectorConfig.connectHdfsPrincipal(),
+          hostname
+      );
+      UserGroupInformation.loginUserFromKeytab(principal, connectorConfig.connectHdfsKeytab());
+      final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
+      log.info("Login as: " + ugi.getUserName());
+
+      isRunning = true;
+      ticketRenewThread = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          synchronized (DataWriter.this) {
+            while (isRunning) {
+              try {
+                DataWriter.this.wait(connectorConfig.kerberosTicketRenewPeriodMs());
+                if (isRunning) {
+                  log.debug("Attempting re-login from keytab for user: {}", ugi.getUserName());
+                  ugi.reloginFromKeytab();
+                }
+              } catch (IOException e) {
+                // We ignore this exception during relogin as each successful relogin gives
+                // additional 24 hours of authentication in the default config. In normal
+                // situations, the probability of failing relogin 24 times is low and if
+                // that happens, the task will fail eventually.
+                log.error("Error renewing the ticket", e);
+              } catch (InterruptedException e) {
+                // ignored
+              }
+            }
+          }
+        }
+      });
+    } catch (UnknownHostException e) {
+      throw new ConnectException(
+          String.format(
+              "Could not resolve local hostname for Kerberos authentication: %s",
+              e.getMessage()
+          ),
+          e
+      );
     } catch (IOException e) {
-      throw new ConnectException(e);
+      throw new ConnectException(
+          String.format("Could not authenticate with Kerberos: %s", e.getMessage()),
+          e
+      );
+    }
+
+    log.info(
+        "Starting the Kerberos ticket renew thread with period {} ms.",
+        connectorConfig.kerberosTicketRenewPeriodMs()
+    );
+    ticketRenewThread.start();
+  }
+
+  private void initializeHiveServices(Configuration hadoopConfiguration) {
+    hiveDatabase = connectorConfig.hiveDatabase();
+    hiveMetaStore = new HiveMetaStore(hadoopConfiguration, connectorConfig);
+    if (format != null) {
+      hive = format.getHiveUtil(connectorConfig, hiveMetaStore);
+    } else if (newFormat != null) {
+      final io.confluent.connect.storage.hive.HiveUtil newHiveUtil
+          = ((HiveFactory) newFormat.getHiveFactory())
+          .createHiveUtil(connectorConfig, hiveMetaStore);
+      hive = new HiveUtil(connectorConfig, hiveMetaStore) {
+        @Override
+        public void createTable(
+            String database, String tableName, Schema schema,
+            Partitioner partitioner
+        ) {
+          newHiveUtil.createTable(database, tableName, schema, partitioner);
+          log.debug("Created Hive table {}", tableName);
+        }
+
+        @Override
+        public void alterSchema(String database, String tableName, Schema schema) {
+          newHiveUtil.alterSchema(database, tableName, schema);
+          log.debug("Altered Hive table {}", tableName);
+        }
+      };
+    } else {
+      throw new ConnectException("One of old or new format classes must be provided");
+    }
+    executorService = Executors.newSingleThreadExecutor();
+    hiveUpdateFutures = new LinkedList<>();
+  }
+
+  private void initializeTopicPartitionWriters(Set<TopicPartition> assignment) {
+    for (TopicPartition tp : assignment) {
+      TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+          tp,
+          storage,
+          writerProvider,
+          newWriterProvider,
+          partitioner,
+          connectorConfig,
+          context,
+          avroData,
+          hiveMetaStore,
+          hive,
+          schemaFileReader,
+          executorService,
+          hiveUpdateFutures,
+          time
+      );
+      topicPartitionWriters.put(tp, topicPartitionWriter);
     }
   }
 
@@ -346,7 +375,7 @@ public class DataWriter {
       topicPartitionWriters.get(tp).buffer(record);
     }
 
-    if (hiveIntegration) {
+    if (connectorConfig.hiveIntegrationEnabled()) {
       Iterator<Future<Void>> iterator = hiveUpdateFutures.iterator();
       while (iterator.hasNext()) {
         try {
@@ -382,7 +411,11 @@ public class DataWriter {
 
     try {
       for (String topic : topics) {
-        String topicDir = FileUtils.topicDirectory(url, topicDirs.get(topic), topic);
+        String topicDir = FileUtils.topicDirectory(
+            connectorConfig.url(),
+            topicDirs.get(topic),
+            topic
+        );
         CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
         FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
             storage,
@@ -538,8 +571,9 @@ public class DataWriter {
   }
 
   private void createDir(String dir) {
-    String path = url + "/" + dir;
+    String path = connectorConfig.url() + "/" + dir;
     if (!storage.exists(path)) {
+      log.trace("Creating directory {}", path);
       storage.create(path);
     }
   }
