@@ -514,6 +514,7 @@ public class TopicPartitionWriter {
   }
 
   public void buffer(SinkRecord sinkRecord) {
+    log.trace("Buffering record with offset {}", sinkRecord.kafkaOffset());
     buffer.add(sinkRecord);
   }
 
@@ -609,8 +610,10 @@ public class TopicPartitionWriter {
     if (fileStatusWithMaxOffset != null) {
       long lastCommittedOffsetToHdfs = FileUtils.extractOffset(
           fileStatusWithMaxOffset.getPath().getName());
+      log.trace("Last committed offset based on filenames: {}", lastCommittedOffsetToHdfs);
       // `offset` represents the next offset to read after the most recent commit
       offset = lastCommittedOffsetToHdfs + 1;
+      log.trace("Next offset to read: {}", offset);
     }
   }
 
