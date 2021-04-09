@@ -65,6 +65,8 @@ import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR
 import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_DEFAULT;
 import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_DISPLAY;
 import static io.confluent.connect.storage.common.StorageCommonConfig.TOPICS_DIR_DOC;
+import static io.confluent.connect.storage.hive.HiveConfig.HIVE_DATABASE_CONFIG;
+import static io.confluent.connect.storage.hive.HiveConfig.HIVE_INTEGRATION_CONFIG;
 
 public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
@@ -738,6 +740,19 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   public int getTaskId() {
     return taskId;
+  }
+
+  public boolean hiveIntegrationEnabled() {
+    return getBoolean(HIVE_INTEGRATION_CONFIG);
+  }
+
+  public String hiveDatabase() {
+    return getString(HIVE_DATABASE_CONFIG);
+  }
+
+  @SuppressWarnings("unchecked")
+  public Class<? extends HdfsStorage> storageClass() {
+    return (Class<? extends HdfsStorage>) getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
   }
 
   public static void main(String[] args) {
