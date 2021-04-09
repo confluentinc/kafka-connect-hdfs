@@ -37,11 +37,12 @@ public class FSWAL implements WAL {
 
   private static final Logger log = LoggerFactory.getLogger(FSWAL.class);
 
+  private final HdfsSinkConnectorConfig conf;
+  private final HdfsStorage storage;
+  private final String logFile;
+
   protected WALFile.Writer writer = null;
   private WALFile.Reader reader = null;
-  private String logFile = null;
-  private HdfsSinkConnectorConfig conf = null;
-  private HdfsStorage storage = null;
 
   public FSWAL(String logsDir, TopicPartition topicPart, HdfsStorage storage)
       throws ConnectException {
@@ -67,13 +68,14 @@ public class FSWAL implements WAL {
   }
 
   public void acquireLease() throws ConnectException {
+    log.debug("Attempting to acquire lease for WAL file: {}", logFile);
     long sleepIntervalMs = WALConstants.INITIAL_SLEEP_INTERVAL_MS;
     while (sleepIntervalMs < WALConstants.MAX_SLEEP_INTERVAL_MS) {
       try {
         if (writer == null) {
           writer = WALFile.createWriter(conf, Writer.file(new Path(logFile)),
                                         Writer.appendIfExists(true));
-          log.info(
+          log.debug(
               "Successfully acquired lease, {}-{}, file {}",
               conf.name(),
               conf.getTaskId(),
@@ -117,37 +119,19 @@ public class FSWAL implements WAL {
 
   @Override
   public void apply() throws ConnectException {
+    log.debug("Starting to apply WAL: {}", logFile);
+    if (!storage.exists(logFile)) {
+      log.debug("WAL file does not exist: {}", logFile);
+      return;
+    }
+    acquireLease();
+    log.debug("Lease acquired");
+
     try {
-      if (!storage.exists(logFile)) {
-        log.debug("Storage does not exist");
-        return;
-      }
-      acquireLease();
-      log.debug("Lease acquired");
       if (reader == null) {
         reader = new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(logFile)));
       }
-      Map<WALEntry, WALEntry> entries = new HashMap<>();
-      WALEntry key = new WALEntry();
-      WALEntry value = new WALEntry();
-      while (reader.next(key, value)) {
-        String keyName = key.getName();
-        if (keyName.equals(beginMarker)) {
-          entries.clear();
-        } else if (keyName.equals(endMarker)) {
-          for (Map.Entry<WALEntry, WALEntry> entry: entries.entrySet()) {
-            String tempFile = entry.getKey().getName();
-            String committedFile = entry.getValue().getName();
-            if (!storage.exists(committedFile)) {
-              storage.commit(tempFile, committedFile);
-            }
-          }
-        } else {
-          WALEntry mapKey = new WALEntry(key.getName());
-          WALEntry mapValue = new WALEntry(value.getName());
-          entries.put(mapKey, mapValue);
-        }
-      }
+      commitWalEntriesToStorage();
     } catch (CorruptWalFileException e) {
       log.error("Error applying WAL file '{}' because it is corrupted: {}", logFile, e);
       log.warn("Truncating and skipping corrupt WAL file '{}'.", logFile);
@@ -157,11 +141,51 @@ public class FSWAL implements WAL {
       close();
       throw new DataException(e);
     }
-    log.debug("Finished applying WAL");
+    log.debug("Finished applying WAL: {}", logFile);
+  }
+
+  /**
+   * Read all the filepath entries in the WAL file, commit the pending ones to HdfsStorage
+   *
+   * @throws IOException when the WAL reader is unable to get the next entry
+   */
+  private void commitWalEntriesToStorage() throws IOException {
+    Map<WALEntry, WALEntry> entries = new HashMap<>();
+    WALEntry key = new WALEntry();
+    WALEntry value = new WALEntry();
+    while (reader.next(key, value)) {
+      String keyName = key.getName();
+      if (keyName.equals(beginMarker)) {
+        entries.clear();
+      } else if (keyName.equals(endMarker)) {
+        commitEntriesToStorage(entries);
+      } else {
+        WALEntry mapKey = new WALEntry(key.getName());
+        WALEntry mapValue = new WALEntry(value.getName());
+        entries.put(mapKey, mapValue);
+      }
+    }
+  }
+
+  /**
+   * Commit the given WAL file entries to HDFS storage,
+   * typically a batch between BEGIN and END markers in the WAL file.
+   *
+   * @param entries a map of filepath entries containing temp and committed paths
+   */
+  private void commitEntriesToStorage(Map<WALEntry, WALEntry> entries) {
+    for (Map.Entry<WALEntry, WALEntry> entry: entries.entrySet()) {
+      String tempFile = entry.getKey().getName();
+      String committedFile = entry.getValue().getName();
+      if (!storage.exists(committedFile)) {
+        storage.commit(tempFile, committedFile);
+      }
+    }
   }
 
   @Override
   public void truncate() throws ConnectException {
+    log.debug("Truncating WAL file: {}", logFile);
     try {
       String oldLogFile = logFile + ".1";
       storage.delete(oldLogFile);
@@ -173,7 +197,7 @@ public class FSWAL implements WAL {
 
   @Override
   public void close() throws ConnectException {
-    log.info(
+    log.debug(
         "Closing WAL, {}-{}, file: {}",
         conf.name(),
         conf.getTaskId(),
