@@ -60,8 +60,8 @@ public class HdfsSinkTask extends SinkTask {
     connectorName = props.get("name");
     taskId = props.get(TASK_ID_CONFIG_NAME);
     connectorNameAndTaskId = String.format("%s-%s", connectorName, taskId);
+    log.info("Starting HDFS Sink Task {}", connectorNameAndTaskId);
 
-    Set<TopicPartition> assignment = context.assignment();
     try {
       HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
       boolean hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
@@ -89,15 +89,14 @@ public class HdfsSinkTask extends SinkTask {
 
       avroData = new AvroData(connectorConfig.avroDataConfig());
       hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-      recover(assignment);
+      recover(context.assignment());
       if (hiveIntegration) {
         syncWithHive();
       }
     } catch (ConfigException e) {
       throw new ConnectException("Couldn't start HdfsSinkConnector due to configuration error.", e);
     } catch (ConnectException e) {
-      // Log at info level to help explain reason, but Connect logs the actual exception at ERROR
-      log.info("Couldn't start HdfsSinkConnector:", e);
+      log.error("Couldn't start HdfsSinkConnector:", e);
       log.info("Shutting down HdfsSinkConnector.");
       if (hdfsWriter != null) {
         try {
@@ -127,9 +126,7 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> records) throws ConnectException {
-    if (log.isDebugEnabled()) {
-      log.debug("Read {} records from Kafka", records.size());
-    }
+    log.debug("Read {} records from Kafka", records.size());
     try {
       hdfsWriter.write(records);
     } catch (ConnectException e) {
@@ -173,7 +170,7 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void stop() throws ConnectException {
-    log.debug("Stopping HDFS Sink Task {}", connectorNameAndTaskId);
+    log.info("Stopping HDFS Sink Task {}", connectorNameAndTaskId);
     if (hdfsWriter != null) {
       hdfsWriter.stop();
     }
