@@ -15,6 +15,8 @@
 
 package io.confluent.connect.hdfs.wal;
 
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
@@ -36,6 +38,7 @@ import io.confluent.connect.hdfs.wal.WALFile.Writer;
 public class FSWAL implements WAL {
 
   private static final Logger log = LoggerFactory.getLogger(FSWAL.class);
+  private static final String OLD_LOG_EXTENSION = ".1";
 
   private final HdfsSinkConnectorConfig conf;
   private final HdfsStorage storage;
@@ -183,11 +186,128 @@ public class FSWAL implements WAL {
     }
   }
 
+
+  /**
+   * Extract the latest offset from the WAL file. Attempt with the most recent WAL file,
+   * and fall back to the old file if it's not applicable.
+   *
+   * <p> The old WAL is used when the most recent WAL file has already been truncated
+   * and is not existent, which may happen when the connector has flushed all records,
+   * and is restarted. </p>
+   *
+   * @return the latest offset from the WAL file or -1
+   */
+  public long extractLatestOffsetFromWAL() {
+    String oldWALFile = logFile + OLD_LOG_EXTENSION;
+    try {
+      long latestOffset = -1;
+      if (storage.exists(logFile)) {
+        log.trace("Restoring offset from WAL file: {}", logFile);
+        if (reader == null) {
+          reader = new WALFile.Reader(conf.getHadoopConfiguration(),
+              Reader.file(new Path(logFile)));
+        } else {
+          // reset read position after apply()
+          reader.seekToFirstRecord();
+        }
+        ArrayList<String> committedFileBatch = getLastFilledBlockFromWAL(reader);
+        // At this point the committedFilenames list will contain the
+        // filenames in the last BEGIN-END block of the file. Find the latest offsets among these.
+        latestOffset = getLatestOffsetFromList(committedFileBatch);
+      }
+
+      // attempt to use old log file if recent WAL is empty or non-existent
+      if (latestOffset == -1 && storage.exists(oldWALFile)) {
+        log.trace("Could not find offset in log file {}, using {}", logFile, oldWALFile);
+        Reader oldFileReader =
+            new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(oldWALFile)));
+        ArrayList<String> committedFileBatch = getLastFilledBlockFromWAL(oldFileReader);
+        latestOffset = getLatestOffsetFromList(committedFileBatch);;
+        oldFileReader.close();
+      }
+      return latestOffset;
+    } catch (IOException e) {
+      log.warn("Error restoring offsets from WAL files {} and {}", logFile, oldWALFile);
+      return -1;
+    }
+  }
+
+  /**
+   * Extract the last filled BEGIN-END block of entries from the WAL.
+   *
+   * @param reader the WAL file reader
+   * @return the last batch of entries, may be empty if the WAL
+   *         is empty or only contains empty BEGIN-END blocks
+   * @throws IOException error on reading the WAL file
+   */
+  private ArrayList<String> getLastFilledBlockFromWAL(Reader reader) throws IOException {
+    //temp filenames don't contain offset info, use committed only (WAL entry values)
+    ArrayList<String> committedFilenames = new ArrayList<>();
+
+    WALEntry key = new WALEntry();
+    WALEntry value = new WALEntry();
+    boolean wasBeginMarker = false;
+
+    // The entry with the latest offsets will be in the last BEGIN-END block of the file.
+    // There may be empty BEGIN and END blocks as well.
+    while (reader.next(key, value)) {
+      String keyName = key.getName();
+      if (keyName.equals(beginMarker)) {
+        wasBeginMarker = true;
+      } else if (!keyName.equals(endMarker)) {
+        if (wasBeginMarker) {
+          // if we hit a filename entry and the previous token was a BEGIN marker
+          // we start a new BEGIN-END block
+          committedFilenames.clear();
+        }
+        committedFilenames.add(value.getName());
+        wasBeginMarker = false;
+      }
+    }
+    return committedFilenames;
+  }
+
+  /**
+   * Extract the offsets from the given filenames and find the latest.
+   *
+   * @param committedFileNames a list of committed filenames
+   * @return the latest offset committed
+   */
+  private long getLatestOffsetFromList(ArrayList<String> committedFileNames) {
+    // Entries in the BEGIN-END block are currently not guaranteed any ordering.
+    long latestOffset = -1;
+    for (String fileName : committedFileNames) {
+      long currentOffset = extractOffsetsFromFilePath(fileName);
+      if (currentOffset > latestOffset) {
+        latestOffset = currentOffset;
+      }
+    }
+    return latestOffset;
+  }
+
+  /**
+   * Extract the file offset from the full file path.
+   *
+   * @param fullPath the full HDFS file path
+   * @return the offset or -1 if not present
+   */
+  static long extractOffsetsFromFilePath(String fullPath) {
+    try {
+      if (fullPath != null) {
+        String latestFileName = Paths.get(fullPath).getFileName().toString();
+        return FileUtils.extractOffset(latestFileName);
+      }
+    } catch (IllegalArgumentException e) {
+      log.warn("Could not extract offsets from file path: {}", fullPath);
+    }
+    return -1;
+  }
+
   @Override
   public void truncate() throws ConnectException {
     log.debug("Truncating WAL file: {}", logFile);
     try {
-      String oldLogFile = logFile + ".1";
+      String oldLogFile = logFile + OLD_LOG_EXTENSION;
       storage.delete(oldLogFile);
       storage.commit(logFile, oldLogFile);
     } finally {

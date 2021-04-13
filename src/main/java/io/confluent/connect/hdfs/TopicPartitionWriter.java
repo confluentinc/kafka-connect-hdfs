@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.wal.FSWAL;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -258,14 +259,14 @@ public class TopicPartitionWriter {
           applyWAL();
           nextState();
         case WAL_APPLIED:
-          log.debug("Start recovery state: Truncate WAL for topic partition {}", tp);
-          truncateWAL();
-          nextState();
-        case WAL_TRUNCATED:
           log.debug("Start recovery state: Reset Offsets for topic partition {}", tp);
           resetOffsets();
           nextState();
         case OFFSET_RESET:
+          log.debug("Start recovery state: Truncate WAL for topic partition {}", tp);
+          truncateWAL();
+          nextState();
+        case WAL_TRUNCATED:
           log.debug("Start recovery state: Resume for topic partition {}", tp);
           resume();
           nextState();
@@ -337,9 +338,11 @@ public class TopicPartitionWriter {
             nextState();
           case WRITE_PARTITION_PAUSED:
             if (currentSchema == null) {
+              log.debug("Current schema is null, getting schema from file with latest offsets.");
               if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
                 String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
                 CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
+                log.trace("Fetching file with max offset.");
                 FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
                     storage,
                     new Path(topicDir),
@@ -350,6 +353,7 @@ public class TopicPartitionWriter {
                       connectorConfig,
                       fileStatusWithMaxOffset.getPath()
                   );
+                  log.trace("Retrieved schema from file with latest offset.");
                 }
               }
             }
@@ -599,7 +603,7 @@ public class TopicPartitionWriter {
     return periodicRotation || scheduledRotation || messageSizeRotation;
   }
 
-  private void readOffset() throws ConnectException {
+  private void readOffsetFromFilenames() throws ConnectException {
     String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
     CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
     FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
@@ -615,6 +619,26 @@ public class TopicPartitionWriter {
       offset = lastCommittedOffsetToHdfs + 1;
       log.trace("Next offset to read: {}", offset);
     }
+  }
+
+  /**
+   * Read the most recently committed offset from the WAL file.
+   *
+   * @return whether a valid offset was read
+   */
+  private boolean readOffsetFromWAL() {
+    // MemoryWAL is used for testing
+    if (wal instanceof FSWAL) {
+      long lastCommittedOffsetToHdfs = ((FSWAL) wal).extractLatestOffsetFromWAL();
+      if (lastCommittedOffsetToHdfs == -1) {
+        return false;
+      }
+      log.trace("Last committed offset based on WAL: {}", lastCommittedOffsetToHdfs);
+      offset = lastCommittedOffsetToHdfs + 1;
+      log.trace("Next offset to read: {}", offset);
+      return true;
+    }
+    return false;
   }
 
   private void pause() {
@@ -691,7 +715,10 @@ public class TopicPartitionWriter {
 
   private void resetOffsets() throws ConnectException {
     if (!recovered) {
-      readOffset();
+      if (!readOffsetFromWAL()) {
+        // fallback on existing approach
+        readOffsetFromFilenames();
+      }
       // Note that we must *always* request that we seek to an offset here. Currently the
       // framework will still commit Kafka offsets even though we track our own (see KAFKA-3462),
       // which can result in accidentally using that offset if one was committed but no files
@@ -927,8 +954,8 @@ public class TopicPartitionWriter {
     RECOVERY_STARTED,
     RECOVERY_PARTITION_PAUSED,
     WAL_APPLIED,
-    WAL_TRUNCATED,
     OFFSET_RESET,
+    WAL_TRUNCATED,
     WRITE_STARTED,
     WRITE_PARTITION_PAUSED,
     SHOULD_ROTATE,
