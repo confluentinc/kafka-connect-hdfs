@@ -31,6 +31,7 @@ import java.io.OutputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class FSWALTest extends TestWithMiniDFSCluster {
@@ -113,8 +114,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
 
-    long latestOffset = wal.extractLatestOffsetFromWAL();
-    assertEquals(-1, latestOffset);
+    assertNull(wal.extractLatestOffsetFromWAL());
 
     addSampleEntriesToWAL(topicsDir, wal);
     wal.append(WAL.beginMarker, "");
@@ -122,7 +122,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
 
-    latestOffset = wal.extractLatestOffsetFromWAL();
+    long latestOffset = wal.extractLatestOffsetFromWAL().getKey();
     assertEquals(49, latestOffset);
   }
 
@@ -138,7 +138,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
     addSampleEntriesToWAL(topicsDir, wal);
 
-    long latestOffset = wal.extractLatestOffsetFromWAL();
+    long latestOffset = wal.extractLatestOffsetFromWAL().getKey();
     assertEquals(49, latestOffset);
   }
 
@@ -156,7 +156,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     //creates old WAL and empties new one
     wal.truncate();
 
-    long latestOffset = wal.extractLatestOffsetFromWAL();
+    long latestOffset = wal.extractLatestOffsetFromWAL().getKey();
     assertEquals(49, latestOffset);
   }
 
