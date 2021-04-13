@@ -703,6 +703,8 @@ public class TopicPartitionWriter {
     if (!recovered) {
       if (!readOffsetFromWAL()) {
         // fallback on existing approach
+        log.debug("Could not use WAL approach for recovering offsets, "
+            + "searching for latest offsets on filesystem.");
         readOffsetFromFilenames();
       }
       // Note that we must *always* request that we seek to an offset here. Currently the
@@ -810,6 +812,8 @@ public class TopicPartitionWriter {
         log.trace("Retrieved schema from file with latest offset {}", latestOffsetsFile);
       } else {
         // if WAL restored file is N/A fallback on existing recursive scan approach
+        log.debug("Could not find latest offsets file from WAL for schema initialization, "
+            + "searching for latest offsets file on filesystem.");
         String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
         CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
         log.trace("Fetching file with max offset.");
