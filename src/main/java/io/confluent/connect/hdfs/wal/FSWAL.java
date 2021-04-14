@@ -271,7 +271,8 @@ public class FSWAL implements WAL {
       } else if (keyName.equals(endMarker)) {
         if (entryBlockStarted && !tempFilenames.isEmpty()) {
           // only save non-empty blocks
-          committedFilenames = new ArrayList<>(tempFilenames);
+          committedFilenames.clear();
+          committedFilenames.addAll(tempFilenames);
         }
         tempFilenames.clear();
         entryBlockStarted = false;
