@@ -127,16 +127,120 @@ public class FSWALTest extends TestWithMiniDFSCluster {
   }
 
   @Test
-  public void testOffsetsExtractedFromWAL() throws Exception {
-    setUp();
-    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
-    fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
+  public void testNoOffsetsFromWALWithMissingEndMarkerFirstBlock() throws Exception {
+    setupWalTest();
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    partitioner = hdfsWriter.getPartitioner();
-
+    // test missing end marker on middle block
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
-    addSampleEntriesToWAL(topicsDir, wal);
+
+    wal.append(WAL.beginMarker, "");
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    // missing end marker here
+
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.close();
+
+    assertNull(wal.extractLatestOffsetFromWAL());
+  }
+
+  @Test
+  public void testNoOffsetsFromWALWithMissingEndMarkerMiddleBlock() throws Exception {
+    setupWalTest();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    // test missing end marker on middle block
+    FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
+    //create a few empty blocks
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+
+    wal.append(WAL.beginMarker, "");
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    // missing end marker here
+
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.close();
+
+    assertNull(wal.extractLatestOffsetFromWAL());
+  }
+
+  @Test
+  public void testNoOffsetsFromWALWithMissingEndMarkerLastBlock() throws Exception {
+    setupWalTest();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    // test missing end marker on middle block
+    FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    wal.close();
+    //missing end marker here
+    assertNull(wal.extractLatestOffsetFromWAL());
+  }
+
+  @Test
+  public void testNoOffsetsFromWALWithMissingBeginMarkerFirstBlock() throws Exception {
+    setupWalTest();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
+
+    //test missing begin marker
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    wal.append(WAL.endMarker, "");
+    wal.close();
+    assertNull(wal.extractLatestOffsetFromWAL());
+  }
+
+  @Test
+  public void testNoOffsetsFromWALWithMissingBeginMarkerMiddleBlock() throws Exception {
+    setupWalTest();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
+
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    //test missing begin marker
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.close();
+    assertNull(wal.extractLatestOffsetFromWAL());
+  }
+
+  @Test
+  public void testNoOffsetsFromWALWithMissingBeginMarkerLastBlock() throws Exception {
+    setupWalTest();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
+
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    //test missing begin marker
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    wal.append(WAL.endMarker, "");
+    wal.close();
+    assertNull(wal.extractLatestOffsetFromWAL());
+  }
+
+  @Test
+  public void testOffsetsExtractedFromWAL() throws Exception {
+    setupWalTest();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
+    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal);
 
     long latestOffset = wal.extractLatestOffsetFromWAL().getKey();
     assertEquals(49, latestOffset);
@@ -144,15 +248,10 @@ public class FSWALTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testOffsetsExtractedFromOldWAL() throws Exception {
-    setUp();
-    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
-    fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
+    setupWalTest();
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    partitioner = hdfsWriter.getPartitioner();
-
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
-    addSampleEntriesToWAL(topicsDir, wal);
+    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal);
     //creates old WAL and empties new one
     wal.truncate();
 
@@ -160,8 +259,22 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     assertEquals(49, latestOffset);
   }
 
+  private void setupWalTest() throws Exception {
+    setUp();
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
+    fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+  }
+
   private void addSampleEntriesToWAL(String topicsDir, WAL wal) throws IOException {
     wal.append(WAL.beginMarker, "");
+    addSampleEntriesToWALNoMarkers(topicsDir, wal);
+    wal.append(WAL.endMarker, "");
+    wal.close();
+  }
+
+  private void addSampleEntriesToWALNoMarkers(String topicsDir, WAL wal) throws IOException {
     for (int i = 0; i < 5; ++i) {
       long startOffset = i * 10;
       long endOffset = (i + 1) * 10 - 1;
@@ -171,8 +284,6 @@ public class FSWALTest extends TestWithMiniDFSCluster {
           endOffset, extension, zeroPadFormat);
       wal.append(tempfile, committedFile);
     }
-    wal.append(WAL.endMarker, "");
-    wal.close();
   }
 
 }

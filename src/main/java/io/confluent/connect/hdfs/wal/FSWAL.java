@@ -229,7 +229,12 @@ public class FSWAL implements WAL {
       }
       return latestOffset;
     } catch (IOException e) {
-      log.warn("Error restoring offsets from either {} or {} WAL files", logFile, oldWALFile);
+      log.warn(
+          "Error restoring offsets from either {} or {} WAL files: {}",
+          logFile,
+          oldWALFile,
+          e.getMessage()
+      );
       return null;
     }
   }
@@ -249,23 +254,36 @@ public class FSWAL implements WAL {
 
     WALEntry key = new WALEntry();
     WALEntry value = new WALEntry();
-    boolean wasBeginMarker = false;
+    // enables skipping corrupted blocks that are missing an END marker,
+    // only valid blocks will be moved to committedFilenames
+    ArrayList<String> tempFilenames = null;
 
     // The entry with the latest offsets will be in the last BEGIN-END block of the file.
-    // There may be empty BEGIN and END blocks as well.
+    // There may be empty BEGIN and END blocks as well, skip over these and only keep the
+    // entries of the last filled block.
     while (reader.next(key, value)) {
       String keyName = key.getName();
       if (keyName.equals(beginMarker)) {
-        wasBeginMarker = true;
-      } else if (!keyName.equals(endMarker)) {
-        if (wasBeginMarker) {
-          // if we hit a filename entry and the previous token was a BEGIN marker
-          // we start a new BEGIN-END block
-          committedFilenames.clear();
+        tempFilenames = new ArrayList<>();
+      } else if (keyName.equals(endMarker)) {
+        if (tempFilenames != null && !tempFilenames.isEmpty()) {
+          // only save non-empty blocks
+          committedFilenames = tempFilenames;
         }
-        committedFilenames.add(value.getName());
-        wasBeginMarker = false;
+        tempFilenames = null;
+      } else {
+        // file path entry
+        if (tempFilenames != null) {
+          tempFilenames.add(value.getName());
+        }
       }
+    }
+
+    if (tempFilenames != null && !tempFilenames.isEmpty()) {
+      // the last filled BEGIN-END block was missing an END,
+      // these entries would be skipped by apply() so they
+      // shouldn't be used to infer latest offset information
+      throw new IOException("A file block in the WAL is missing an END token");
     }
     return committedFilenames;
   }
