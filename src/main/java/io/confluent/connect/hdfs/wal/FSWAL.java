@@ -220,11 +220,12 @@ public class FSWAL implements WAL {
       // attempt to use old log file if recent WAL is empty or non-existent
       if (latestOffset == null && storage.exists(oldWALFile)) {
         log.trace("Could not find offset in log file {}. Using {} instead", logFile, oldWALFile);
-        Reader oldFileReader =
-            new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(oldWALFile)));
-        List<String> committedFileBatch = getLastFilledBlockFromWAL(oldFileReader);
-        latestOffset = getLatestOffsetFromList(committedFileBatch);
-        oldFileReader.close();
+        try (Reader oldFileReader =
+            new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(oldWALFile)))
+        ) {
+          List<String> committedFileBatch = getLastFilledBlockFromWAL(oldFileReader);
+          latestOffset = getLatestOffsetFromList(committedFileBatch);
+        }
       }
       return latestOffset;
     } catch (IOException e) {
