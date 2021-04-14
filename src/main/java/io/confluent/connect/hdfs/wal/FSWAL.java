@@ -223,7 +223,7 @@ public class FSWAL implements WAL {
         Reader oldFileReader =
             new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(oldWALFile)));
         List<String> committedFileBatch = getLastFilledBlockFromWAL(oldFileReader);
-        latestOffset = getLatestOffsetFromList(committedFileBatch);;
+        latestOffset = getLatestOffsetFromList(committedFileBatch);
         oldFileReader.close();
       }
       return latestOffset;
@@ -302,7 +302,7 @@ public class FSWAL implements WAL {
         return FileUtils.extractOffset(latestFileName);
       }
     } catch (IllegalArgumentException e) {
-      log.warn("Could not extract offsets from file path: {}", fullPath);
+      log.warn("Could not extract offsets from file path {}: {}", fullPath, e.getMessage());
     }
     return -1;
   }

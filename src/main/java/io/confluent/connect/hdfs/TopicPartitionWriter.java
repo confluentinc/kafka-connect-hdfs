@@ -811,7 +811,7 @@ public class TopicPartitionWriter {
             connectorConfig,
             new Path(latestOffsetsFile)
         );
-        log.trace("Retrieved schema from file with latest offset {}", latestOffsetsFile);
+        log.debug("Retrieved schema from file with latest offset {}", latestOffsetsFile);
       } else {
         // if WAL restored file is N/A fallback on a recursive scan approach of filenames
         log.debug("Could not find latest offsets file from WAL for schema initialization, "
@@ -829,7 +829,7 @@ public class TopicPartitionWriter {
               connectorConfig,
               fileStatusWithMaxOffset.getPath()
           );
-          log.trace("Retrieved schema from file with latest offset {}", latestOffsetsFile);
+          log.debug("Retrieved schema from file with latest offset {}", fileStatusWithMaxOffset);
         }
       }
     }
