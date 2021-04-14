@@ -619,8 +619,9 @@ public class TopicPartitionWriter {
       if (latestOffsetEntry == null) {
         return false;
       }
-      log.trace("Last committed offset based on WAL: {}", latestOffsetEntry.getKey());
-      offset = latestOffsetEntry.getKey() + 1;
+      long lastCommittedOffset = latestOffsetEntry.getKey();
+      log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
+      offset = lastCommittedOffset + 1;
       log.trace("Next offset to read: {}", offset);
       latestOffsetsFile = latestOffsetEntry.getValue();
       log.trace("Set latest offsets file {}", latestOffsetsFile);
