@@ -18,6 +18,7 @@ package io.confluent.connect.hdfs.wal;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 
+import java.util.List;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
@@ -134,7 +135,7 @@ public class FSWAL implements WAL {
 
     try {
       if (reader == null) {
-        reader = new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(logFile)));
+        reader = newWalFileReader();
       }
       commitWalEntriesToStorage();
     } catch (CorruptWalFileException e) {
@@ -188,7 +189,6 @@ public class FSWAL implements WAL {
     }
   }
 
-
   /**
    * Extract the latest offset and file path from the WAL file.
    * Attempt with the most recent WAL file, and fall back to the old file if it's not applicable.
@@ -206,13 +206,12 @@ public class FSWAL implements WAL {
       if (storage.exists(logFile)) {
         log.trace("Restoring offset from WAL file: {}", logFile);
         if (reader == null) {
-          reader = new WALFile.Reader(conf.getHadoopConfiguration(),
-              Reader.file(new Path(logFile)));
+          reader = newWalFileReader();
         } else {
           // reset read position after apply()
           reader.seekToFirstRecord();
         }
-        ArrayList<String> committedFileBatch = getLastFilledBlockFromWAL(reader);
+        List<String> committedFileBatch = getLastFilledBlockFromWAL(reader);
         // At this point the committedFilenames list will contain the
         // filenames in the last BEGIN-END block of the file. Find the latest offsets among these.
         latestOffset = getLatestOffsetFromList(committedFileBatch);
@@ -220,16 +219,16 @@ public class FSWAL implements WAL {
 
       // attempt to use old log file if recent WAL is empty or non-existent
       if (latestOffset == null && storage.exists(oldWALFile)) {
-        log.trace("Could not find offset in log file {}, using {}", logFile, oldWALFile);
+        log.trace("Could not find offset in log file {}. Using {} instead", logFile, oldWALFile);
         Reader oldFileReader =
             new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(oldWALFile)));
-        ArrayList<String> committedFileBatch = getLastFilledBlockFromWAL(oldFileReader);
+        List<String> committedFileBatch = getLastFilledBlockFromWAL(oldFileReader);
         latestOffset = getLatestOffsetFromList(committedFileBatch);;
         oldFileReader.close();
       }
       return latestOffset;
     } catch (IOException e) {
-      log.warn("Error restoring offsets from WAL files {} and {}", logFile, oldWALFile);
+      log.warn("Error restoring offsets from either {} or {} WAL files", logFile, oldWALFile);
       return null;
     }
   }
@@ -242,8 +241,9 @@ public class FSWAL implements WAL {
    *         is empty or only contains empty BEGIN-END blocks
    * @throws IOException error on reading the WAL file
    */
-  private ArrayList<String> getLastFilledBlockFromWAL(Reader reader) throws IOException {
-    //temp filenames don't contain offset info, use committed only (WAL entry values)
+  private List<String> getLastFilledBlockFromWAL(Reader reader) throws IOException {
+    // In a WAL entry the temp filenames (keys) don't contain offset info,
+    // so we only need to track the committed filename (values).
     ArrayList<String> committedFilenames = new ArrayList<>();
 
     WALEntry key = new WALEntry();
@@ -275,7 +275,7 @@ public class FSWAL implements WAL {
    * @param committedFileNames a list of committed filenames
    * @return the latest offset committed along with the filepath
    */
-  private Pair<Long, String> getLatestOffsetFromList(ArrayList<String> committedFileNames) {
+  private Pair<Long, String> getLatestOffsetFromList(List<String> committedFileNames) {
     Pair<Long, String> latestOffsetEntry = null;
     long latestOffset = -1;
     // Entries in the BEGIN-END block are currently not guaranteed any ordering.
@@ -307,6 +307,10 @@ public class FSWAL implements WAL {
     return -1;
   }
 
+  private Reader newWalFileReader() throws IOException {
+    return new Reader(conf.getHadoopConfiguration(), Reader.file(new Path(logFile)));
+  }
+
   @Override
   public void truncate() throws ConnectException {
     log.debug("Truncating WAL file: {}", logFile);
@@ -318,7 +322,7 @@ public class FSWAL implements WAL {
       if (storage.exists(logFile)) {
         storage.commit(logFile, oldLogFile);
       } else {
-        log.trace("Attempted to truncate WAL but current WAL cannot be found {}", logFile);
+        log.debug("Attempted to truncate WAL but current WAL cannot be found {}", logFile);
       }
     } finally {
       close();

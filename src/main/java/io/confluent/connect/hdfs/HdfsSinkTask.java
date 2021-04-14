@@ -116,7 +116,7 @@ public class HdfsSinkTask extends SinkTask {
     }
 
     log.info("The connector relies on offsets in the WAL files, if these are not present it uses "
-        + "the filenames in HDFS, and in both cases commits these offsets to Connect to "
+        + "the filenames in HDFS. In both cases the connector commits offsets to Connect to "
         + "enable monitoring progress of the HDFS connector. Upon startup, the HDFS "
         + "Connector restores offsets from the WAL log files, if these are not present it "
         + "uses the filenames in HDFS. In the absence of files in HDFS, "

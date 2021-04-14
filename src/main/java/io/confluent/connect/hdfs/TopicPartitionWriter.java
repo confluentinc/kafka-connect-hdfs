@@ -702,7 +702,7 @@ public class TopicPartitionWriter {
   private void resetOffsets() throws ConnectException {
     if (!recovered) {
       if (!readOffsetFromWAL()) {
-        // fallback on existing approach
+        // fallback on recursive filename search approach
         log.debug("Could not use WAL approach for recovering offsets, "
             + "searching for latest offsets on filesystem.");
         readOffsetFromFilenames();
@@ -802,7 +802,8 @@ public class TopicPartitionWriter {
 
   private void fetchSchemaFromLatestFile() {
     if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
-      log.debug("Current schema is null, getting schema from file with latest offsets.");
+      log.debug("Current schema is not set for partition {}, "
+          + "getting schema from file with latest offsets.", tp);
       // check on WAL restored latest file to avoid recursive search
       if (recovered && latestOffsetsFile != null) {
         currentSchema = schemaFileReader.getSchema(
@@ -811,7 +812,7 @@ public class TopicPartitionWriter {
         );
         log.trace("Retrieved schema from file with latest offset {}", latestOffsetsFile);
       } else {
-        // if WAL restored file is N/A fallback on existing recursive scan approach
+        // if WAL restored file is N/A fallback on a recursive scan approach of filenames
         log.debug("Could not find latest offsets file from WAL for schema initialization, "
             + "searching for latest offsets file on filesystem.");
         String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
