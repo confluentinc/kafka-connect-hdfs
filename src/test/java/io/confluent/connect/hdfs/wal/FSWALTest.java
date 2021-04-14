@@ -170,6 +170,33 @@ public class FSWALTest extends TestWithMiniDFSCluster {
   }
 
   @Test
+  public void testOffsetsFromWALWithMissingEndMarkerLastBlockAndValidPreviousBlock() throws Exception {
+    long expectedOffset = 108L;
+    setupWalTest();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    // test missing end marker on middle block
+    FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
+    wal.append(WAL.beginMarker, "");
+
+    String tempfile = FileUtils.tempFileName(url, topicsDir.get(TOPIC_PARTITION.topic()), getDirectory(), extension);
+    fs.createNewFile(new Path(tempfile));
+    String committedFile = FileUtils.committedFileName(url, topicsDir.get(TOPIC_PARTITION.topic()), getDirectory(), TOPIC_PARTITION, 9,
+        expectedOffset, extension, zeroPadFormat);
+    wal.append(tempfile, committedFile);
+
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    wal.append(WAL.endMarker, "");
+    wal.append(WAL.beginMarker, "");
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    wal.close();
+    //missing end marker here
+    assertEquals(new Long(expectedOffset), wal.extractLatestOffsetFromWAL().getKey());
+  }
+
+  @Test
   public void testNoOffsetsFromWALWithMissingEndMarkerLastBlock() throws Exception {
     setupWalTest();
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);

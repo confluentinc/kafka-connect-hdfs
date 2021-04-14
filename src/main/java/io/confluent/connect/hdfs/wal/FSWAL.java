@@ -41,7 +41,7 @@ import io.confluent.connect.hdfs.wal.WALFile.Writer;
 public class FSWAL implements WAL {
 
   private static final Logger log = LoggerFactory.getLogger(FSWAL.class);
-  private static final String OLD_LOG_EXTENSION = ".1";
+  private static final String TRUNCATED_LOG_EXTENSION = ".1";
 
   private final HdfsSinkConnectorConfig conf;
   private final HdfsStorage storage;
@@ -200,7 +200,7 @@ public class FSWAL implements WAL {
    * @return the latest offset and filepath from the WAL file or null
    */
   public Pair<Long, String> extractLatestOffsetFromWAL() {
-    String oldWALFile = logFile + OLD_LOG_EXTENSION;
+    String oldWALFile = logFile + TRUNCATED_LOG_EXTENSION;
     try {
       Pair<Long, String> latestOffset = null;
       if (storage.exists(logFile)) {
@@ -250,13 +250,15 @@ public class FSWAL implements WAL {
   private List<String> getLastFilledBlockFromWAL(Reader reader) throws IOException {
     // In a WAL entry the temp filenames (keys) don't contain offset info,
     // so we only need to track the committed filename (values).
-    ArrayList<String> committedFilenames = new ArrayList<>();
-
-    WALEntry key = new WALEntry();
-    WALEntry value = new WALEntry();
+    List<String> committedFilenames = new ArrayList<>();
     // enables skipping corrupted blocks that are missing an END marker,
     // only valid blocks will be moved to committedFilenames
-    ArrayList<String> tempFilenames = null;
+    List<String> tempFilenames = new ArrayList<>();
+    WALEntry key = new WALEntry();
+    WALEntry value = new WALEntry();
+
+    // whether a BEGIN-END block was started
+    boolean entryBlockStarted = false;
 
     // The entry with the latest offsets will be in the last BEGIN-END block of the file.
     // There may be empty BEGIN and END blocks as well, skip over these and only keep the
@@ -264,26 +266,28 @@ public class FSWAL implements WAL {
     while (reader.next(key, value)) {
       String keyName = key.getName();
       if (keyName.equals(beginMarker)) {
-        tempFilenames = new ArrayList<>();
+        tempFilenames.clear();
+        entryBlockStarted = true;
       } else if (keyName.equals(endMarker)) {
-        if (tempFilenames != null && !tempFilenames.isEmpty()) {
+        if (entryBlockStarted && !tempFilenames.isEmpty()) {
           // only save non-empty blocks
-          committedFilenames = tempFilenames;
+          committedFilenames = new ArrayList<>(tempFilenames);
         }
-        tempFilenames = null;
+        tempFilenames.clear();
+        entryBlockStarted = false;
       } else {
         // file path entry
-        if (tempFilenames != null) {
+        if (entryBlockStarted) {
           tempFilenames.add(value.getName());
         }
       }
     }
 
-    if (tempFilenames != null && !tempFilenames.isEmpty()) {
+    if (entryBlockStarted && !tempFilenames.isEmpty()) {
       // the last filled BEGIN-END block was missing an END,
       // these entries would be skipped by apply() so they
       // shouldn't be used to infer latest offset information
-      throw new IOException("A file block in the WAL is missing an END token");
+      log.warn("The last file block in the WAL is missing an END token");
     }
     return committedFilenames;
   }
@@ -334,7 +338,7 @@ public class FSWAL implements WAL {
   public void truncate() throws ConnectException {
     log.debug("Truncating WAL file: {}", logFile);
     try {
-      String oldLogFile = logFile + OLD_LOG_EXTENSION;
+      String oldLogFile = logFile + TRUNCATED_LOG_EXTENSION;
       if (storage.exists(oldLogFile)) {
         storage.delete(oldLogFile);
       }
