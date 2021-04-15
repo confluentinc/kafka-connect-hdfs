@@ -100,7 +100,6 @@ public class TopicPartitionWriter {
   private final AvroData avroData;
   private final Set<String> appended;
   private long offset;
-  private String latestOffsetsFile;
   private final Map<String, Long> startOffsets;
   private final Map<String, Long> offsets;
   private final long timeoutMs;
@@ -207,7 +206,6 @@ public class TopicPartitionWriter {
     tempFiles = new HashMap<>();
     appended = new HashSet<>();
     startOffsets = new HashMap<>();
-    latestOffsetsFile = null;
     offsets = new HashMap<>();
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
@@ -623,8 +621,6 @@ public class TopicPartitionWriter {
       log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
       offset = lastCommittedOffset + 1;
       log.trace("Next offset to read: {}", offset);
-      latestOffsetsFile = latestOffsetEntry.getValue();
-      log.trace("Set latest offsets file {}", latestOffsetsFile);
       return true;
     }
     return false;
@@ -805,13 +801,15 @@ public class TopicPartitionWriter {
     if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
       log.debug("Current schema is not set for partition {}, "
           + "getting schema from file with latest offsets.", tp);
-      // check on WAL restored latest file to avoid recursive search
-      if (recovered && latestOffsetsFile != null) {
+
+      Pair<Long, String> latestOffsetEntry = ((FSWAL) wal).extractLatestOffsetFromWAL();
+      if (latestOffsetEntry != null) {
+        String latestOffsetsFilePath = latestOffsetEntry.getValue();
         currentSchema = schemaFileReader.getSchema(
             connectorConfig,
-            new Path(latestOffsetsFile)
+            new Path(latestOffsetsFilePath)
         );
-        log.debug("Retrieved schema from file with latest offset {}", latestOffsetsFile);
+        log.debug("Retrieved schema from file with latest offset {}", latestOffsetsFilePath);
       } else {
         // if WAL restored file is N/A fallback on a recursive scan approach of filenames
         log.debug("Could not find latest offsets file from WAL for schema initialization, "
@@ -829,7 +827,11 @@ public class TopicPartitionWriter {
               connectorConfig,
               fileStatusWithMaxOffset.getPath()
           );
-          log.debug("Retrieved schema from file with latest offset {}", fileStatusWithMaxOffset);
+          log.debug("Retrieved schema from file with latest offset {}",
+              fileStatusWithMaxOffset.getPath());
+        } else {
+          log.warn("Unable to retrieve schema from file with latest offsets: "
+              + "file with latest offsets not found.");
         }
       }
     }
