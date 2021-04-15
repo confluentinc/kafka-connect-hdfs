@@ -339,7 +339,21 @@ public class TopicPartitionWriter {
             nextState();
           case WRITE_PARTITION_PAUSED:
             if (currentSchema == null) {
-              fetchSchemaFromLatestFile();
+              if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
+                String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
+                CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
+                FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
+                    storage,
+                    new Path(topicDir),
+                    filter
+                );
+                if (fileStatusWithMaxOffset != null) {
+                  currentSchema = schemaFileReader.getSchema(
+                      connectorConfig,
+                      fileStatusWithMaxOffset.getPath()
+                  );
+                }
+              }
             }
             SinkRecord record = buffer.peek();
             currentRecord = record;
@@ -794,46 +808,6 @@ public class TopicPartitionWriter {
 
       recordCounter = 0;
       throw connectException;
-    }
-  }
-
-  private void fetchSchemaFromLatestFile() {
-    if (compatibility != StorageSchemaCompatibility.NONE && offset != -1) {
-      log.debug("Current schema is not set for partition {}, "
-          + "getting schema from file with latest offsets.", tp);
-
-      Pair<Long, String> latestOffsetEntry = ((FSWAL) wal).extractLatestOffsetFromWAL();
-      if (latestOffsetEntry != null) {
-        String latestOffsetsFilePath = latestOffsetEntry.getValue();
-        currentSchema = schemaFileReader.getSchema(
-            connectorConfig,
-            new Path(latestOffsetsFilePath)
-        );
-        log.debug("Retrieved schema from file with latest offset {}", latestOffsetsFilePath);
-      } else {
-        // if WAL restored file is N/A fallback on a recursive scan approach of filenames
-        log.debug("Could not find latest offsets file from WAL for schema initialization, "
-            + "searching for latest offsets file on filesystem.");
-        String topicDir = FileUtils.topicDirectory(url, topicsDir, tp.topic());
-        CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
-        log.trace("Fetching file with max offset.");
-        FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
-            storage,
-            new Path(topicDir),
-            filter
-        );
-        if (fileStatusWithMaxOffset != null) {
-          currentSchema = schemaFileReader.getSchema(
-              connectorConfig,
-              fileStatusWithMaxOffset.getPath()
-          );
-          log.debug("Retrieved schema from file with latest offset {}",
-              fileStatusWithMaxOffset.getPath());
-        } else {
-          log.warn("Unable to retrieve schema from file with latest offsets: "
-              + "file with latest offsets not found.");
-        }
-      }
     }
   }
 
