@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs.utils;
 
-import io.confluent.connect.storage.wal.FilePathOffset;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 
@@ -24,6 +23,7 @@ import java.util.Map;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.storage.wal.FilePathOffset;
 
 public class MemoryWAL implements WAL {
 

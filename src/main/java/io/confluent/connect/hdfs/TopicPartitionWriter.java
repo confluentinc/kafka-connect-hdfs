@@ -15,8 +15,6 @@
 
 package io.confluent.connect.hdfs;
 
-import io.confluent.connect.hdfs.wal.FSWAL;
-import io.confluent.connect.storage.wal.FilePathOffset;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -60,6 +58,7 @@ import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import io.confluent.connect.storage.partitioner.TimestampExtractor;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
+import io.confluent.connect.storage.wal.FilePathOffset;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
@@ -625,19 +624,15 @@ public class TopicPartitionWriter {
    * @return whether a valid offset was read
    */
   private boolean readOffsetFromWAL() {
-    // MemoryWAL is used for testing
-    if (wal instanceof FSWAL) {
-      FilePathOffset latestOffsetEntry = wal.extractLatestOffset();
-      if (latestOffsetEntry == null) {
-        return false;
-      }
-      long lastCommittedOffset = latestOffsetEntry.getOffset();
-      log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
-      offset = lastCommittedOffset + 1;
-      log.trace("Next offset to read: {}", offset);
-      return true;
+    FilePathOffset latestOffsetEntry = wal.extractLatestOffset();
+    if (latestOffsetEntry == null) {
+      return false;
     }
-    return false;
+    long lastCommittedOffset = latestOffsetEntry.getOffset();
+    log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
+    offset = lastCommittedOffset + 1;
+    log.trace("Next offset to read: {}", offset);
+    return true;
   }
 
   private void pause() {

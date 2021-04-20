@@ -15,11 +15,6 @@
 
 package io.confluent.connect.hdfs.wal;
 
-import io.confluent.connect.storage.wal.FilePathOffset;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-
-import java.util.List;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
@@ -29,14 +24,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.nio.file.Paths;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WALFile.Reader;
 import io.confluent.connect.hdfs.wal.WALFile.Writer;
+import io.confluent.connect.storage.wal.FilePathOffset;
 
 public class FSWAL implements WAL {
 

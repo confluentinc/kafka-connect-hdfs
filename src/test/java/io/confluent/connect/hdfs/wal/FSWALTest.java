@@ -100,12 +100,8 @@ public class FSWALTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testOffsetsExtractedFromWALWithEmptyBlocks() throws Exception {
-    setUp();
-    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
-    fs.delete(new Path(FileUtils.directoryName(url, topicsDir, TOPIC_PARTITION)), true);
+    setupWalTest();
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    partitioner = hdfsWriter.getPartitioner();
 
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
     //create a few empty blocks
@@ -116,7 +112,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
 
     assertNull(wal.extractLatestOffset());
 
-    addSampleEntriesToWAL(topicsDir, wal);
+    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal);
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
     wal.append(WAL.beginMarker, "");
