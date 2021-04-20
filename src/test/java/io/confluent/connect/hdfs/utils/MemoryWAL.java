@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.utils;
 
+import io.confluent.connect.storage.wal.FilePathOffset;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 
 import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.storage.Storage;
 import io.confluent.connect.hdfs.wal.WAL;
 
 public class MemoryWAL implements WAL {
@@ -75,6 +75,11 @@ public class MemoryWAL implements WAL {
   @Override
   public String getLogFile() {
     return logFile;
+  }
+
+  @Override
+  public FilePathOffset extractLatestOffset() {
+    return null;
   }
 
   private static class LogEntry {

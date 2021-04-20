@@ -15,11 +15,11 @@
 
 package io.confluent.connect.hdfs.wal;
 
+import io.confluent.connect.storage.wal.FilePathOffset;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import java.util.List;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
@@ -199,10 +199,11 @@ public class FSWAL implements WAL {
    *
    * @return the latest offset and filepath from the WAL file or null
    */
-  public Pair<Long, String> extractLatestOffsetFromWAL() {
+  @Override
+  public FilePathOffset extractLatestOffset() {
     String oldWALFile = logFile + TRUNCATED_LOG_EXTENSION;
     try {
-      Pair<Long, String> latestOffset = null;
+      FilePathOffset latestOffset = null;
       if (storage.exists(logFile)) {
         log.trace("Restoring offset from WAL file: {}", logFile);
         if (reader == null) {
@@ -299,15 +300,15 @@ public class FSWAL implements WAL {
    * @param committedFileNames a list of committed filenames
    * @return the latest offset committed along with the filepath
    */
-  private Pair<Long, String> getLatestOffsetFromList(List<String> committedFileNames) {
-    Pair<Long, String> latestOffsetEntry = null;
+  private FilePathOffset getLatestOffsetFromList(List<String> committedFileNames) {
+    FilePathOffset latestOffsetEntry = null;
     long latestOffset = -1;
     // Entries in the BEGIN-END block are currently not guaranteed any ordering.
     for (String fileName : committedFileNames) {
       long currentOffset = extractOffsetsFromFilePath(fileName);
       if (currentOffset > latestOffset) {
         latestOffset = currentOffset;
-        latestOffsetEntry = Pair.of(latestOffset, fileName);
+        latestOffsetEntry = new FilePathOffset(latestOffset, fileName);
       }
     }
     return latestOffsetEntry;

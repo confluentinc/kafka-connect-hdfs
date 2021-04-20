@@ -16,7 +16,7 @@
 package io.confluent.connect.hdfs;
 
 import io.confluent.connect.hdfs.wal.FSWAL;
-import org.apache.commons.lang3.tuple.Pair;
+import io.confluent.connect.storage.wal.FilePathOffset;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -627,11 +627,11 @@ public class TopicPartitionWriter {
   private boolean readOffsetFromWAL() {
     // MemoryWAL is used for testing
     if (wal instanceof FSWAL) {
-      Pair<Long, String> latestOffsetEntry = ((FSWAL) wal).extractLatestOffsetFromWAL();
+      FilePathOffset latestOffsetEntry = wal.extractLatestOffset();
       if (latestOffsetEntry == null) {
         return false;
       }
-      long lastCommittedOffset = latestOffsetEntry.getKey();
+      long lastCommittedOffset = latestOffsetEntry.getOffset();
       log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
       offset = lastCommittedOffset + 1;
       log.trace("Next offset to read: {}", offset);
