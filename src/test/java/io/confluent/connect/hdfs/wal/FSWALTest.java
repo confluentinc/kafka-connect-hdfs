@@ -15,19 +15,19 @@
 
 package io.confluent.connect.hdfs.wal;
 
-import io.confluent.connect.hdfs.DataWriter;
-import io.confluent.connect.hdfs.FileUtils;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.List;
+import java.io.OutputStream;
+import java.io.IOException;
+
+import io.confluent.connect.hdfs.DataWriter;
+import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
-
-import java.io.OutputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -112,7 +112,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
 
     assertNull(wal.extractLatestOffset());
 
-    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
     wal.append(WAL.beginMarker, "");
@@ -130,7 +130,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
 
     wal.append(WAL.beginMarker, "");
-    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     // missing end marker here
 
     wal.append(WAL.beginMarker, "");
@@ -154,7 +154,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.append(WAL.endMarker, "");
 
     wal.append(WAL.beginMarker, "");
-    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     // missing end marker here
 
     wal.append(WAL.beginMarker, "");
@@ -186,7 +186,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
     wal.append(WAL.beginMarker, "");
-    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     wal.close();
     //missing end marker here
     assertEquals(expectedOffset, wal.extractLatestOffset().getOffset());
@@ -201,8 +201,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
     wal.append(WAL.beginMarker, "");
-    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
-    wal.close();
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     //missing end marker here
     assertNull(wal.extractLatestOffset());
   }
@@ -214,7 +213,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
 
     //test missing begin marker
-    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     wal.append(WAL.endMarker, "");
     wal.close();
     assertNull(wal.extractLatestOffset());
@@ -231,7 +230,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
     //test missing begin marker
-    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     wal.append(WAL.endMarker, "");
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
@@ -252,7 +251,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.append(WAL.beginMarker, "");
     wal.append(WAL.endMarker, "");
     //test missing begin marker
-    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWALNoMarkers(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     wal.append(WAL.endMarker, "");
     wal.close();
     assertNull(wal.extractLatestOffset());
@@ -263,7 +262,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     setupWalTest();
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
-    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
 
     long latestOffset = wal.extractLatestOffset().getOffset();
     assertEquals(49, latestOffset);
@@ -274,7 +273,7 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     setupWalTest();
     HdfsStorage storage = new HdfsStorage(connectorConfig, url);
     FSWAL wal = (FSWAL) storage.wal(logsDir, TOPIC_PARTITION);
-    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal);
+    addSampleEntriesToWAL(topicsDir.get(TOPIC_PARTITION.topic()), wal, 5);
     //creates old WAL and empties new one
     wal.truncate();
 
@@ -290,15 +289,15 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     partitioner = hdfsWriter.getPartitioner();
   }
 
-  private void addSampleEntriesToWAL(String topicsDir, WAL wal) throws IOException {
+  private void addSampleEntriesToWAL(String topicsDir, WAL wal, int numEntries) throws IOException {
     wal.append(WAL.beginMarker, "");
-    addSampleEntriesToWALNoMarkers(topicsDir, wal);
+    addSampleEntriesToWALNoMarkers(topicsDir, wal, numEntries);
     wal.append(WAL.endMarker, "");
     wal.close();
   }
 
-  private void addSampleEntriesToWALNoMarkers(String topicsDir, WAL wal) throws IOException {
-    for (int i = 0; i < 5; ++i) {
+  private void addSampleEntriesToWALNoMarkers(String topicsDir, WAL wal, int numEntries) throws IOException {
+    for (int i = 0; i < numEntries; ++i) {
       long startOffset = i * 10;
       long endOffset = (i + 1) * 10 - 1;
       String tempfile = FileUtils.tempFileName(url, topicsDir, getDirectory(), extension);

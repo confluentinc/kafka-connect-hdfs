@@ -134,7 +134,7 @@ public class FSWAL implements WAL {
 
     try {
       if (reader == null) {
-        reader = newWalFileReader();
+        reader = newWalFileReader(logFile);
       }
       commitWalEntriesToStorage();
     } catch (CorruptWalFileException e) {
@@ -206,7 +206,7 @@ public class FSWAL implements WAL {
       if (storage.exists(logFile)) {
         log.trace("Restoring offset from WAL file: {}", logFile);
         if (reader == null) {
-          reader = newWalFileReader();
+          reader = newWalFileReader(logFile);
         } else {
           // reset read position after apply()
           reader.seekToFirstRecord();
@@ -220,9 +220,7 @@ public class FSWAL implements WAL {
       // attempt to use old log file if recent WAL is empty or non-existent
       if (latestOffset == null && storage.exists(oldWALFile)) {
         log.trace("Could not find offset in log file {}. Using {} instead", logFile, oldWALFile);
-        try (Reader oldFileReader =
-            new WALFile.Reader(conf.getHadoopConfiguration(), Reader.file(new Path(oldWALFile)))
-        ) {
+        try (Reader oldFileReader = newWalFileReader(oldWALFile)) {
           List<String> committedFileBatch = getLastFilledBlockFromWAL(oldFileReader);
           latestOffset = getLatestOffsetFromList(committedFileBatch);
         }
@@ -331,7 +329,7 @@ public class FSWAL implements WAL {
     return -1;
   }
 
-  private Reader newWalFileReader() throws IOException {
+  private Reader newWalFileReader(String logFile) throws IOException {
     return new Reader(conf.getHadoopConfiguration(), Reader.file(new Path(logFile)));
   }
 
@@ -340,14 +338,8 @@ public class FSWAL implements WAL {
     log.debug("Truncating WAL file: {}", logFile);
     try {
       String oldLogFile = logFile + TRUNCATED_LOG_EXTENSION;
-      if (storage.exists(oldLogFile)) {
-        storage.delete(oldLogFile);
-      }
-      if (storage.exists(logFile)) {
-        storage.commit(logFile, oldLogFile);
-      } else {
-        log.debug("Attempted to truncate WAL but current WAL cannot be found {}", logFile);
-      }
+      storage.delete(oldLogFile);
+      storage.commit(logFile, oldLogFile);
     } finally {
       close();
     }

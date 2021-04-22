@@ -600,7 +600,24 @@ public class TopicPartitionWriter {
     return periodicRotation || scheduledRotation || messageSizeRotation;
   }
 
-  private void readOffsetFromFilenames() throws ConnectException {
+  /**
+   * Read the offset of most recent record in HDFS.
+   * Attempt to read the offset from the WAL file and fall-back on a recursive search of filenames.
+   */
+  private void readOffset() {
+    // Use the WAL file to attempt to extract the recent offsets
+    FilePathOffset latestOffsetEntry = wal.extractLatestOffset();
+    if (latestOffsetEntry != null) {
+      long lastCommittedOffset = latestOffsetEntry.getOffset();
+      log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
+      offset = lastCommittedOffset + 1;
+      log.trace("Next offset to read: {}", offset);
+      return;
+    }
+
+    // Use the recursive filename scan approach
+    log.debug("Could not use WAL approach for recovering offsets, "
+        + "searching for latest offsets on filesystem.");
     String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
     CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
     FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
@@ -616,23 +633,6 @@ public class TopicPartitionWriter {
       offset = lastCommittedOffsetToHdfs + 1;
       log.trace("Next offset to read: {}", offset);
     }
-  }
-
-  /**
-   * Read the most recently committed offset from the WAL file.
-   *
-   * @return whether a valid offset was read
-   */
-  private boolean readOffsetFromWAL() {
-    FilePathOffset latestOffsetEntry = wal.extractLatestOffset();
-    if (latestOffsetEntry == null) {
-      return false;
-    }
-    long lastCommittedOffset = latestOffsetEntry.getOffset();
-    log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
-    offset = lastCommittedOffset + 1;
-    log.trace("Next offset to read: {}", offset);
-    return true;
   }
 
   private void pause() {
@@ -707,12 +707,7 @@ public class TopicPartitionWriter {
 
   private void resetOffsets() throws ConnectException {
     if (!recovered) {
-      if (!readOffsetFromWAL()) {
-        // fallback on recursive filename search approach
-        log.debug("Could not use WAL approach for recovering offsets, "
-            + "searching for latest offsets on filesystem.");
-        readOffsetFromFilenames();
-      }
+      readOffset();
       // Note that we must *always* request that we seek to an offset here. Currently the
       // framework will still commit Kafka offsets even though we track our own (see KAFKA-3462),
       // which can result in accidentally using that offset if one was committed but no files
