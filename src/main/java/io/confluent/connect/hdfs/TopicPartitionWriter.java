@@ -855,10 +855,10 @@ public class TopicPartitionWriter {
   }
 
   private void commitFile(String encodedPartition) {
-    log.debug("Committing file for partition {}", encodedPartition);
     if (!startOffsets.containsKey(encodedPartition)) {
       return;
     }
+    log.debug("Committing file for partition {}", encodedPartition);
     long startOffset = startOffsets.get(encodedPartition);
     long endOffset = offsets.get(encodedPartition);
     String tempFile = tempFiles.get(encodedPartition);
