@@ -190,11 +190,11 @@ public class FSWAL implements WAL {
 
   /**
    * Extract the latest offset and file path from the WAL file.
-   * Attempt with the most recent WAL file, and fall back to the old file if it's not applicable.
+   * Attempt with the most recent WAL file and fall back to the old file if it's not applicable.
    *
    * <p> The old WAL is used when the most recent WAL file has already been truncated
-   * and is not existent, which may happen when the connector has flushed all records,
-   * and is restarted. </p>
+   * and does not exist, which may happen when the connector is restarted after having flushed
+   * all the records. </p>
    *
    * @return the latest offset and filepath from the WAL file or null
    */

@@ -617,7 +617,7 @@ public class TopicPartitionWriter {
 
     // Use the recursive filename scan approach
     log.debug("Could not use WAL approach for recovering offsets, "
-        + "searching for latest offsets on filesystem.");
+        + "searching for latest offsets on HDFS.");
     String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
     CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
     FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
