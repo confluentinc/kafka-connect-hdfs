@@ -115,9 +115,11 @@ public class HdfsSinkTask extends SinkTask {
       throw e;
     }
 
-    log.info("The connector relies on offsets in HDFS filenames, but does commit these offsets to "
-        + "Connect to enable monitoring progress of the HDFS connector. Upon startup, the HDFS "
-        + "Connector restores offsets from filenames in HDFS. In the absence of files in HDFS, "
+    log.info("The connector relies on offsets in the WAL files, if these are not present it uses "
+        + "the filenames in HDFS. In both cases the connector commits offsets to Connect to "
+        + "enable monitoring progress of the HDFS connector. Upon startup, the HDFS "
+        + "Connector restores offsets from the WAL log files, if these are not present it "
+        + "uses the filenames in HDFS. In the absence of files in HDFS, "
         + "the connector will attempt to find offsets for its consumer group in the "
         + "'__consumer_offsets' topic. If offsets are not found, the consumer will "
         + "rely on the reset policy specified in the 'consumer.auto.offset.reset' property to "
