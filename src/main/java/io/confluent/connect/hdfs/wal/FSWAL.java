@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -251,7 +252,7 @@ public class FSWAL implements WAL {
   private List<String> getLastFilledBlockFromWAL(Reader reader) throws IOException {
     // In a WAL entry the temp filenames (keys) don't contain offset info,
     // so we only need to track the committed filename (values).
-    List<String> committedFilenames = new ArrayList<>();
+    List<String> committedFilenames = Collections.emptyList();
     // enables skipping corrupted blocks that are missing an END marker,
     // only valid blocks will be moved to committedFilenames
     List<String> tempFilenames = new ArrayList<>();
@@ -272,8 +273,7 @@ public class FSWAL implements WAL {
       } else if (keyName.equals(endMarker)) {
         if (entryBlockStarted && !tempFilenames.isEmpty()) {
           // only save non-empty blocks
-          committedFilenames.clear();
-          committedFilenames.addAll(tempFilenames);
+          committedFilenames = new ArrayList<>(tempFilenames);
         }
         tempFilenames.clear();
         entryBlockStarted = false;
@@ -339,11 +339,11 @@ public class FSWAL implements WAL {
   @Override
   public void truncate() throws ConnectException {
     try {
-      String oldLogFile = logFile + TRUNCATED_LOG_EXTENSION;
       if (storage.exists(logFile)) {
         log.debug("Truncating WAL file: {}", logFile);
         // The old WAL file should only be deleted if there is a new one to replace it.
         // Otherwise the old log file will be lost on 2+ restarts with an empty buffer.
+        String oldLogFile = logFile + TRUNCATED_LOG_EXTENSION;
         storage.delete(oldLogFile);
         storage.commit(logFile, oldLogFile);
       }
