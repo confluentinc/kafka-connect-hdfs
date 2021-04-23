@@ -928,6 +928,15 @@ public class WALFile {
     }
 
     /**
+     * Seek to the start of the file after the header.
+     *
+     * @throws IOException if unable to seek to the end of the header
+     */
+    public void seekToFirstRecord() throws IOException {
+      in.seek(headerEnd);
+    }
+
+    /**
      * Seek to the next sync mark past a given position.
      *
      * @param position sync mark will be found past the given position.
