@@ -196,6 +196,9 @@ public class FSWAL implements WAL {
    * and does not exist, which may happen when the connector is restarted after having flushed
    * all the records. </p>
    *
+   * <p> If the recent WAL exists but is corrupted, using the old WAL is not applicable. The old
+   * WAL would contain older offsets than the files in HDFS. In this case null is returned. </p>
+   *
    * @return the latest offset and filepath from the WAL file or null
    */
   @Override
@@ -338,8 +341,12 @@ public class FSWAL implements WAL {
     log.debug("Truncating WAL file: {}", logFile);
     try {
       String oldLogFile = logFile + TRUNCATED_LOG_EXTENSION;
-      storage.delete(oldLogFile);
-      storage.commit(logFile, oldLogFile);
+      if (storage.exists(logFile)) {
+        // The old WAL file should only be deleted if there is a new one to replace it.
+        // Otherwise the old log file will be lost on 2+ restarts with an empty buffer.
+        storage.delete(oldLogFile);
+        storage.commit(logFile, oldLogFile);
+      }
     } finally {
       close();
     }
