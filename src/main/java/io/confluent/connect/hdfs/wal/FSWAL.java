@@ -338,10 +338,10 @@ public class FSWAL implements WAL {
 
   @Override
   public void truncate() throws ConnectException {
-    log.debug("Truncating WAL file: {}", logFile);
     try {
       String oldLogFile = logFile + TRUNCATED_LOG_EXTENSION;
       if (storage.exists(logFile)) {
+        log.debug("Truncating WAL file: {}", logFile);
         // The old WAL file should only be deleted if there is a new one to replace it.
         // Otherwise the old log file will be lost on 2+ restarts with an empty buffer.
         storage.delete(oldLogFile);
