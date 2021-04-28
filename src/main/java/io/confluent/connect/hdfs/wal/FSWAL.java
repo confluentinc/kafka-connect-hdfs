@@ -144,7 +144,8 @@ public class FSWAL implements WAL {
       log.warn("Truncating and skipping corrupt WAL file '{}'.", logFile);
       close();
     } catch (CannotObtainBlockLengthException e) {
-      log.error("Error applying WAL file '{}'as not able to obtain block length: {}", logFile, e);
+      log.error("Error applying WAL file '{}' because the task cannot obtain block length: {}",
+          logFile, e);
       log.warn("Truncating and skipping the WAL file '{}'.", logFile);
       close();
     } catch (IOException e) {
