@@ -20,6 +20,7 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
+import org.apache.hadoop.hdfs.CannotObtainBlockLengthException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -141,6 +142,11 @@ public class FSWAL implements WAL {
     } catch (CorruptWalFileException e) {
       log.error("Error applying WAL file '{}' because it is corrupted: {}", logFile, e);
       log.warn("Truncating and skipping corrupt WAL file '{}'.", logFile);
+      close();
+    } catch (CannotObtainBlockLengthException e) {
+      log.error("Error applying WAL file '{}' because the task cannot obtain "
+          + "the block length from HDFS: {}", logFile, e);
+      log.warn("Truncating and skipping the WAL file '{}'.", logFile);
       close();
     } catch (IOException e) {
       log.error("Error applying WAL file: {}, {}", logFile, e);

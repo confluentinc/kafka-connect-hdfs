@@ -308,4 +308,19 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     }
   }
 
+  @Test
+  public void testApply() throws Exception {
+    setUp();
+    System.out.println("Testing testApply...");
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    TopicPartition tp = new TopicPartition("mytopic", 123);
+    FSWAL wal = new FSWAL("/logs", tp, storage);
+    wal.append("a", "b");
+    assertTrue("WAL file should exist after append",
+            storage.exists("/logs/mytopic/123/log"));
+    wal.apply();
+    wal.append("x", "y");
+    wal.apply();
+  }
+
 }
