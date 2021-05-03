@@ -157,29 +157,7 @@ public class DataWriter {
         log.info("Login as: " + ugi.getUserName());
 
         isRunning = true;
-        ticketRenewThread = new Thread(new Runnable() {
-          @Override
-          public void run() {
-            synchronized (DataWriter.this) {
-              while (isRunning) {
-                try {
-                  DataWriter.this.wait(config.kerberosTicketRenewPeriodMs());
-                  if (isRunning) {
-                    ugi.reloginFromKeytab();
-                  }
-                } catch (IOException e) {
-                  // We ignore this exception during relogin as each successful relogin gives
-                  // additional 24 hours of authentication in the default config. In normal
-                  // situations, the probability of failing relogin 24 times is low and if
-                  // that happens, the task will fail eventually.
-                  log.error("Error renewing the ticket", e);
-                } catch (InterruptedException e) {
-                  // ignored
-                }
-              }
-            }
-          }
-        });
+        ticketRenewThread = new Thread(() -> renewKerberosTicket(ugi));
         log.info(
             "Starting the Kerberos ticket renew thread with period {} ms.",
             config.kerberosTicketRenewPeriodMs()
@@ -621,5 +599,26 @@ public class DataWriter {
     map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
     map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
     return map;
+  }
+
+  private void renewKerberosTicket(UserGroupInformation ugi) {
+    synchronized (DataWriter.this) {
+      while (isRunning) {
+        try {
+          DataWriter.this.wait(connectorConfig.kerberosTicketRenewPeriodMs());
+          if (isRunning) {
+            ugi.reloginFromKeytab();
+          }
+        } catch (IOException e) {
+          // We ignore this exception during relogin as each successful relogin gives
+          // additional 24 hours of authentication in the default config. In normal
+          // situations, the probability of failing relogin 24 times is low and if
+          // that happens, the task will fail eventually.
+          log.error("Error renewing the ticket", e);
+        } catch (InterruptedException e) {
+          // ignored
+        }
+      }
+    }
   }
 }
