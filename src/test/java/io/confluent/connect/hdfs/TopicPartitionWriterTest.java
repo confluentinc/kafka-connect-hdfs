@@ -13,13 +13,8 @@
  * specific language governing permissions and limitations under the License.
  */
 
-package io.confluent.connect.hdfs.avro;
+package io.confluent.connect.hdfs;
 
-import io.confluent.connect.hdfs.wal.FSWAL;
-import io.confluent.connect.hdfs.wal.WALFile.Writer;
-import io.confluent.connect.hdfs.wal.WALFileTest;
-import io.confluent.connect.hdfs.wal.WALFileTest.CorruptWriter;
-import io.confluent.connect.storage.wal.WAL;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -45,12 +40,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import io.confluent.common.utils.MockTime;
-import io.confluent.connect.hdfs.DataWriter;
-import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriterProvider;
-import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.hdfs.TopicPartitionWriter;
+import io.confluent.connect.hdfs.avro.AvroDataFileReader;
 import io.confluent.connect.hdfs.filter.CommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
@@ -58,11 +48,16 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.hdfs.partitioner.TimeBasedPartitioner;
 import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
+import io.confluent.connect.hdfs.wal.FSWAL;
+import io.confluent.connect.hdfs.wal.WALFile.Writer;
+import io.confluent.connect.hdfs.wal.WALFileTest;
+import io.confluent.connect.hdfs.wal.WALFileTest.CorruptWriter;
 import io.confluent.connect.storage.StorageFactory;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.partitioner.DailyPartitioner;
 import io.confluent.connect.storage.partitioner.HourlyPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import io.confluent.connect.storage.wal.WAL;
 
 import static io.confluent.connect.storage.StorageSinkConnectorConfig.FLUSH_SIZE_CONFIG;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
