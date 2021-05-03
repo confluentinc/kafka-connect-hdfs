@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs;
 
-import java.net.UnknownHostException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -34,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -267,30 +267,7 @@ public class DataWriter {
       log.info("Login as: " + ugi.getUserName());
 
       isRunning = true;
-      ticketRenewThread = new Thread(new Runnable() {
-        @Override
-        public void run() {
-          synchronized (DataWriter.this) {
-            while (isRunning) {
-              try {
-                DataWriter.this.wait(connectorConfig.kerberosTicketRenewPeriodMs());
-                if (isRunning) {
-                  log.debug("Attempting re-login from keytab for user: {}", ugi.getUserName());
-                  ugi.reloginFromKeytab();
-                }
-              } catch (IOException e) {
-                // We ignore this exception during relogin as each successful relogin gives
-                // additional 24 hours of authentication in the default config. In normal
-                // situations, the probability of failing relogin 24 times is low and if
-                // that happens, the task will fail eventually.
-                log.error("Error renewing the ticket", e);
-              } catch (InterruptedException e) {
-                // ignored
-              }
-            }
-          }
-        }
-      });
+      ticketRenewThread = new Thread(() -> renewKerberosTicket(ugi));
     } catch (UnknownHostException e) {
       throw new ConnectException(
           String.format(
@@ -672,5 +649,27 @@ public class DataWriter {
     map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
     map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
     return map;
+  }
+
+  private void renewKerberosTicket(UserGroupInformation ugi) {
+    synchronized (DataWriter.this) {
+      while (isRunning) {
+        try {
+          DataWriter.this.wait(connectorConfig.kerberosTicketRenewPeriodMs());
+          if (isRunning) {
+            log.debug("Attempting re-login from keytab for user: {}", ugi.getUserName());
+            ugi.reloginFromKeytab();
+          }
+        } catch (IOException e) {
+          // We ignore this exception during relogin as each successful relogin gives
+          // additional 24 hours of authentication in the default config. In normal
+          // situations, the probability of failing relogin 24 times is low and if
+          // that happens, the task will fail eventually.
+          log.error("Error renewing the ticket", e);
+        } catch (InterruptedException e) {
+          // ignored
+        }
+      }
+    }
   }
 }
