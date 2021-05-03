@@ -90,9 +90,7 @@ public class SchemaSourceTask extends SourceTask {
       topic = props.get(TOPIC_CONFIG);
       maxNumMsgs = Long.parseLong(props.get(NUM_MSGS_CONFIG));
       multipleSchema = Boolean.parseBoolean(props.get(MULTIPLE_SCHEMA_CONFIG));
-      partitionCount = Integer.parseInt(
-          props.containsKey(PARTITION_COUNT_CONFIG) ? props.get(PARTITION_COUNT_CONFIG) : "1"
-      );
+      partitionCount = Integer.parseInt(props.getOrDefault(PARTITION_COUNT_CONFIG, "1"));
       String throughputStr = props.get(THROUGHPUT_CONFIG);
       if (throughputStr != null) {
         long throughput = Long.parseLong(throughputStr);

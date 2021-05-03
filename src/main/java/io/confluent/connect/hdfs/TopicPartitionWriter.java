@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -879,46 +878,37 @@ public class TopicPartitionWriter {
   }
 
   private void createHiveTable() {
-    Future<Void> future = executorService.submit(new Callable<Void>() {
-      @Override
-      public Void call() throws HiveMetaStoreException {
-        try {
-          hive.createTable(hiveDatabase, tp.topic(), currentSchema, partitioner);
-        } catch (Throwable e) {
-          log.error("Creating Hive table threw unexpected error", e);
-        }
-        return null;
+    Future<Void> future = executorService.submit(() -> {
+      try {
+        hive.createTable(hiveDatabase, tp.topic(), currentSchema, partitioner);
+      } catch (Throwable e) {
+        log.error("Creating Hive table threw unexpected error", e);
       }
+      return null;
     });
     hiveUpdateFutures.add(future);
   }
 
   private void alterHiveSchema() {
-    Future<Void> future = executorService.submit(new Callable<Void>() {
-      @Override
-      public Void call() throws HiveMetaStoreException {
-        try {
-          hive.alterSchema(hiveDatabase, tp.topic(), currentSchema);
-        } catch (Throwable e) {
-          log.error("Altering Hive schema threw unexpected error", e);
-        }
-        return null;
+    Future<Void> future = executorService.submit(() -> {
+      try {
+        hive.alterSchema(hiveDatabase, tp.topic(), currentSchema);
+      } catch (Throwable e) {
+        log.error("Altering Hive schema threw unexpected error", e);
       }
+      return null;
     });
     hiveUpdateFutures.add(future);
   }
 
   private void addHivePartition(final String location) {
-    Future<Void> future = executorService.submit(new Callable<Void>() {
-      @Override
-      public Void call() throws Exception {
-        try {
-          hiveMetaStore.addPartition(hiveDatabase, tp.topic(), location);
-        } catch (Throwable e) {
-          log.error("Adding Hive partition threw unexpected error", e);
-        }
-        return null;
+    Future<Void> future = executorService.submit(() -> {
+      try {
+        hiveMetaStore.addPartition(hiveDatabase, tp.topic(), location);
+      } catch (Throwable e) {
+        log.error("Adding Hive partition threw unexpected error", e);
       }
+      return null;
     });
     hiveUpdateFutures.add(future);
   }
