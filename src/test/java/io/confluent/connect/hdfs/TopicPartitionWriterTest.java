@@ -12,8 +12,9 @@
  * the License.
  **/
 
-package io.confluent.connect.hdfs.avro;
+package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.avro.AvroDataFileReader;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -38,12 +39,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import io.confluent.common.utils.MockTime;
-import io.confluent.connect.hdfs.DataWriter;
-import io.confluent.connect.hdfs.FileUtils;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.RecordWriterProvider;
-import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.hdfs.TopicPartitionWriter;
 import io.confluent.connect.hdfs.filter.CommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
@@ -60,7 +55,6 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import static io.confluent.connect.storage.StorageSinkConnectorConfig.FLUSH_SIZE_CONFIG;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {

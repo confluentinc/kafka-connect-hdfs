@@ -129,11 +129,11 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
-        Arrays.<Object>asList(HdfsStorage.class)
+        Arrays.asList(HdfsStorage.class)
     );
 
     FORMAT_CLASS_RECOMMENDER.addValidValues(
-        Arrays.<Object>asList(
+        Arrays.asList(
             AvroFormat.class,
             JsonFormat.class,
             ParquetFormat.class,
@@ -142,7 +142,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     );
 
     PARTITIONER_CLASS_RECOMMENDER.addValidValues(
-        Arrays.<Object>asList(
+        Arrays.asList(
             DefaultPartitioner.class,
             HourlyPartitioner.class,
             DailyPartitioner.class,
