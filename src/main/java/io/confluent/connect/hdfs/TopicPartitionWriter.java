@@ -828,13 +828,13 @@ public class TopicPartitionWriter {
     log.debug("Committing files");
     appended.clear();
 
-    long latestCommitted = -1;
-    for (String encodedPartition : tempFiles.keySet()) {
-      long endOffset = commitFile(encodedPartition);
-      latestCommitted = Math.max(latestCommitted, endOffset);
-    }
 
-    if (latestCommitted != -1) {
+    // commit all files and get the latest committed offset
+    long latestCommitted = tempFiles.keySet().stream()
+        .mapToLong(this::commitFile)
+        .max()
+        .orElse(-1);
+    if (latestCommitted > -1) {
       offset = latestCommitted + 1;
     }
   }
