@@ -828,7 +828,6 @@ public class TopicPartitionWriter {
     log.debug("Committing files");
     appended.clear();
 
-
     // commit all files and get the latest committed offset
     long latestCommitted = tempFiles.keySet().stream()
         .mapToLong(this::commitFile)
