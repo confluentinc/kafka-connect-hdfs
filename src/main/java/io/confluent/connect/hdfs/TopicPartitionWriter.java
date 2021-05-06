@@ -99,7 +99,7 @@ public class TopicPartitionWriter {
   private final Set<String> appended;
   private long offset;
   private final Map<String, Long> startOffsets;
-  private final Map<String, Long> offsets;
+  private final Map<String, Long> endOffsets;
   private final long timeoutMs;
   private long failureTime;
   private final StorageSchemaCompatibility compatibility;
@@ -203,7 +203,7 @@ public class TopicPartitionWriter {
     tempFiles = new HashMap<>();
     appended = new HashSet<>();
     startOffsets = new HashMap<>();
-    offsets = new HashMap<>();
+    endOffsets = new HashMap<>();
     state = State.RECOVERY_STARTED;
     failureTime = -1L;
     // The next offset to consume after the last commit (one more than last offset written to HDFS)
@@ -374,7 +374,7 @@ public class TopicPartitionWriter {
                         + "and end offsets {}",
                     tp,
                     startOffsets,
-                    offsets
+                    endOffsets
                 );
                 nextState();
                 // Fall through and try to rotate immediately
@@ -500,7 +500,7 @@ public class TopicPartitionWriter {
       exceptions.add(e);
     }
     startOffsets.clear();
-    offsets.clear();
+    endOffsets.clear();
 
     if (exceptions.size() != 0) {
       StringBuilder sb = new StringBuilder();
@@ -722,7 +722,7 @@ public class TopicPartitionWriter {
     if (!startOffsets.containsKey(encodedPartition)) {
       startOffsets.put(encodedPartition, record.kafkaOffset());
     }
-    offsets.put(encodedPartition, record.kafkaOffset());
+    endOffsets.put(encodedPartition, record.kafkaOffset());
     recordCounter++;
   }
 
@@ -769,7 +769,7 @@ public class TopicPartitionWriter {
           log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
         }
         startOffsets.remove(encodedPartition);
-        offsets.remove(encodedPartition);
+        endOffsets.remove(encodedPartition);
         buffer.clear();
       }
 
@@ -790,7 +790,7 @@ public class TopicPartitionWriter {
       return;
     }
     long startOffset = startOffsets.get(encodedPartition);
-    long endOffset = offsets.get(encodedPartition);
+    long endOffset = endOffsets.get(encodedPartition);
     String directory = getDirectory(encodedPartition);
     String committedFile = FileUtils.committedFileName(
         url,
@@ -829,18 +829,24 @@ public class TopicPartitionWriter {
   private void commitFile() {
     log.debug("Committing files");
     appended.clear();
-    for (String encodedPartition : tempFiles.keySet()) {
-      commitFile(encodedPartition);
+
+    // commit all files and get the latest committed offset
+    long latestCommitted = tempFiles.keySet().stream()
+        .mapToLong(this::commitFile)
+        .max()
+        .orElse(-1);
+    if (latestCommitted > -1) {
+      offset = latestCommitted + 1;
     }
   }
 
-  private void commitFile(String encodedPartition) {
+  private long commitFile(String encodedPartition) {
     log.debug("Committing file for partition {}", encodedPartition);
     if (!startOffsets.containsKey(encodedPartition)) {
-      return;
+      return -1;
     }
     long startOffset = startOffsets.get(encodedPartition);
-    long endOffset = offsets.get(encodedPartition);
+    long endOffset = endOffsets.get(encodedPartition);
     String tempFile = tempFiles.get(encodedPartition);
     String directory = getDirectory(encodedPartition);
     String committedFile = FileUtils.committedFileName(
@@ -860,10 +866,11 @@ public class TopicPartitionWriter {
     }
     storage.commit(tempFile, committedFile);
     startOffsets.remove(encodedPartition);
-    offsets.remove(encodedPartition);
-    offset = offset + recordCounter; // offset of next record to be reading
+    endOffsets.remove(encodedPartition);
     recordCounter = 0;
     log.info("Committed {} for {}", committedFile, tp);
+
+    return endOffset;
   }
 
   private void deleteTempFile(String encodedPartition) {
