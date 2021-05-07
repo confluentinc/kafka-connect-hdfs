@@ -173,7 +173,7 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     Set<Path> expectedFiles = new HashSet<>();
     for (int i = 0; i < records.size() - 1; i++) {
       String directory = partitioner.generatePartitionedPath(TOPIC, partitionField + "=" + records.get(i).get("int"));
-      expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir, directory, TOPIC_PARTITION, i * 10, i * 10, extension, zeroPadFormat)));
+      expectedFiles.add(new Path(FileUtils.committedFileName(url, topicsDir.get(TOPIC), directory, TOPIC_PARTITION, i * 10, i * 10, extension, zeroPadFormat)));
     }
 
     records.sort(Comparator.comparingInt(s -> (int) s.get("int")));
