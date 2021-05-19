@@ -114,6 +114,7 @@ public class TopicPartitionWriter {
   private final ExecutorService executorService;
   private final Queue<Future<Void>> hiveUpdateFutures;
   private final Set<String> hivePartitions;
+  private Path recoveredFileWithMaxOffsets;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -186,7 +187,7 @@ public class TopicPartitionWriter {
     this.url = storage.url();
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
-
+    recoveredFileWithMaxOffsets = null;
     topicsDir = config.getTopicsDirFromTopic(tp.topic());
     flushSize = config.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = config.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
@@ -611,6 +612,7 @@ public class TopicPartitionWriter {
       log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
       offset = lastCommittedOffset + 1;
       log.trace("Next offset to read: {}", offset);
+      recoveredFileWithMaxOffsets = new Path(latestOffsetEntry.getFilePath());
       return;
     }
 
@@ -631,6 +633,7 @@ public class TopicPartitionWriter {
       // `offset` represents the next offset to read after the most recent commit
       offset = lastCommittedOffsetToHdfs + 1;
       log.trace("Next offset to read: {}", offset);
+      recoveredFileWithMaxOffsets = fileStatusWithMaxOffset.getPath();
     }
   }
 
@@ -934,6 +937,10 @@ public class TopicPartitionWriter {
       return null;
     });
     hiveUpdateFutures.add(future);
+  }
+
+  public Path getRecoveredFileWithMaxOffsets() {
+    return recoveredFileWithMaxOffsets;
   }
 
   private enum State {
