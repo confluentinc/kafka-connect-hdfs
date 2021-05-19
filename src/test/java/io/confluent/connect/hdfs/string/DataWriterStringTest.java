@@ -50,8 +50,8 @@ public class DataWriterStringTest extends TestWithMiniDFSCluster {
   @Test
   public void testReadString() throws Exception {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
     partitioner = hdfsWriter.getPartitioner();
-    hdfsWriter.recover(TOPIC_PARTITION);
 
     List<SinkRecord> sinkRecords = createStringRecords(
         7 * context.assignment().size(),
