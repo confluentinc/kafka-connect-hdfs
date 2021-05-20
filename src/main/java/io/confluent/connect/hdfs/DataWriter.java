@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs;
 
-import io.confluent.connect.storage.errors.HiveMetaStoreException;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -360,54 +359,9 @@ public class DataWriter {
             connectorConfig.getTopicsDirFromTopic(topic),
             topic
         );
-        attemptCreatingHiveTable(topic, topicDir, latestSchema);
+        createHiveTable(topic, topicDir, latestSchema);
       }
     }
-  }
-
-  /**
-   * Attempt to create a Hive table based on a file's schema from the topic.
-   *
-   * @param topic the name of the topic
-   * @param topicDir the directory of the topic
-   * @param latestSchema the schema of the latest file
-   */
-  private void attemptCreatingHiveTable(String topic, String topicDir, Schema latestSchema) {
-    try {
-      hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
-      List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, topic, (short) -1);
-      FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
-      for (FileStatus status : statuses) {
-        String location = status.getPath().toString();
-        if (!partitions.contains(location)) {
-          String partitionValue = getPartitionValue(location);
-          hiveMetaStore.addPartition(hiveDatabase, topic, partitionValue);
-        }
-      }
-    } catch (HiveMetaStoreException e) {
-      log.warn("Could not create Hive table: {}", e.getMessage());
-    } catch (IOException e) {
-      throw new ConnectException(e);
-    }
-  }
-
-
-  /**
-   * Get the latest file written for a topic. Go through the topic partition writers
-   * for a topic and make use of the already computed latest file in recover.
-   */
-  private Path getLatestFilePathForTopic(String topic) {
-    long greatestOffset = -1;
-    Path latestFilePath = null;
-    for (TopicPartitionWriter tp : topicPartitionWriters.values()) {
-      if (tp.topicPartition().topic().equals(topic)) {
-        if (tp.offset() > greatestOffset) {
-          greatestOffset = tp.offset();
-          latestFilePath = tp.getRecoveredFileWithMaxOffsets();
-        }
-      }
-    }
-    return latestFilePath;
   }
 
   public void open(Collection<TopicPartition> partitions) {
@@ -656,5 +610,54 @@ public class DataWriter {
         }
       }
     }
+  }
+
+  /**
+   * Attempt to create a Hive table based on a file's schema from the topic.
+   *
+   * @param topic the name of the topic
+   * @param topicDir the directory of the topic
+   * @param latestSchema the schema of the latest file
+   */
+  private void createHiveTable(String topic, String topicDir, Schema latestSchema) {
+    try {
+      hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
+      List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, topic, (short) -1);
+      FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
+      for (FileStatus status : statuses) {
+        String location = status.getPath().toString();
+        if (!partitions.contains(location)) {
+          String partitionValue = getPartitionValue(location);
+          hiveMetaStore.addPartition(hiveDatabase, topic, partitionValue);
+        }
+      }
+    } catch (IOException e) {
+      throw new ConnectException(
+          String.format("Error creating Hive table: %s", e.getMessage()),
+          e
+      );
+    }
+  }
+
+  /**
+   * Get the latest file written for a topic. Go through the topic partition writers
+   * for a topic and make use of the already computed latest file in recover.
+   *
+   * @param topic the topic to get the most recently written file for
+   *
+   * @return the path of the latest file in the topic
+   */
+  private Path getLatestFilePathForTopic(String topic) {
+    long greatestOffset = -1;
+    Path latestFilePath = null;
+    for (TopicPartitionWriter tp : topicPartitionWriters.values()) {
+      if (tp.topicPartition().topic().equals(topic)) {
+        if (tp.offset() > greatestOffset) {
+          greatestOffset = tp.offset();
+          latestFilePath = tp.getRecoveredFileWithMaxOffsets();
+        }
+      }
+    }
+    return latestFilePath;
   }
 }
