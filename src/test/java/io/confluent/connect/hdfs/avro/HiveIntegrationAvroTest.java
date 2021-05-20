@@ -68,7 +68,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   public void testSyncWithHiveAvro() throws Exception {
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
@@ -90,6 +90,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
 
     hdfsWriter = new DataWriter(config, context, avroData);
+    hdfsWriter.open(context.assignment());
     hdfsWriter.syncWithHive();
 
     List<String> expectedColumnNames = new ArrayList<>();
@@ -122,7 +123,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
@@ -169,7 +170,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     context.assignment().add(TOPIC_WITH_DOTS_PARTITION);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_WITH_DOTS_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
@@ -218,6 +219,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, batchSize, batchNum);
@@ -299,6 +301,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "country,state");
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     Schema schema = SchemaBuilder.struct()
         .field("count", Schema.INT64_SCHEMA)
@@ -380,6 +383,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();

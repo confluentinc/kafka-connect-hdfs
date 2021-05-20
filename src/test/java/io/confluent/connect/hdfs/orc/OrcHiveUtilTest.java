@@ -151,9 +151,8 @@ public class OrcHiveUtilTest extends HiveTestBase {
   }
 
   private void prepareData(String topic, int partition) {
-    TopicPartition tp = new TopicPartition(topic, partition);
     DataWriter hdfsWriter = createWriter(context, avroData);
-    hdfsWriter.recover(tp);
+    hdfsWriter.open(context.assignment());
     String key = "key";
     Schema schema = createSchema();
     Struct record = createRecord(schema);

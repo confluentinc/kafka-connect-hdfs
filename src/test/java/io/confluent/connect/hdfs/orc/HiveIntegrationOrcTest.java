@@ -65,7 +65,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
   public void testSyncWithHiveOrc() throws Exception {
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
@@ -77,7 +77,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(createProps());
 
     hdfsWriter = new DataWriter(config, context, avroData);
-    hdfsWriter.syncWithHive();
+    hdfsWriter.open(context.assignment());
 
     Schema schema = createSchema();
     Struct expectedRecord = createRecord(schema);
@@ -113,7 +113,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     setUp();
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
@@ -150,6 +150,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 3);
@@ -221,6 +222,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 3);

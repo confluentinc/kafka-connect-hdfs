@@ -68,7 +68,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
   public void testSyncWithHiveParquet() throws Exception {
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
@@ -80,7 +80,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(createProps());
 
     hdfsWriter = new DataWriter(config, context, avroData);
-    hdfsWriter.syncWithHive();
+    hdfsWriter.open(context.assignment());
 
     Schema schema = createSchema();
     Struct expectedRecord = createRecord(schema);
@@ -117,7 +117,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     setUp();
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
@@ -157,6 +157,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, batchSize, batchNum);
@@ -238,6 +239,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "country,state");
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     Schema schema = SchemaBuilder.struct()
         .field("count", Schema.INT64_SCHEMA)
@@ -320,6 +322,7 @@ public class HiveIntegrationParquetTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     Schema schema = createSchema();
     List<Struct> records = createRecordBatches(schema, 3, 3);

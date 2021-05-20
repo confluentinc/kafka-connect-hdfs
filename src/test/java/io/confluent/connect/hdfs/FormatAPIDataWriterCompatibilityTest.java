@@ -32,8 +32,7 @@ public class FormatAPIDataWriterCompatibilityTest extends HiveTestBase {
   @Test
   public void dataWriterNewFormatAPICompatibilityTest() {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
@@ -67,8 +66,7 @@ public class FormatAPIDataWriterCompatibilityTest extends HiveTestBase {
   @Test
   public void dataWriterNewFormatAPICompatibilityWithDefaultsTest() {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
