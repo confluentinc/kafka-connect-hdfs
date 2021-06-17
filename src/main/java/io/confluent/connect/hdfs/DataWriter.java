@@ -242,7 +242,7 @@ public class DataWriter {
           connectorConfig.connectHdfsPrincipal(),
           hostname
       );
-      UserGroupInformation.loginUserFromKeytab(principal, connectorConfig.connectHdfsKeytab());
+      //UserGroupInformation.loginUserFromKeytab(principal, connectorConfig.connectHdfsKeytab());
       final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
       log.info("Login as: " + ugi.getUserName());
 
