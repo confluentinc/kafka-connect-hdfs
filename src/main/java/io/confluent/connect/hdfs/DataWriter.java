@@ -409,7 +409,9 @@ public class DataWriter {
           );
           String hiveTableName = connectorConfig.getHiveTableName(topic);
           hive.createTable(hiveDatabase, hiveTableName, latestSchema, partitioner);
-          List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short) -1);
+          List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase,
+                  hiveTableName,
+                  (short) -1);
           FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
           for (FileStatus status : statuses) {
             String location = status.getPath().toString();
