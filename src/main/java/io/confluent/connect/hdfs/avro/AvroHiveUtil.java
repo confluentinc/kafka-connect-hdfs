@@ -86,6 +86,7 @@ public class AvroHiveUtil extends HiveUtil {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
+    // TODO not anymore, do we update the comment or do we need to update the path?
     // tableName is always the topic name
     String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(tableName), tableName);
     table.setDataLocation(new Path(tablePath));

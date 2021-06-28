@@ -49,7 +49,8 @@ import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import static org.junit.Assert.assertEquals;
 
 public class HiveIntegrationAvroTest extends HiveTestBase {
-  private Map<String, String> localProps = new HashMap<>();
+
+  private final Map<String, String> localProps = new HashMap<>();
 
   @Override
   protected Map<String, String> createProps() {
@@ -64,9 +65,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     super.setUp();
   }
 
-  @Test
-  public void testSyncWithHiveAvro() throws Exception {
-    setUp();
+  private void testSyncWithHiveAvro(String tableName) {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_PARTITION);
 
@@ -97,24 +96,44 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
       expectedColumnNames.add(field.name());
     }
 
-    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, tableName);
     List<String> actualColumnNames = new ArrayList<>();
     for (FieldSchema column: table.getSd().getCols()) {
       actualColumnNames.add(column.getName());
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
-    List<String> expectedPartitions = new ArrayList<>();
-    String directory = TOPIC + "/" + "partition=" + String.valueOf(PARTITION);
-    String topicsDir = this.topicsDir.get(TOPIC);
-    expectedPartitions.add(FileUtils.directoryName(url, topicsDir, directory));
-
-    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
+    List<String> expectedPartitions = Arrays.asList(partitionLocation(PARTITION, tableName));
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, tableName, (short)-1);
 
     assertEquals(expectedPartitions, partitions);
 
     hdfsWriter.close();
     hdfsWriter.stop();
+  }
+
+  // TODO, this used to be based on topic name (instead of table name, which is not the same anymore)
+  // do we want to keep it that way?
+  // Previous code:
+  //    String directory = TOPIC + "/partition=" + PARTITION;
+  //    String topicsDir = this.topicsDir.get(TOPIC);
+  private String partitionLocation(int partition, String tableName) {
+    String directory = tableName + "/partition=" + partition;
+    String topicsDir = connectorConfig.getTopicsDirFromTopic(tableName);
+    return FileUtils.directoryName(url, topicsDir, directory);
+  }
+
+  @Test
+  public void testSyncWithHiveAvroCustomTableName() throws Exception {
+    localProps.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, "a-${topic}");
+    setUp();
+    testSyncWithHiveAvro("a-" + TOPIC);
+  }
+
+  @Test
+  public void testSyncWithHiveAvro() throws Exception {
+    setUp();
+    testSyncWithHiveAvro(TOPIC);
   }
 
   @Test

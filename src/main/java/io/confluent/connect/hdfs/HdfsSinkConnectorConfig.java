@@ -91,6 +91,11 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final String HADOOP_HOME_DOC = "The Hadoop home directory.";
   private static final String HADOOP_HOME_DISPLAY = "Hadoop home directory";
 
+  public static final String HIVE_TABLE_NAME_CONFIG = "hive.table.name";
+  public static final String HIVE_TABLE_NAME_DEFAULT = "${topic}";
+  private static final String HIVE_TABLE_NAME_DOC = "The hive table name to use."; // TODO add ${topic} explanation
+  private static final String HIVE_TABLE_NAME_DISPLAY = "Hive table name";
+
   // Storage group
   public static final String TOPIC_CAPTURE_GROUPS_REGEX_CONFIG = "topic.capture.groups.regex";
   public static final String TOPIC_CAPTURE_GROUPS_REGEX_DISPLAY = "Topic Capture Groups Regex";
@@ -231,6 +236,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           ++orderInGroup,
           Width.SHORT,
           HADOOP_HOME_DISPLAY
+      );
+
+      configDef.define(
+            HIVE_TABLE_NAME_CONFIG,
+            Type.STRING,
+            HIVE_TABLE_NAME_DEFAULT,
+            Importance.LOW,
+            HIVE_TABLE_NAME_DOC,
+            group,
+            ++orderInGroup,
+            Width.SHORT,
+            HIVE_TABLE_NAME_DISPLAY
       );
 
       configDef.define(
@@ -543,6 +560,17 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
    */
   public String getTopicsDirFromTopic(String topic) {
     return getDirFromTopic(getString(TOPICS_DIR_CONFIG), topic, topicDirGroupsMaxIndex);
+  }
+
+  /**
+   * Performs all substitutions on {@value HIVE_TABLE_NAME_CONFIG} and calculates the final
+   * hive table name for the given topic
+   *
+   * @param topic String - the topic name
+   * @return String the hive table name
+   */
+  public String getHiveTableName(String topic) {
+    return getString(HIVE_TABLE_NAME_CONFIG).replace("${topic}", topic);
   }
 
   /**
