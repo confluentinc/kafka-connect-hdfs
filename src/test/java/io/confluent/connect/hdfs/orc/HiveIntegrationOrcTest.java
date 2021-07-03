@@ -28,6 +28,7 @@ import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,12 +41,34 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.junit.Assert.assertEquals;
 
+@RunWith(Parameterized.class)
 public class HiveIntegrationOrcTest extends HiveTestBase {
-  private Map<String, String> localProps = new HashMap<>();
+  private final Map<String, String> localProps = new HashMap<>();
+  private final String hiveTableNameConfig;
+
+  public HiveIntegrationOrcTest(String hiveTableNameConfig) {
+    this.hiveTableNameConfig = hiveTableNameConfig;
+  }
+
+  @Parameterized.Parameters(name = "{index}: hiveTableNameConfig={0}")
+  public static Collection<Object[]> data() {
+    return Arrays.asList(new Object[][] {
+            { "${topic}" },
+            { "a-${topic}-table" }
+    });
+  }
+
+  @Before
+  public void beforeTest() {
+    localProps.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, hiveTableNameConfig);
+  }
 
   @Override
   protected Map<String, String> createProps() {
@@ -88,18 +111,16 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
       expectedResult.add(String.valueOf(expectedRecord.get(field.name())));
     }
 
-    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+    String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
     List<String> actualColumnNames = new ArrayList<>();
     for (FieldSchema column : table.getSd().getCols()) {
       actualColumnNames.add(column.getName());
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
-    List<String> expectedPartitions = new ArrayList<>();
-    String directory = TOPIC + "/" + "partition=" + PARTITION;
-    expectedPartitions.add(FileUtils.directoryName(url, topicsDir.get(TOPIC), directory));
-
-    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
+    List<String> expectedPartitions = Arrays.asList(partitionLocation(TOPIC, PARTITION));
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
 
     assertEquals(expectedPartitions, partitions);
 
@@ -122,7 +143,9 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     hdfsWriter.stop();
 
     Schema schema = createSchema();
-    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+
+    String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
     List<String> expectedColumnNames = new ArrayList<>();
     for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
@@ -134,11 +157,9 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     }
     assertEquals(expectedColumnNames, actualColumnNames);
 
-    List<String> expectedPartitions = new ArrayList<>();
-    String directory = TOPIC + "/" + "partition=" + PARTITION;
-    expectedPartitions.add(FileUtils.directoryName(url, topicsDir.get(TOPIC), directory));
+    List<String> expectedPartitions = Arrays.asList(partitionLocation(TOPIC, PARTITION));
 
-    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
 
     assertEquals(expectedPartitions, partitions);
   }
@@ -159,7 +180,8 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     hdfsWriter.close();
     hdfsWriter.stop();
 
-    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+    String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
 
     List<String> expectedColumnNames = new ArrayList<>();
     for (Field field : schema.fields()) {
@@ -185,7 +207,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir.get(TOPIC), directory2));
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir.get(TOPIC), directory3));
 
-    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
 
     assertEquals(expectedPartitions, partitions);
 
@@ -202,7 +224,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
 
     String result = HiveTestUtils.runHive(
         hiveExec,
-        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(hiveTableName)
     );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
@@ -230,7 +252,8 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     hdfsWriter.close();
     hdfsWriter.stop();
 
-    Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
+    String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
 
     List<String> expectedColumnNames = new ArrayList<>();
     for (Field field : schema.fields()) {
@@ -252,7 +275,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     List<String> expectedPartitions = new ArrayList<>();
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir.get(TOPIC), directory));
 
-    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
     assertEquals(expectedPartitions, partitions);
 
     ArrayList<String> partitionFields = new ArrayList<>();
@@ -279,7 +302,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
 
     String result = HiveTestUtils.runHive(
         hiveExec,
-        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
+        "SELECT * FROM " + hiveMetaStore.tableNameConverter(hiveTableName)
     );
     String[] rows = result.split("\n");
     assertEquals(9, rows.length);
@@ -291,4 +314,5 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
       }
     }
   }
+
 }

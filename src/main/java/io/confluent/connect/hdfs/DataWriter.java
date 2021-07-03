@@ -303,9 +303,9 @@ public class DataWriter {
         @Override
         public void createTable(
             String database, String tableName, Schema schema,
-            Partitioner partitioner
+            Partitioner partitioner, String topic
         ) {
-          newHiveUtil.createTable(database, tableName, schema, partitioner);
+          newHiveUtil.createTable(database, tableName, schema, partitioner, topic);
           log.debug("Created Hive table {}", tableName);
         }
 
@@ -408,7 +408,7 @@ public class DataWriter {
               path
           );
           String hiveTableName = connectorConfig.getHiveTableName(topic);
-          hive.createTable(hiveDatabase, hiveTableName, latestSchema, partitioner);
+          hive.createTable(hiveDatabase, hiveTableName, latestSchema, partitioner, topic);
           List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase,
                   hiveTableName,
                   (short) -1);

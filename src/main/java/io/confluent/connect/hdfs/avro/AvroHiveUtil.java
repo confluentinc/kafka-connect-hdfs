@@ -57,9 +57,13 @@ public class AvroHiveUtil extends HiveUtil {
   }
 
   @Override
-  public void createTable(String database, String tableName, Schema schema, Partitioner partitioner)
-      throws HiveMetaStoreException {
-    Table table = constructAvroTable(database, tableName, schema, partitioner);
+  public void createTable(String database,
+                          String tableName,
+                          Schema schema,
+                          Partitioner partitioner,
+                          String topic)
+          throws HiveMetaStoreException {
+    Table table = constructAvroTable(database, tableName, schema, partitioner, topic);
     hiveMetaStore.createTable(table);
   }
 
@@ -80,15 +84,15 @@ public class AvroHiveUtil extends HiveUtil {
       String database,
       String tableName,
       Schema schema,
-      Partitioner partitioner
+      Partitioner partitioner,
+      String topic
   )
       throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
-    // TODO not anymore, do we update the comment or do we need to update the path?
-    // tableName is always the topic name
-    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(tableName), tableName);
+
+    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(topic), topic);
     table.setDataLocation(new Path(tablePath));
     table.setSerializationLib(AVRO_SERDE);
     try {

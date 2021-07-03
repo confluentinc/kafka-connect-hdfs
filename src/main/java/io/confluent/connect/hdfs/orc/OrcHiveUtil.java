@@ -54,9 +54,10 @@ public class OrcHiveUtil extends HiveUtil {
       String database,
       String tableName,
       Schema schema,
-      Partitioner<FieldSchema> partitioner
+      Partitioner<FieldSchema> partitioner,
+      String topic
   ) throws HiveMetaStoreException {
-    Table table = constructOrcTable(database, tableName, schema, partitioner);
+    Table table = constructOrcTable(database, tableName, schema, partitioner, topic);
     hiveMetaStore.createTable(table);
   }
 
@@ -64,15 +65,15 @@ public class OrcHiveUtil extends HiveUtil {
       String database,
       String tableName,
       Schema schema,
-      Partitioner<FieldSchema> partitioner
+      Partitioner<FieldSchema> partitioner,
+      String topic
   ) throws HiveMetaStoreException {
 
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
 
-    // tableName is always the topic name
-    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(tableName), tableName);
+    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(topic), topic);
     table.setDataLocation(new Path(tablePath));
     table.setSerializationLib(getHiveOrcSerde());
 

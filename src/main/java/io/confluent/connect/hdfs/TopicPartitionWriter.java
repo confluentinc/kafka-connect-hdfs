@@ -143,7 +143,7 @@ public class TopicPartitionWriter {
         null,
         null,
         time,
-        "customHiveTableName-" + tp.topic()
+        tp.topic()
     );
   }
 
@@ -907,7 +907,7 @@ public class TopicPartitionWriter {
   private void createHiveTable() {
     Future<Void> future = executorService.submit(() -> {
       try {
-        hive.createTable(hiveDatabase, hiveTableName, currentSchema, partitioner);
+        hive.createTable(hiveDatabase, hiveTableName, currentSchema, partitioner, tp.topic());
       } catch (Throwable e) {
         log.error("Creating Hive table threw unexpected error", e);
       }
