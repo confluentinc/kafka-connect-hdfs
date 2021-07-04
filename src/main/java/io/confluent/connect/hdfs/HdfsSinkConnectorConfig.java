@@ -687,8 +687,8 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     if (invalidMatcher.find()) {
       throw new ConfigException(
               String.format(
-                      "%s: '%s' contains an invalid ${} substitution '%s'. " +
-                              "Valid substitution is '%s'",
+                      "%s: '%s' contains an invalid ${} substitution '%s'. "
+                              + "Valid substitution is '%s'",
                       config,
                       getString(config),
                       invalidMatcher.group(),
