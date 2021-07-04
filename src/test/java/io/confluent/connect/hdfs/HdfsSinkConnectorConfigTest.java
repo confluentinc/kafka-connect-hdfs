@@ -46,6 +46,7 @@ import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
@@ -53,6 +54,32 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   @Override
   public void setUp() throws Exception {
     super.setUp();
+  }
+
+  @Test
+  public void testHiveTableName() {
+    properties.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, "a-${topic}-test");
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    assertEquals("a-test-topic-test",
+            connectorConfig.getHiveTableName("test-topic"));
+  }
+
+  @Test
+  public void testHiveTableNameValidation() {
+    properties.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, "static-table");
+    ConfigException configException = assertThrows(ConfigException.class,
+            () -> new HdfsSinkConnectorConfig(properties));
+    assertEquals(
+            "hive.table.name: 'static-table' has to contain topic substitution '${topic}'.",
+            configException.getMessage());
+
+    properties.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, "${topic}-${extra}");
+    configException = assertThrows(ConfigException.class,
+            () -> new HdfsSinkConnectorConfig(properties));
+    assertEquals(
+            "hive.table.name: '${topic}-${extra}' contains an invalid ${} substitution " +
+                    "'${extra}'. Valid substitution is '${topic}'",
+            configException.getMessage());
   }
 
   @Test
