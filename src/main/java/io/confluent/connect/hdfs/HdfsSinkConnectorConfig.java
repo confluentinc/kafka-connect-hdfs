@@ -96,7 +96,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String HIVE_TABLE_NAME_CONFIG = "hive.table.name";
   public static final String HIVE_TABLE_NAME_DEFAULT = TOPIC_SUBSTITUTION;
   private static final String HIVE_TABLE_NAME_DOC = "The hive table name to use. "
-          + "It supports the use of ${topic} to inject the corresponding topic name.";
+          + "It requires the use of ${topic} to inject the corresponding topic name.";
   private static final String HIVE_TABLE_NAME_DISPLAY = "Hive table name";
 
   // Storage group
@@ -242,18 +242,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
       );
 
       configDef.define(
-            HIVE_TABLE_NAME_CONFIG,
-            Type.STRING,
-            HIVE_TABLE_NAME_DEFAULT,
-            Importance.LOW,
-            HIVE_TABLE_NAME_DOC,
-            group,
-            ++orderInGroup,
-            Width.SHORT,
-            HIVE_TABLE_NAME_DISPLAY
-      );
-
-      configDef.define(
           LOGS_DIR_CONFIG,
           Type.STRING,
           LOGS_DIR_DEFAULT,
@@ -263,6 +251,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           ++orderInGroup,
           Width.SHORT,
           LOGS_DIR_DISPLAY
+      );
+
+      configDef.define(
+              HIVE_TABLE_NAME_CONFIG,
+              Type.STRING,
+              HIVE_TABLE_NAME_DEFAULT,
+              Importance.LOW,
+              HIVE_TABLE_NAME_DOC,
+              group,
+              ++orderInGroup,
+              Width.SHORT,
+              HIVE_TABLE_NAME_DISPLAY
       );
     }
 
