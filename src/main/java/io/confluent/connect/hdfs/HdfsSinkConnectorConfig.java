@@ -96,7 +96,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String HIVE_TABLE_NAME_CONFIG = "hive.table.name";
   public static final String HIVE_TABLE_NAME_DEFAULT = TOPIC_SUBSTITUTION;
   private static final String HIVE_TABLE_NAME_DOC = "The hive table name to use. "
-          + "It requires the use of ${topic} to inject the corresponding topic name.";
+          + "It must contain '${topic}' to inject the corresponding topic name.";
   private static final String HIVE_TABLE_NAME_DISPLAY = "Hive table name";
 
   // Storage group
