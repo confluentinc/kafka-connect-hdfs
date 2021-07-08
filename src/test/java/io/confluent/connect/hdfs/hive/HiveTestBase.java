@@ -15,8 +15,11 @@
 
 package io.confluent.connect.hdfs.hive;
 
+import io.confluent.connect.hdfs.FileUtils;
 import org.junit.After;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
@@ -61,4 +64,17 @@ public class HiveTestBase extends TestWithMiniDFSCluster {
       }
     }
   }
+
+  protected String partitionLocation(String topic, int partition) {
+    return partitionLocation(topic, partition, "partition");
+  }
+
+  protected String partitionLocation(String topic,
+                                     int partition,
+                                     String partitionField) {
+    String directory = topic + "/" + partitionField + "=" + partition;
+    String topicsDir = connectorConfig.getTopicsDirFromTopic(topic);
+    return FileUtils.directoryName(url, topicsDir, directory);
+  }
+
 }

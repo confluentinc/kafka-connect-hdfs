@@ -114,6 +114,7 @@ public class TopicPartitionWriter {
   private final ExecutorService executorService;
   private final Queue<Future<Void>> hiveUpdateFutures;
   private final Set<String> hivePartitions;
+  private final String hiveTableName;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -141,7 +142,8 @@ public class TopicPartitionWriter {
         null,
         null,
         null,
-        time
+        time,
+        tp.topic()
     );
   }
 
@@ -161,8 +163,10 @@ public class TopicPartitionWriter {
           schemaFileReader,
       ExecutorService executorService,
       Queue<Future<Void>> hiveUpdateFutures,
-      Time time
+      Time time,
+      String hiveTableName
   ) {
+    this.hiveTableName = hiveTableName;
     this.time = time;
     this.tp = tp;
     this.context = context;
@@ -903,7 +907,7 @@ public class TopicPartitionWriter {
   private void createHiveTable() {
     Future<Void> future = executorService.submit(() -> {
       try {
-        hive.createTable(hiveDatabase, tp.topic(), currentSchema, partitioner);
+        hive.createTable(hiveDatabase, hiveTableName, currentSchema, partitioner, tp.topic());
       } catch (Throwable e) {
         log.error("Creating Hive table threw unexpected error", e);
       }
@@ -915,7 +919,7 @@ public class TopicPartitionWriter {
   private void alterHiveSchema() {
     Future<Void> future = executorService.submit(() -> {
       try {
-        hive.alterSchema(hiveDatabase, tp.topic(), currentSchema);
+        hive.alterSchema(hiveDatabase, hiveTableName, currentSchema);
       } catch (Throwable e) {
         log.error("Altering Hive schema threw unexpected error", e);
       }
@@ -927,7 +931,7 @@ public class TopicPartitionWriter {
   private void addHivePartition(final String location) {
     Future<Void> future = executorService.submit(() -> {
       try {
-        hiveMetaStore.addPartition(hiveDatabase, tp.topic(), location);
+        hiveMetaStore.addPartition(hiveDatabase, hiveTableName, location);
       } catch (Throwable e) {
         log.error("Adding Hive partition threw unexpected error", e);
       }

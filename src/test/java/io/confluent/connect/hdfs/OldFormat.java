@@ -89,7 +89,7 @@ public class OldFormat implements Format {
       @Override
       public void createTable(
           String database, String tableName, Schema schema,
-          Partitioner partitioner
+          Partitioner partitioner, String topic
       ) {
         // Intentionally empty
       }

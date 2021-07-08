@@ -303,9 +303,9 @@ public class DataWriter {
         @Override
         public void createTable(
             String database, String tableName, Schema schema,
-            Partitioner partitioner
+            Partitioner partitioner, String topic
         ) {
-          newHiveUtil.createTable(database, tableName, schema, partitioner);
+          newHiveUtil.createTable(database, tableName, schema, partitioner, topic);
           log.debug("Created Hive table {}", tableName);
         }
 
@@ -338,7 +338,8 @@ public class DataWriter {
           schemaFileReader,
           executorService,
           hiveUpdateFutures,
-          time
+          time,
+          connectorConfig.getHiveTableName(tp.topic())
       );
       topicPartitionWriters.put(tp, topicPartitionWriter);
     }
@@ -406,14 +407,17 @@ public class DataWriter {
               connectorConfig,
               path
           );
-          hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
-          List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, topic, (short) -1);
+          String hiveTableName = connectorConfig.getHiveTableName(topic);
+          hive.createTable(hiveDatabase, hiveTableName, latestSchema, partitioner, topic);
+          List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase,
+                  hiveTableName,
+                  (short) -1);
           FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
           for (FileStatus status : statuses) {
             String location = status.getPath().toString();
             if (!partitions.contains(location)) {
               String partitionValue = getPartitionValue(location);
-              hiveMetaStore.addPartition(hiveDatabase, topic, partitionValue);
+              hiveMetaStore.addPartition(hiveDatabase, hiveTableName, partitionValue);
             }
           }
         }
@@ -439,7 +443,8 @@ public class DataWriter {
           schemaFileReader,
           executorService,
           hiveUpdateFutures,
-          time
+          time,
+          connectorConfig.getHiveTableName(tp.topic())
       );
       topicPartitionWriters.put(tp, topicPartitionWriter);
       // We need to immediately start recovery to ensure we pause consumption of messages for the
