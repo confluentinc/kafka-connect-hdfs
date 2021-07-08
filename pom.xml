@@ -48,7 +48,7 @@
         <connection>scm:git:git://github.com/confluentinc/kafka-connect-hdfs.git</connection>
         <developerConnection>scm:git:git@github.com:confluentinc/kafka-connect-hdfs.git</developerConnection>
         <url>https://github.com/confluentinc/kafka-connect-hdfs</url>
-        <tag>HEAD</tag>
+        <tag>10.1.x</tag>
     </scm>
 
     <properties>
