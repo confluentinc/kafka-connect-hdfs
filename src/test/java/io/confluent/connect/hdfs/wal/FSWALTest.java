@@ -15,14 +15,11 @@
 
 package io.confluent.connect.hdfs.wal;
 
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.Test;
 
 import java.io.OutputStream;
-import java.lang.reflect.Field;
-import java.util.Map;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
@@ -95,18 +92,5 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     // make sure org.apache.hadoop.fs.FileSystem.CACHE
     // doesn't grow when acquireLease re-throws an exception
     assertEquals(fileSystemCacheSizeBefore, getFileSystemCacheSize());
-  }
-
-  private int getFileSystemCacheSize() throws Exception {
-    Field cacheField = FileSystem.class.getDeclaredField("CACHE");
-    cacheField.setAccessible(true);
-    Object cache = cacheField.get(Object.class);
-    Field cacheMapField = cache.getClass().getDeclaredField("map");
-    cacheMapField.setAccessible(true);
-    //suppressing the warning since org.apache.hadoop.fs.FileSystem.Cache.Key has package-level visibility
-    @SuppressWarnings("rawtypes") Map cacheMap = (Map) cacheMapField.get(cache);
-    cacheField.setAccessible(false);
-    cacheMapField.setAccessible(false);
-    return cacheMap.size();
   }
 }
