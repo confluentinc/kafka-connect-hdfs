@@ -103,7 +103,8 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     Object cache = cacheField.get(Object.class);
     Field cacheMapField = cache.getClass().getDeclaredField("map");
     cacheMapField.setAccessible(true);
-    Map cacheMap = (Map) cacheMapField.get(cache);
+    //suppressing the warning since org.apache.hadoop.fs.FileSystem.Cache.Key has package-level visibility
+    @SuppressWarnings("rawtypes") Map cacheMap = (Map) cacheMapField.get(cache);
     cacheField.setAccessible(false);
     cacheMapField.setAccessible(false);
     return cacheMap.size();
