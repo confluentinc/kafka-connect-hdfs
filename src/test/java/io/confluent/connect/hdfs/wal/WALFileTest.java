@@ -20,7 +20,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Map;
 
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
@@ -122,5 +121,24 @@ public class WALFileTest extends TestWithMiniDFSCluster {
     assertEquals(val4.getName(), reader.getCurrentValue(null).getName());
     assertNull(reader.next((WALEntry) null));
     reader.close();
+  }
+
+  @Test
+  public void testHdfsIsDown() throws Exception {
+    setUp();
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
+    String topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    String topic = "topic";
+    int partition = 0;
+    TopicPartition topicPart = new TopicPartition(topic, partition);
+    Path file = new Path(FileUtils.logFileName(url, topicsDir, topicPart));
+    cluster.shutdown();
+    int fileSystemCacheSizeBefore = getFileSystemCacheSize();
+    try {
+      WALFile.createWriter(connectorConfig, WALFile.Writer.file(file));
+    } catch (Exception e) {
+      //expected
+    }
+    assertEquals(fileSystemCacheSizeBefore, getFileSystemCacheSize());
   }
 }
