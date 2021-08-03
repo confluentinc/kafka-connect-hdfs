@@ -15,17 +15,17 @@
 
 package io.confluent.connect.hdfs.wal;
 
-import io.confluent.connect.hdfs.FileUtils;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.Test;
 
-import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
-import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.hdfs.storage.Storage;
-
 import java.io.OutputStream;
 
+import io.confluent.connect.hdfs.FileUtils;
+import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -71,5 +71,26 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     o.write(61);
     FSWAL wal = new FSWAL("/logs", tp, storage);
     wal.acquireLease();
+  }
+
+  @Test
+  public void testAcquireLeaseThrowsException() throws Exception {
+    setUp();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    TopicPartition tp = new TopicPartition("mytopic", 123);
+    //stop HDFS cluster so that WALFile.createWriter() throws an exception
+    cluster.shutdown();
+    FSWAL wal = new FSWAL("/logs", tp, storage);
+    int fileSystemCacheSizeBefore = getFileSystemCacheSize();
+    for (int i = 0; i < 10; i++) {
+      try {
+        wal.acquireLease();
+      } catch (Exception e) {
+        //expected
+      }
+    }
+    // make sure org.apache.hadoop.fs.FileSystem.CACHE
+    // doesn't grow when acquireLease re-throws an exception
+    assertEquals(fileSystemCacheSizeBefore, getFileSystemCacheSize());
   }
 }

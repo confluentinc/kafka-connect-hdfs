@@ -56,6 +56,7 @@ public class HdfsStorage
   public HdfsStorage(HdfsSinkConnectorConfig conf,  String url) throws IOException {
     this.conf = conf;
     this.url = url;
+    // this creates one entry in org.apache.hadoop.fs.FileSystem.CACHE
     fs = FileSystem.newInstance(URI.create(url), conf.getHadoopConfiguration());
   }
 

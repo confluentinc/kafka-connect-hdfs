@@ -143,6 +143,7 @@ public class WALFile {
       try {
         if (ownStream) {
           Path p = fileOption.getValue();
+          // this creates one entry in org.apache.hadoop.fs.FileSystem.CACHE
           fs = FileSystem.newInstance(p.toUri(), conf);
           int bufferSize = bufferSizeOption == null
                            ? getBufferSize(conf)
@@ -179,10 +180,11 @@ public class WALFile {
         }
 
         init(connectorConfig, out, ownStream);
-      } catch (RemoteException re) {
+      } catch (Exception re) {
         log.warn("Failed creating a WAL Writer: " + re.getMessage());
         if (fs != null) {
           try {
+            //this deletes an entry from org.apache.hadoop.fs.FileSystem.CACHE
             fs.close();
           } catch (Throwable t) {
             log.error("Could not close filesystem", t);
@@ -190,7 +192,6 @@ public class WALFile {
         }
         throw re;
       }
-
     }
     
     private boolean hasIntactVersionHeader(Path p, FileSystem fs) throws IOException {
@@ -331,6 +332,7 @@ public class WALFile {
       } finally {
         if (fs != null) {
           try {
+            //this deletes an entry from org.apache.hadoop.fs.FileSystem.CACHE
             fs.close();
           } catch (Throwable t) {
             log.error("Could not close FileSystem", t);

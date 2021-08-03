@@ -31,6 +31,7 @@ import org.junit.After;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -356,6 +357,19 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
                                                      expectedSchema);
       assertEquals(avroData.fromConnectData(expectedSchema, expectedValue), avroRecord);
     }
+  }
+
+  protected int getFileSystemCacheSize() throws Exception {
+    Field cacheField = FileSystem.class.getDeclaredField("CACHE");
+    cacheField.setAccessible(true);
+    Object cache = cacheField.get(Object.class);
+    Field cacheMapField = cache.getClass().getDeclaredField("map");
+    cacheMapField.setAccessible(true);
+    //suppressing the warning since org.apache.hadoop.fs.FileSystem.Cache.Key has package-level visibility
+    @SuppressWarnings("rawtypes") Map cacheMap = (Map) cacheMapField.get(cache);
+    cacheField.setAccessible(false);
+    cacheMapField.setAccessible(false);
+    return cacheMap.size();
   }
 
 }
