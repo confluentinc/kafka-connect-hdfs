@@ -29,6 +29,7 @@ import java.io.IOException;
 import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
+import io.confluent.connect.storage.common.StorageCommonConfig;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -195,5 +196,24 @@ public class WALFileTest extends TestWithMiniDFSCluster {
       super.append(key, val);
       changeSync();
     }
+  }
+
+  @Test
+  public void testHdfsIsDown() throws Exception {
+    setUp();
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(properties);
+    String topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    String topic = "topic";
+    int partition = 0;
+    TopicPartition topicPart = new TopicPartition(topic, partition);
+    Path file = new Path(FileUtils.logFileName(url, topicsDir, topicPart));
+    cluster.shutdown();
+    int fileSystemCacheSizeBefore = getFileSystemCacheSize();
+    try {
+      WALFile.createWriter(connectorConfig, WALFile.Writer.file(file));
+    } catch (Exception e) {
+      //expected
+    }
+    assertEquals(fileSystemCacheSizeBefore, getFileSystemCacheSize());
   }
 }
