@@ -31,6 +31,7 @@ import org.junit.After;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,8 +43,7 @@ import java.util.Set;
 import io.confluent.connect.hdfs.filter.TopicPartitionCommittedFileFilter;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -52,7 +52,7 @@ import static org.junit.Assert.assertThat;
 public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   protected static FileSystem fs;
-  private static MiniDFSCluster cluster;
+  protected static MiniDFSCluster cluster;
 
   protected DataFileReader dataFileReader;
   protected Partitioner partitioner;
@@ -61,14 +61,14 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
   protected String zeroPadFormat = "%010d";
   private Map<String, String> localProps = new HashMap<>();
 
-  @BeforeClass
-  public static void setup() throws IOException {
+  @Before
+  public void setup() throws IOException {
     cluster = createDFSCluster();
     fs = cluster.getFileSystem();
   }
 
-  @AfterClass
-  public static void cleanup() throws IOException {
+  @After
+  public void cleanup() throws IOException {
     if (fs != null) {
       fs.close();
     }
@@ -95,7 +95,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   @After
   public void tearDown() throws Exception {
-    if (fs.exists(new Path("/")) && fs.isDirectory(new Path("/"))) {
+    if (cluster.isDataNodeUp() && fs.exists(new Path("/")) && fs.isDirectory(new Path("/"))) {
       for (FileStatus file : fs.listStatus(new Path("/"))) {
         if (file.isDirectory()) {
           fs.delete(file.getPath(), true);
@@ -375,4 +375,17 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
     return cluster;
   }
+  protected int getFileSystemCacheSize() throws Exception {
+    Field cacheField = FileSystem.class.getDeclaredField("CACHE");
+    cacheField.setAccessible(true);
+    Object cache = cacheField.get(Object.class);
+    Field cacheMapField = cache.getClass().getDeclaredField("map");
+    cacheMapField.setAccessible(true);
+    //suppressing the warning since org.apache.hadoop.fs.FileSystem.Cache.Key has package-level visibility
+    @SuppressWarnings("rawtypes") Map cacheMap = (Map) cacheMapField.get(cache);
+    cacheField.setAccessible(false);
+    cacheMapField.setAccessible(false);
+    return cacheMap.size();
+  }
+
 }

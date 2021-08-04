@@ -19,13 +19,14 @@ import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.Test;
 
+import java.io.OutputStream;
+
+import io.confluent.connect.hdfs.FileUtils;
 import java.util.Arrays;
 import java.util.List;
-import java.io.OutputStream;
 import java.io.IOException;
 
 import io.confluent.connect.hdfs.DataWriter;
-import io.confluent.connect.hdfs.FileUtils;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 
@@ -323,4 +324,25 @@ public class FSWALTest extends TestWithMiniDFSCluster {
     wal.apply();
   }
 
+
+  @Test
+  public void testAcquireLeaseThrowsException() throws Exception {
+    setUp();
+    HdfsStorage storage = new HdfsStorage(connectorConfig, url);
+    TopicPartition tp = new TopicPartition("mytopic", 123);
+    //stop HDFS cluster so that WALFile.createWriter() throws an exception
+    cluster.shutdown(false, false);
+    FSWAL wal = new FSWAL("/logs", tp, storage);
+    int fileSystemCacheSizeBefore = getFileSystemCacheSize();
+    for (int i = 0; i < 10; i++) {
+      try {
+        wal.acquireLease();
+      } catch (Exception e) {
+        //expected
+      }
+    }
+    // make sure org.apache.hadoop.fs.FileSystem.CACHE
+    // doesn't grow when acquireLease re-throws an exception
+    assertEquals(fileSystemCacheSizeBefore, getFileSystemCacheSize());
+  }
 }
