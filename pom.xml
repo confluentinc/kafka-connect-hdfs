@@ -116,6 +116,18 @@
                     <groupId>io.netty</groupId>
                     <artifactId>netty-all</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.avro</groupId>
+                    <artifactId>avro-ipc-jetty</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -133,6 +145,11 @@
             <version>${jackson.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-common-htrace-core4-shaded</artifactId>
+            <version>${confluent.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-minicluster</artifactId>
             <version>${hadoop.version}</version>
@@ -145,6 +162,10 @@
                 <exclusion>
                     <groupId>io.netty</groupId>
                     <artifactId>netty-all</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -159,6 +180,14 @@
                     the apacheds-jdbm1 bundle, which is not available in maven central-->
                     <groupId>org.apache.directory.jdbm</groupId>
                     <artifactId>apacheds-jdbm1</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
