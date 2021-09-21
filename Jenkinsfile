@@ -2,7 +2,7 @@
 common {
   slackChannel = '#connect-warn'
   upstreamProjects = ['confluentinc/schema-registry','confluentinc/common']
-  nodeLabel = 'docker-oraclejdk8'
   twistlockCveScan = true
   downStreamValidate = false
+  nodeLabel = 'docker-debian-jdk8'
 }
