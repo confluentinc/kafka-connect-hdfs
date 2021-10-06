@@ -21,8 +21,6 @@
                 kafka connect hdfs connector. -->
                 <exclude>org.mortbay.jetty:*</exclude>
                 <exclude>com.sun.jersey:*</exclude>
-                <exclude>org.eclipse.jetty.aggregate:jetty-all</exclude>
-                <exclude>com.sun.jersey.contribs:jersey-guice</exclude>
             </excludes>
         </dependencySet>
     </dependencySets>
