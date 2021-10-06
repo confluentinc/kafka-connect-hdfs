@@ -40,14 +40,20 @@
                 kafka connect hdfs connector. -->
                 <exclude>org.mortbay.jetty:*</exclude>
                 <exclude>com.sun.jersey:*</exclude>
-                <exclude>org.eclipse.jetty.aggregate:jetty-all</exclude>
-                <exclude>com.sun.jersey.contribs:jersey-guice</exclude>
                 <exclude>io.confluent:kafka-connect-storage-common</exclude>
                 <exclude>io.confluent:kafka-connect-storage-core</exclude>
                 <exclude>io.confluent:kafka-connect-storage-format</exclude>
                 <exclude>io.confluent:kafka-connect-storage-partitioner</exclude>
                 <exclude>io.confluent:kafka-connect-storage-wal</exclude>
             </excludes>
+        </dependencySet>
+        <dependencySet>
+            <outputDirectory>share/java/kafka-connect-hdfs</outputDirectory>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useTransitiveFiltering>true</useTransitiveFiltering>
+            <includes>
+                <include>kafka-connect-storage-common-htrace-core4-shaded</include>
+            </includes>
         </dependencySet>
     </dependencySets>
 </assembly>
