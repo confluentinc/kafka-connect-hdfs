@@ -5,4 +5,5 @@ common {
   twistlockCveScan = true
   downStreamValidate = false
   nodeLabel = 'docker-debian-jdk8'
+  disableConcurrentBuilds = true
 }
