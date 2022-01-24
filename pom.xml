@@ -210,7 +210,6 @@
                     <artifactId>htrace-core4</artifactId>
                 </exclusion>
             </exclusions>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
