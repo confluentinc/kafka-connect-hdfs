@@ -54,10 +54,10 @@
     <properties>
         <confluent.maven.repo>http://packages.confluent.io/maven/</confluent.maven.repo>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
+        <confluent-log4j.version>1.2.17-cp8</confluent-log4j.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
         <kafka.connect.storage.common.version>10.2.0</kafka.connect.storage.common.version>
-        <confluent-log4j.version>1.2.17-cp2</confluent-log4j.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j-api.version>2.17.1</log4j-api.version>
@@ -144,6 +144,12 @@
                     <groupId>org.apache.avro</groupId>
                     <artifactId>avro-ipc-jetty</artifactId>
                 </exclusion>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -160,11 +166,27 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-1.2-api</artifactId>
             <version>${log4j-api.version}</version>
+            <exclusions>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
             <version>${log4j-api.version}</version>
+            <exclusions>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.lmax</groupId>
@@ -210,12 +232,14 @@
                     <artifactId>netty-all</artifactId>
                 </exclusion>
                 <exclusion>
-                    <groupId>log4j</groupId>
-                    <artifactId>log4j</artifactId>
-                </exclusion>
-                <exclusion>
                     <groupId>org.apache.htrace</groupId>
                     <artifactId>htrace-core4</artifactId>
+                </exclusion>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -231,6 +255,8 @@
                     <groupId>org.apache.directory.jdbm</groupId>
                     <artifactId>apacheds-jdbm1</artifactId>
                 </exclusion>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
                 <exclusion>
                     <groupId>log4j</groupId>
                     <artifactId>log4j</artifactId>
