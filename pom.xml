@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>10.1.2</version>
+        <version>11.0.5</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -57,7 +57,7 @@
         <confluent-log4j.version>1.2.17-cp8</confluent-log4j.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>10.2.0</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>11.0.5</kafka.connect.storage.common.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
@@ -122,10 +122,6 @@
                 </exclusion>
                 <exclusion>
                     <groupId>io.netty</groupId>
-                    <artifactId>netty-all</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.netty</groupId>
                     <artifactId>netty-codec</artifactId>
                 </exclusion>
                 <exclusion>
@@ -151,6 +147,16 @@
                     <artifactId>log4j-core</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-core</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-druid</artifactId>
+            <version>1.11.0</version>
         </dependency>
         <dependency>
             <groupId>commons-collections</groupId>
@@ -197,12 +203,10 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.databind.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
