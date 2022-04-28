@@ -132,6 +132,17 @@ public class DataWriter {
       hadoopConfiguration.addResource(new Path(config.hadoopConfDir() + "/hdfs-site.xml"));
     }
 
+    // By default all FileSystem clients created through the java Hadoop clients are auto
+    // closed at JVM shutdown. This can interfere with the normal shutdown logic of the connector
+    // where the created clients are used to clean up temporary files (if the client was closed
+    // prior, then this operation throws a Filesystem Closed error). To prevent this behavior we
+    // set the Hadoop configuration fs.automatic.close to false. All created clients are closed as
+    // part of the connector lifecycle. This is anyways necessary as during connector deletion the
+    // connector lifecycle needs to close the clients, as the JVM shutdown hooks don't come into the
+    // picture. Hence we should always operate with fs.automatic.close as false. If in future we
+    // find that we are leaking client connections, we need to fix the lifecycle to close those.
+    hadoopConfiguration.setBoolean("fs.automatic.close", false);
+
     if (config.kerberosAuthentication()) {
       configureKerberosAuthentication(hadoopConfiguration);
     }
