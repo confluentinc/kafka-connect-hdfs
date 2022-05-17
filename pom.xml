@@ -169,6 +169,7 @@
                     <groupId>ant</groupId>
                     <artifactId>ant</artifactId>
                 </exclusion>
+                <!-- removing due to CVE -->
                 <exclusion>
                     <groupId>org.mortbay.jetty</groupId>
                     <artifactId>jsp-api-2.1</artifactId>
