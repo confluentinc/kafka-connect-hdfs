@@ -112,6 +112,21 @@
             <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.4.21</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.derby</groupId>
+            <artifactId>derby</artifactId>
+            <version>10.14.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.orc</groupId>
+            <artifactId>orc-core</artifactId>
+            <version>1.4.3</version>
+        </dependency>
+        <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-hive</artifactId>
             <version>${kafka.connect.storage.common.version}</version>
@@ -145,6 +160,14 @@
                 <exclusion>
                     <groupId>org.apache.logging.log4j</groupId>
                     <artifactId>log4j-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.ant</groupId>
+                    <artifactId>ant</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>ant</groupId>
+                    <artifactId>ant</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
