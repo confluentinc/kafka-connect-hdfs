@@ -114,7 +114,7 @@ public class TopicPartitionWriter {
   private final ExecutorService executorService;
   private final Queue<Future<Void>> hiveUpdateFutures;
   private final Set<String> hivePartitions;
-  private Path recoveredFileWithMaxOffsets;
+  private final String hiveTableName;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -142,7 +142,8 @@ public class TopicPartitionWriter {
         null,
         null,
         null,
-        time
+        time,
+        tp.topic()
     );
   }
 
@@ -162,8 +163,10 @@ public class TopicPartitionWriter {
           schemaFileReader,
       ExecutorService executorService,
       Queue<Future<Void>> hiveUpdateFutures,
-      Time time
+      Time time,
+      String hiveTableName
   ) {
+    this.hiveTableName = hiveTableName;
     this.time = time;
     this.tp = tp;
     this.context = context;
@@ -187,7 +190,7 @@ public class TopicPartitionWriter {
     this.url = storage.url();
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
-    recoveredFileWithMaxOffsets = null;
+
     topicsDir = config.getTopicsDirFromTopic(tp.topic());
     flushSize = config.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = config.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
@@ -612,7 +615,6 @@ public class TopicPartitionWriter {
       log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
       offset = lastCommittedOffset + 1;
       log.trace("Next offset to read: {}", offset);
-      recoveredFileWithMaxOffsets = new Path(latestOffsetEntry.getFilePath());
       return;
     }
 
@@ -633,7 +635,6 @@ public class TopicPartitionWriter {
       // `offset` represents the next offset to read after the most recent commit
       offset = lastCommittedOffsetToHdfs + 1;
       log.trace("Next offset to read: {}", offset);
-      recoveredFileWithMaxOffsets = fileStatusWithMaxOffset.getPath();
     }
   }
 
@@ -906,7 +907,7 @@ public class TopicPartitionWriter {
   private void createHiveTable() {
     Future<Void> future = executorService.submit(() -> {
       try {
-        hive.createTable(hiveDatabase, tp.topic(), currentSchema, partitioner);
+        hive.createTable(hiveDatabase, hiveTableName, currentSchema, partitioner, tp.topic());
       } catch (Throwable e) {
         log.error("Creating Hive table threw unexpected error", e);
       }
@@ -918,7 +919,7 @@ public class TopicPartitionWriter {
   private void alterHiveSchema() {
     Future<Void> future = executorService.submit(() -> {
       try {
-        hive.alterSchema(hiveDatabase, tp.topic(), currentSchema);
+        hive.alterSchema(hiveDatabase, hiveTableName, currentSchema);
       } catch (Throwable e) {
         log.error("Altering Hive schema threw unexpected error", e);
       }
@@ -930,17 +931,13 @@ public class TopicPartitionWriter {
   private void addHivePartition(final String location) {
     Future<Void> future = executorService.submit(() -> {
       try {
-        hiveMetaStore.addPartition(hiveDatabase, tp.topic(), location);
+        hiveMetaStore.addPartition(hiveDatabase, hiveTableName, location);
       } catch (Throwable e) {
         log.error("Adding Hive partition threw unexpected error", e);
       }
       return null;
     });
     hiveUpdateFutures.add(future);
-  }
-
-  public Path getRecoveredFileWithMaxOffsets() {
-    return recoveredFileWithMaxOffsets;
   }
 
   private enum State {

@@ -30,9 +30,11 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
+import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 
@@ -62,7 +64,8 @@ public class HdfsSinkTask extends SinkTask {
 
     try {
       HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
-      if (connectorConfig.hiveIntegrationEnabled()) {
+      boolean hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
+      if (hiveIntegration) {
         StorageSchemaCompatibility compatibility = StorageSchemaCompatibility.getCompatibility(
             connectorConfig.getString(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG)
         );
@@ -86,6 +89,10 @@ public class HdfsSinkTask extends SinkTask {
 
       avroData = new AvroData(connectorConfig.avroDataConfig());
       hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+      recover(context.assignment());
+      if (hiveIntegration) {
+        syncWithHive();
+      }
     } catch (ConfigException e) {
       throw new ConnectException("Couldn't start HdfsSinkConnector due to configuration error.", e);
     } catch (ConnectException e) {
@@ -169,6 +176,16 @@ public class HdfsSinkTask extends SinkTask {
     if (hdfsWriter != null) {
       hdfsWriter.stop();
     }
+  }
+
+  private void recover(Set<TopicPartition> assignment) {
+    for (TopicPartition tp : assignment) {
+      hdfsWriter.recover(tp);
+    }
+  }
+
+  private void syncWithHive() throws ConnectException {
+    hdfsWriter.syncWithHive();
   }
 
   public AvroData getAvroData() {

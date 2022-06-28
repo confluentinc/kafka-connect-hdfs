@@ -58,7 +58,6 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
     task.initialize(context);
     task.start(properties);
-    task.open(context.assignment());
 
     Map<TopicPartition, Long> offsets = context.offsets();
     assertEquals(offsets.size(), 2);
@@ -100,7 +99,6 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     HdfsSinkTask task = new HdfsSinkTask();
     task.initialize(context);
     task.start(properties);
-    task.open(context.assignment());
     task.put(sinkRecordsA);
 
     // Get an aliased reference to the filesystem object from the per-worker FileSystem.CACHE
@@ -188,7 +186,6 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
     task.initialize(context);
     task.start(properties);
-    task.open(context.assignment());
 
     // Without any files in HDFS, we expect no offsets to be set by the connector.
     // Thus, the consumer will start where it last left off or based upon the
@@ -246,7 +243,6 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
 
     task.initialize(context);
     task.start(properties);
-    task.open(context.assignment());
 
     Map<TopicPartition, Long> offsets = context.offsets();
     assertEquals(2, offsets.size());
@@ -276,7 +272,6 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     }
     task.initialize(context);
     task.start(properties);
-    task.open(context.assignment());
     task.put(sinkRecords);
     task.stop();
 
@@ -321,7 +316,6 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
     }
     task.initialize(context);
     task.start(properties);
-    task.open(context.assignment());
     task.put(sinkRecords);
     task.stop();
 

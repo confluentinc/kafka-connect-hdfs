@@ -71,6 +71,8 @@ import static io.confluent.connect.storage.hive.HiveConfig.HIVE_INTEGRATION_CONF
 
 public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
+  private static final String TOPIC_SUBSTITUTION = "${topic}";
+
   // HDFS Group
   // This config is deprecated and will be removed in future releases. Use store.url instead.
   public static final String HDFS_URL_CONFIG = "hdfs.url";
@@ -90,6 +92,12 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String HADOOP_HOME_DEFAULT = "";
   private static final String HADOOP_HOME_DOC = "The Hadoop home directory.";
   private static final String HADOOP_HOME_DISPLAY = "Hadoop home directory";
+
+  public static final String HIVE_TABLE_NAME_CONFIG = "hive.table.name";
+  public static final String HIVE_TABLE_NAME_DEFAULT = TOPIC_SUBSTITUTION;
+  private static final String HIVE_TABLE_NAME_DOC = "The hive table name to use. "
+          + "It must contain '${topic}' to inject the corresponding topic name.";
+  private static final String HIVE_TABLE_NAME_DISPLAY = "Hive table name";
 
   // Storage group
   public static final String TOPIC_CAPTURE_GROUPS_REGEX_CONFIG = "topic.capture.groups.regex";
@@ -243,6 +251,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
           ++orderInGroup,
           Width.SHORT,
           LOGS_DIR_DISPLAY
+      );
+
+      configDef.define(
+              HIVE_TABLE_NAME_CONFIG,
+              Type.STRING,
+              HIVE_TABLE_NAME_DEFAULT,
+              Importance.LOW,
+              HIVE_TABLE_NAME_DOC,
+              group,
+              ++orderInGroup,
+              Width.SHORT,
+              HIVE_TABLE_NAME_DISPLAY
       );
     }
 
@@ -546,6 +566,17 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   }
 
   /**
+   * Performs all substitutions on {@value HIVE_TABLE_NAME_CONFIG} and calculates the final
+   * hive table name for the given topic
+   *
+   * @param topic String - the topic name
+   * @return String the hive table name
+   */
+  public String getHiveTableName(String topic) {
+    return getString(HIVE_TABLE_NAME_CONFIG).replace("${topic}", topic);
+  }
+
+  /**
    * Performs all substitutions and calculates the final directory for a topic
    *
    * @param dir - String - the directory to perform substitutions on
@@ -630,6 +661,41 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
     validateReplacements(TOPICS_DIR_CONFIG);
     validateReplacements(LOGS_DIR_CONFIG);
+    validateHiveTableNameReplacements();
+  }
+
+  private void validateHiveTableNameReplacements() {
+    String config = HIVE_TABLE_NAME_CONFIG;
+    String configValue = getString(config);
+
+    if (!configValue.contains(TOPIC_SUBSTITUTION)) {
+      throw new ConfigException(
+              String.format(
+                      "%s: '%s' has to contain topic substitution '%s'.",
+                      config,
+                      getString(config),
+                      TOPIC_SUBSTITUTION
+              )
+      );
+    }
+
+    // remove all valid ${} substitutions
+    String tableName = configValue.replace(TOPIC_SUBSTITUTION, "");
+
+    // check for invalid ${} substitutions
+    Matcher invalidMatcher = INVALID_SUB_PATTERN.matcher(tableName);
+    if (invalidMatcher.find()) {
+      throw new ConfigException(
+              String.format(
+                      "%s: '%s' contains an invalid ${} substitution '%s'. "
+                              + "Valid substitution is '%s'",
+                      config,
+                      getString(config),
+                      invalidMatcher.group(),
+                      TOPIC_SUBSTITUTION
+              )
+      );
+    }
   }
 
   /**
@@ -640,18 +706,19 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private void validateReplacements(String config) {
     // remove all valid ${} substitutions
     Matcher partsMatcher = SUBSTITUTION_PATTERN.matcher(getString(config));
-    String dir = partsMatcher.replaceAll("").replace("${topic}", "");
+    String dir = partsMatcher.replaceAll("").replace(TOPIC_SUBSTITUTION, "");
 
     // check for invalid ${} substitutions
     Matcher invalidMatcher = INVALID_SUB_PATTERN.matcher(dir);
     if (invalidMatcher.find()) {
       throw new ConfigException(
           String.format(
-              "%s: %s contains an invalid ${} substitution %s. Valid substitutions are ${topic} "
+              "%s: %s contains an invalid ${} substitution %s. Valid substitutions are %s "
                   + "and ${n} where n >= 0.",
               config,
               getString(config),
-              invalidMatcher.group()
+              invalidMatcher.group(),
+              TOPIC_SUBSTITUTION
           )
       );
     }

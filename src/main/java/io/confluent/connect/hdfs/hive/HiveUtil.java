@@ -28,8 +28,7 @@ import io.confluent.connect.hdfs.partitioner.Partitioner;
 public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUtil {
 
   public HiveUtil(HdfsSinkConnectorConfig connectorConfig, HiveMetaStore hiveMetaStore) {
-    super(connectorConfig, hiveMetaStore);
-    this.url = connectorConfig.url();
+    super(connectorConfig, hiveMetaStore, connectorConfig.url());
   }
 
   @Override
@@ -37,16 +36,18 @@ public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUti
       String database,
       String tableName,
       Schema schema,
-      io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> partitioner
+      io.confluent.connect.storage.partitioner.Partitioner<FieldSchema> partitioner,
+      String topic
   ) {
-    createTable(database, tableName, schema, (Partitioner) partitioner);
+    createTable(database, tableName, schema, (Partitioner) partitioner, topic);
   }
 
   public abstract void createTable(
       String database,
       String tableName,
       Schema schema,
-      Partitioner partitioner
+      Partitioner partitioner,
+      String topic
   );
 
 }

@@ -70,7 +70,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     Collection<SinkRecord> sinkRecords = createRecords(PARTITION, 0, 7);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
-    hdfsWriter.open(context.assignment());
     MemoryStorage storage = (MemoryStorage) hdfsWriter.getStorage();
     storage.setFailure(MemoryStorage.Failure.appendFailure);
 
@@ -114,8 +113,10 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
       (offset < 4 ? sinkRecordsA : sinkRecordsB).add(sinkRecord);
     }
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
-    hdfsWriter.open(context.assignment());
     MemoryStorage storage = (MemoryStorage) hdfsWriter.getStorage();
+
+    // Simulate a recovery after starting the task
+    hdfsWriter.recover(TOPIC_PARTITION);
 
     hdfsWriter.write(sinkRecordsA);
     // 0,1,2 are committed
@@ -175,7 +176,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
     sinkRecords.add(createRecord(PARTITION2, 0));
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
-    hdfsWriter.open(context.assignment());
     hdfsWriter.write(sinkRecords);
     sinkRecords.clear();
 
@@ -233,7 +233,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
     ArrayList<SinkRecord> sinkRecords = createRecords(PARTITION, 0, 1);
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
-    hdfsWriter.open(context.assignment());
     hdfsWriter.write(sinkRecords);
 
     sinkRecords = createRecords(PARTITION, 1, 6);
@@ -279,7 +278,6 @@ public class FailureRecoveryTest extends HdfsSinkConnectorTestBase {
 
     ArrayList<SinkRecord> sinkRecords = createRecords(PARTITION, 0, 1);
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
-    hdfsWriter.open(context.assignment());
     hdfsWriter.write(sinkRecords);
 
     sinkRecords = createRecords(PARTITION, 1, 6);

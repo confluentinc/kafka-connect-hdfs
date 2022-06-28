@@ -46,8 +46,8 @@ public class DataWriterParquetTest extends TestWithMiniDFSCluster {
   @Test
   public void testWriteRecord() throws Exception {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.open(context.assignment());
     partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
 
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 
