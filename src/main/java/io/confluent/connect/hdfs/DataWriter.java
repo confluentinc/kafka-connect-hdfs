@@ -235,8 +235,7 @@ public class DataWriter {
 
     initializeTopicPartitionWriters(context.assignment());
   }
-
-  private void configureKerberosAuthentication(Configuration hadoopConfiguration) {
+    private void configureKerberosAuthentication(Configuration hadoopConfiguration) {
     SecurityUtil.setAuthenticationMethod(
         UserGroupInformation.AuthenticationMethod.KERBEROS,
         hadoopConfiguration
@@ -298,7 +297,9 @@ public class DataWriter {
         "Starting the Kerberos ticket renew thread with period {} ms.",
         connectorConfig.kerberosTicketRenewPeriodMs()
     );
-    ticketRenewThread.start();
+    if(connectorConfig.kerberosRefreshTicket()){
+      ticketRenewThread.start();
+    }
   }
 
   private void initializeHiveServices(Configuration hadoopConfiguration) {
