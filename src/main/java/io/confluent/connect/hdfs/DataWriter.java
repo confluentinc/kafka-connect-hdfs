@@ -240,7 +240,7 @@ public class DataWriter {
     SecurityUtil.setAuthenticationMethod(
             UserGroupInformation.AuthenticationMethod.KERBEROS,
             hadoopConfiguration
-      );
+    );
 
     if (connectorConfig.connectHdfsPrincipal() == null
             || connectorConfig.connectHdfsKeytab() == null) {
@@ -298,6 +298,7 @@ public class DataWriter {
             "Starting the Kerberos ticket renew thread with period {} ms.",
             connectorConfig.kerberosTicketRenewPeriodMs()
     );
+
     if(connectorConfig.kerberosRefreshTicket()) {
       ticketRenewThread.start();
     }
