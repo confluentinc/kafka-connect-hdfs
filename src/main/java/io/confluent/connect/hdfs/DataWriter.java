@@ -302,6 +302,7 @@ public class DataWriter {
     if(connectorConfig.kerberosRefreshTicket()) {
       ticketRenewThread.start();
     }
+
   }
 
   private void initializeHiveServices(Configuration hadoopConfiguration) {
