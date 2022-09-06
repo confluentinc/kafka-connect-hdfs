@@ -179,6 +179,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final ConfigDef.Recommender KerberosRenewTicketDependentsRecommender =
           new BooleanParentRecommender(
                   KERBEROS_REFRESH_TICKET_CONFIG);
+
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
         Arrays.asList(HdfsStorage.class)
@@ -527,6 +528,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   public boolean kerberosRefreshTicket() {
     return getBoolean(KERBEROS_REFRESH_TICKET_CONFIG);
   }
+
   public String logsDir() {
     return getString(LOGS_DIR_CONFIG);
   }
