@@ -235,71 +235,72 @@ public class DataWriter {
 
     initializeTopicPartitionWriters(context.assignment());
   }
+
   private void configureKerberosAuthentication(Configuration hadoopConfiguration) {
-      SecurityUtil.setAuthenticationMethod(
+    SecurityUtil.setAuthenticationMethod(
             UserGroupInformation.AuthenticationMethod.KERBEROS,
             hadoopConfiguration
       );
 
-        if (connectorConfig.connectHdfsPrincipal() == null
+    if (connectorConfig.connectHdfsPrincipal() == null
             || connectorConfig.connectHdfsKeytab() == null) {
-          throw new ConfigException(
+      throw new ConfigException(
               "Hadoop is using Kerberos for authentication, you need to provide both a connect "
-                  + "principal and the path to the keytab of the principal.");
-        }
+                      + "principal and the path to the keytab of the principal.");
+    }
 
-        hadoopConfiguration.set("hadoop.security.authentication", "kerberos");
-        hadoopConfiguration.set("hadoop.security.authorization", "true");
+    hadoopConfiguration.set("hadoop.security.authentication", "kerberos");
+    hadoopConfiguration.set("hadoop.security.authorization", "true");
 
-        try {
-          String hostname = InetAddress.getLocalHost().getCanonicalHostName();
+    try {
+      String hostname = InetAddress.getLocalHost().getCanonicalHostName();
 
-          String namenodePrincipal = SecurityUtil.getServerPrincipal(
+      String namenodePrincipal = SecurityUtil.getServerPrincipal(
               connectorConfig.hdfsNamenodePrincipal(),
               hostname
-          );
+      );
 
-          // namenode principal is needed for multi-node hadoop cluster
-          if (hadoopConfiguration.get("dfs.namenode.kerberos.principal") == null) {
-            hadoopConfiguration.set("dfs.namenode.kerberos.principal", namenodePrincipal);
-          }
-          log.info("Hadoop namenode principal: {}",
+      // namenode principal is needed for multi-node hadoop cluster
+      if (hadoopConfiguration.get("dfs.namenode.kerberos.principal") == null) {
+        hadoopConfiguration.set("dfs.namenode.kerberos.principal", namenodePrincipal);
+      }
+      log.info("Hadoop namenode principal: {}",
               hadoopConfiguration.get("dfs.namenode.kerberos.principal"));
 
-          UserGroupInformation.setConfiguration(hadoopConfiguration);
-          // replace the _HOST specified in the principal config to the actual host
-          String principal = SecurityUtil.getServerPrincipal(
+      UserGroupInformation.setConfiguration(hadoopConfiguration);
+      // replace the _HOST specified in the principal config to the actual host
+      String principal = SecurityUtil.getServerPrincipal(
               connectorConfig.connectHdfsPrincipal(),
               hostname
-          );
-          UserGroupInformation.loginUserFromKeytab(principal, connectorConfig.connectHdfsKeytab());
-          final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
-          log.info("Login as: " + ugi.getUserName());
+      );
+      UserGroupInformation.loginUserFromKeytab(principal, connectorConfig.connectHdfsKeytab());
+      final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
+      log.info("Login as: " + ugi.getUserName());
 
-          isRunning = true;
-          ticketRenewThread = new Thread(() -> renewKerberosTicket(ugi));
-        } catch (UnknownHostException e) {
-          throw new ConnectException(
+      isRunning = true;
+      ticketRenewThread = new Thread(() -> renewKerberosTicket(ugi));
+    } catch (UnknownHostException e) {
+      throw new ConnectException(
               String.format(
                   "Could not resolve local hostname for Kerberos authentication: %s",
                   e.getMessage()
               ),
               e
-          );
-        } catch (IOException e) {
-          throw new ConnectException(
+      );
+    } catch (IOException e) {
+      throw new ConnectException(
               String.format("Could not authenticate with Kerberos: %s", e.getMessage()),
               e
-          );
-        }
+      );
+    }
 
-        log.info(
+    log.info(
             "Starting the Kerberos ticket renew thread with period {} ms.",
             connectorConfig.kerberosTicketRenewPeriodMs()
-        );
-        if(connectorConfig.kerberosRefreshTicket()) {
-          ticketRenewThread.start();
-        }
+    );
+    if(connectorConfig.kerberosRefreshTicket()) {
+      ticketRenewThread.start();
+    }
   }
 
   private void initializeHiveServices(Configuration hadoopConfiguration) {
