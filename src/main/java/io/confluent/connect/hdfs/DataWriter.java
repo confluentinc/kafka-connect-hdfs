@@ -298,8 +298,7 @@ public class DataWriter {
             "Starting the Kerberos ticket renew thread with period {} ms.",
             connectorConfig.kerberosTicketRenewPeriodMs()
     );
-
-    if(connectorConfig.kerberosRefreshTicket()) {
+    if (connectorConfig.kerberosRefreshTicket()) {
       ticketRenewThread.start();
     }
 
