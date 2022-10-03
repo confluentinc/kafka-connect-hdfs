@@ -261,6 +261,10 @@
             <scope>test</scope>
             <exclusions>
                 <exclusion>
+                    <groupId>org.apache.mina</groupId>
+                    <artifactId>mina-core</artifactId>
+                </exclusion>
+                <exclusion>
                     <!-- exclude this from hadoop minikdc as the minikdc depends on
                     the apacheds-jdbm1 bundle, which is not available in maven central-->
                     <groupId>org.apache.directory.jdbm</groupId>
