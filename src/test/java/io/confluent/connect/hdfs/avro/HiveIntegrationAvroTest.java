@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import java.util.Collections;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.connect.data.Field;
@@ -67,7 +68,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
   public void testSyncWithHiveAvro() throws Exception {
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
@@ -89,6 +90,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
 
     hdfsWriter = new DataWriter(config, context, avroData);
+    hdfsWriter.open(context.assignment());
     hdfsWriter.syncWithHive();
 
     List<String> expectedColumnNames = new ArrayList<>();
@@ -121,7 +123,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
@@ -168,7 +170,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     context.assignment().add(TOPIC_WITH_DOTS_PARTITION);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    hdfsWriter.recover(TOPIC_WITH_DOTS_PARTITION);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();
@@ -210,27 +212,18 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
   @Test
   public void testHiveIntegrationFieldPartitionerAvro() throws Exception {
+    int batchSize = 3;
+    int batchNum = 3;
     localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "int");
     setUp();
-
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
-    String key = "key";
     Schema schema = createSchema();
-
-    Struct[] records = createRecords(schema);
-    ArrayList<SinkRecord> sinkRecords = new ArrayList<>();
-    long offset = 0;
-    for (Struct record : records) {
-      for (long count = 0; count < 3; count++) {
-        SinkRecord sinkRecord = new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record,
-                                               offset + count);
-        sinkRecords.add(sinkRecord);
-      }
-      offset = offset + 3;
-    }
+    List<Struct> records = createRecordBatches(schema, batchSize, batchNum);
+    List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
 
     hdfsWriter.write(sinkRecords);
     hdfsWriter.close();
@@ -239,17 +232,21 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     Table table = hiveMetaStore.getTable(hiveDatabase, TOPIC);
 
     List<String> expectedColumnNames = new ArrayList<>();
-    for (Field field: schema.fields()) {
+    for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
     }
+    Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
-    for (FieldSchema column: table.getSd().getCols()) {
+    // getAllCols is needed to include columns used for partitioning in result
+    for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
+    Collections.sort(actualColumnNames);
+
     assertEquals(expectedColumnNames, actualColumnNames);
 
-    List<String> partitionFieldNames= connectorConfig.getList(
+    List<String> partitionFieldNames = connectorConfig.getList(
         PartitionerConfig.PARTITION_FIELD_NAME_CONFIG
     );
     String partitionFieldName = partitionFieldNames.get(0);
@@ -267,23 +264,32 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
 
     assertEquals(expectedPartitions, partitions);
 
-    ArrayList<String[]> expectedResult = new ArrayList<>();
-    for (int i = 16; i <= 18; ++i) {
-      String[] part = {"true", String.valueOf(i), "12", "12.2", "12.2"};
-      for (int j = 0; j < 3; ++j) {
-        expectedResult.add(part);
+    Struct sampleRecord = createRecord(schema, 16, 12.2f);
+    List<List<String>> expectedResults = new ArrayList<>();
+    for (int batch = 0; batch < batchNum; ++batch) {
+      int intForBatch =  sampleRecord.getInt32("int") + batch;
+      float floatForBatch =  sampleRecord.getFloat32("float") + (float) batch;
+      double doubleForBatch = sampleRecord.getFloat64("double") + (double) batch;
+      for (int row = 0; row < batchSize; ++row) {
+        // the partition field as column is last
+        List<String> result = new ArrayList<>(
+            Arrays.asList("true", String.valueOf(intForBatch), String.valueOf(floatForBatch),
+                String.valueOf(doubleForBatch), String.valueOf(intForBatch)));
+        expectedResults.add(result);
       }
     }
+
     String result = HiveTestUtils.runHive(
         hiveExec,
         "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC)
     );
     String[] rows = result.split("\n");
-    assertEquals(9, rows.length);
+    assertEquals(batchNum * batchSize, rows.length);
     for (int i = 0; i < rows.length; ++i) {
       String[] parts = HiveTestUtils.parseOutput(rows[i]);
-      for (int j = 0; j < expectedResult.get(i).length; ++j) {
-        assertEquals(expectedResult.get(i)[j], parts[j]);
+      int j = 0;
+      for (String expectedValue : expectedResults.get(i)) {
+        assertEquals(expectedValue, parts[j++]);
       }
     }
   }
@@ -294,10 +300,9 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, FieldPartitioner.class.getName());
     localProps.put(PartitionerConfig.PARTITION_FIELD_NAME_CONFIG, "country,state");
     setUp();
-
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
-    String key = "key";
     Schema schema = SchemaBuilder.struct()
         .field("count", Schema.INT64_SCHEMA)
         .field("country", Schema.STRING_SCHEMA)
@@ -318,16 +323,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
             .put("country", "mx")
             .put("state", null)
     );
-    ArrayList<SinkRecord> sinkRecords = new ArrayList<>();
-    long offset = 0;
-    for (Struct record : records) {
-      for (long count = 0; count < 3; count++) {
-        SinkRecord sinkRecord = new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, key, schema, record,
-            offset + count);
-        sinkRecords.add(sinkRecord);
-      }
-      offset = offset + 3;
-    }
+    List<SinkRecord> sinkRecords = createSinkRecords(records, schema);
 
     hdfsWriter.write(sinkRecords);
     hdfsWriter.close();
@@ -339,11 +335,15 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
     }
+    Collections.sort(expectedColumnNames);
 
     List<String> actualColumnNames = new ArrayList<>();
-    for (FieldSchema column : table.getSd().getCols()) {
+    // getAllCols is needed to include columns used for partitioning in result
+    for (FieldSchema column : table.getAllCols()) {
       actualColumnNames.add(column.getName());
     }
+    Collections.sort(actualColumnNames);
+
     assertEquals(expectedColumnNames, actualColumnNames);
 
     String topicsDir = this.topicsDir.get(TOPIC);
@@ -352,32 +352,27 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=ca"));
     expectedPartitions.add(FileUtils.directoryName(url, topicsDir, "test-topic/country=us/state=tx"));
 
-    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short) -1);
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, TOPIC, (short)-1);
 
     assertEquals(expectedPartitions, partitions);
 
-    List<String[]> expectedResult = Arrays.asList(
-        new String[]{"1", "mx", "NULL"},
-        new String[]{"1", "mx", "NULL"},
-        new String[]{"1", "mx", "NULL"},
-        new String[]{"1", "us", "ca"},
-        new String[]{"1", "us", "ca"},
-        new String[]{"1", "us", "ca"},
-        new String[]{"1", "us", "tx"},
-        new String[]{"1", "us", "tx"},
-        new String[]{"1", "us", "tx"}
+    List<List<String>> expectedResults = Arrays.asList(
+        Arrays.asList("1", "mx", "null"),
+        Arrays.asList("1", "us", "ca"),
+        Arrays.asList("1", "us", "tx")
     );
 
     String result = HiveTestUtils.runHive(
         hiveExec,
-        "SELECT * FROM " + hiveMetaStore.tableNameConverter(TOPIC) + " order by country, state"
+        "SELECT * FROM " +
+            hiveMetaStore.tableNameConverter(TOPIC)
     );
     String[] rows = result.split("\n");
-    assertEquals(9, rows.length);
+    assertEquals(expectedResults.size(), rows.length);
     for (int i = 0; i < rows.length; ++i) {
       String[] parts = HiveTestUtils.parseOutput(rows[i]);
-      for (int j = 0; j < expectedResult.get(i).length; ++j) {
-        assertEquals(expectedResult.get(i)[j], parts[j]);
+      for (int j = 0; j < expectedResults.get(i).size(); ++j) {
+        assertEquals(expectedResults.get(i).get(j), parts[j++]);
       }
     }
   }
@@ -388,6 +383,7 @@ public class HiveIntegrationAvroTest extends HiveTestBase {
     localProps.put(PartitionerConfig.PARTITIONER_CLASS_CONFIG, DailyPartitioner.class.getName());
     setUp();
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.open(context.assignment());
 
     String key = "key";
     Schema schema = createSchema();

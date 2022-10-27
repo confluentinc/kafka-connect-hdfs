@@ -57,6 +57,7 @@ import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import io.confluent.connect.storage.partitioner.TimestampExtractor;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
+import io.confluent.connect.storage.wal.FilePathOffset;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
@@ -113,6 +114,7 @@ public class TopicPartitionWriter {
   private final ExecutorService executorService;
   private final Queue<Future<Void>> hiveUpdateFutures;
   private final Set<String> hivePartitions;
+  private Path recoveredFileWithMaxOffsets;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -185,7 +187,7 @@ public class TopicPartitionWriter {
     this.url = storage.url();
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
-
+    recoveredFileWithMaxOffsets = null;
     topicsDir = config.getTopicsDirFromTopic(tp.topic());
     flushSize = config.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = config.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
@@ -257,14 +259,14 @@ public class TopicPartitionWriter {
           applyWAL();
           nextState();
         case WAL_APPLIED:
-          log.debug("Start recovery state: Truncate WAL for topic partition {}", tp);
-          truncateWAL();
-          nextState();
-        case WAL_TRUNCATED:
           log.debug("Start recovery state: Reset Offsets for topic partition {}", tp);
           resetOffsets();
           nextState();
         case OFFSET_RESET:
+          log.debug("Start recovery state: Truncate WAL for topic partition {}", tp);
+          truncateWAL();
+          nextState();
+        case WAL_TRUNCATED:
           log.debug("Start recovery state: Resume for topic partition {}", tp);
           resume();
           nextState();
@@ -598,7 +600,25 @@ public class TopicPartitionWriter {
     return periodicRotation || scheduledRotation || messageSizeRotation;
   }
 
-  private void readOffset() throws ConnectException {
+  /**
+   * Read the offset of most recent record in HDFS.
+   * Attempt to read the offset from the WAL file and fall-back on a recursive search of filenames.
+   */
+  private void readOffset() {
+    // Use the WAL file to attempt to extract the recent offsets
+    FilePathOffset latestOffsetEntry = wal.extractLatestOffset();
+    if (latestOffsetEntry != null) {
+      long lastCommittedOffset = latestOffsetEntry.getOffset();
+      log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
+      offset = lastCommittedOffset + 1;
+      log.trace("Next offset to read: {}", offset);
+      recoveredFileWithMaxOffsets = new Path(latestOffsetEntry.getFilePath());
+      return;
+    }
+
+    // Use the recursive filename scan approach
+    log.debug("Could not use WAL approach for recovering offsets, "
+        + "searching for latest offsets on HDFS.");
     String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
     CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
     FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
@@ -613,6 +633,7 @@ public class TopicPartitionWriter {
       // `offset` represents the next offset to read after the most recent commit
       offset = lastCommittedOffsetToHdfs + 1;
       log.trace("Next offset to read: {}", offset);
+      recoveredFileWithMaxOffsets = fileStatusWithMaxOffset.getPath();
     }
   }
 
@@ -683,9 +704,7 @@ public class TopicPartitionWriter {
   }
 
   private void truncateWAL() throws ConnectException {
-    if (!recovered) {
-      wal.truncate();
-    }
+    wal.truncate();
   }
 
   private void resetOffsets() throws ConnectException {
@@ -844,10 +863,10 @@ public class TopicPartitionWriter {
   }
 
   private long commitFile(String encodedPartition) {
-    log.debug("Committing file for partition {}", encodedPartition);
     if (!startOffsets.containsKey(encodedPartition)) {
       return -1;
     }
+    log.debug("Committing file for partition {}", encodedPartition);
     long startOffset = startOffsets.get(encodedPartition);
     long endOffset = endOffsets.get(encodedPartition);
     String tempFile = tempFiles.get(encodedPartition);
@@ -920,12 +939,16 @@ public class TopicPartitionWriter {
     hiveUpdateFutures.add(future);
   }
 
+  public Path getRecoveredFileWithMaxOffsets() {
+    return recoveredFileWithMaxOffsets;
+  }
+
   private enum State {
     RECOVERY_STARTED,
     RECOVERY_PARTITION_PAUSED,
     WAL_APPLIED,
-    WAL_TRUNCATED,
     OFFSET_RESET,
+    WAL_TRUNCATED,
     WRITE_STARTED,
     WRITE_PARTITION_PAUSED,
     SHOULD_ROTATE,

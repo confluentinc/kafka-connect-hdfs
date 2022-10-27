@@ -13,19 +13,18 @@
   ~ WARRANTIES OF ANY KIND, either express or implied.  See the License for the
   ~ specific language governing permissions and limitations under the License.
   -->
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>5.5.13-SNAPSHOT</version>
+        <version>10.1.11</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
+    <version>10.0.10-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>kafka-connect-hdfs</name>
     <organization>
@@ -49,14 +48,22 @@
         <connection>scm:git:git://github.com/confluentinc/kafka-connect-hdfs.git</connection>
         <developerConnection>scm:git:git@github.com:confluentinc/kafka-connect-hdfs.git</developerConnection>
         <url>https://github.com/confluentinc/kafka-connect-hdfs</url>
-        <tag>HEAD</tag>
+        <tag>10.0.x</tag>
     </scm>
 
     <properties>
         <confluent.maven.repo>https://packages.confluent.io/maven/</confluent.maven.repo>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
-        <confluent-log4j.version>1.2.17-cp2.2</confluent-log4j.version>
+        <confluent-log4j.version>1.2.17-cp8</confluent-log4j.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
+        <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
+        <kafka.connect.storage.common.version>10.1.11</kafka.connect.storage.common.version>
+        <commons.collections.version>3.2.2</commons.collections.version>
+        <libthrift.version>0.13.0</libthrift.version>
+        <log4j2-api.version>2.17.1</log4j2-api.version>
+        <!-- temporary fix by pinning the version until we upgrade to a version of common that contains this or newer version.
+            See https://github.com/confluentinc/common/pull/332 for details -->
+        <dependency.check.version>6.1.6</dependency.check.version>
     </properties>
 
     <repositories>
@@ -82,32 +89,32 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-core</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-format</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-partitioner</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-wal</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-hive</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.netty</groupId>
@@ -115,7 +122,7 @@
                 </exclusion>
                 <exclusion>
                     <groupId>io.netty</groupId>
-                    <artifactId>netty-all</artifactId>
+                    <artifactId>netty-codec</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.htrace</groupId>
@@ -126,10 +133,68 @@
                     <artifactId>htrace-core</artifactId>
                 </exclusion>
                 <exclusion>
+                    <groupId>org.apache.calcite.avatica</groupId>
+                    <artifactId>avatica</artifactId>
+                </exclusion>
+                <exclusion>
                     <groupId>org.apache.avro</groupId>
                     <artifactId>avro-ipc-jetty</artifactId>
                 </exclusion>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-core</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-druid</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>${commons.collections.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+            <version>${libthrift.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>${log4j2-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>${log4j2-api.version}</version>
+            <exclusions>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j2-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>3.4.2</version>
         </dependency>
         <dependency>
             <groupId>com.github.spotbugs</groupId>
@@ -138,17 +203,20 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.databind.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common-htrace-core4-shaded</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-common-avatica-shaded</artifactId>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
@@ -188,11 +256,6 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>io.confluent</groupId>
-            <artifactId>confluent-log4j</artifactId>
-            <version>${confluent-log4j.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-minikdc</artifactId>
             <version>${hadoop.version}</version>
@@ -217,6 +280,12 @@
             </exclusions>
         </dependency>
         <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>confluent-log4j</artifactId>
+            <version>${confluent-log4j.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <!-- add this to satisfy the dependency requirement of apacheds-jdbm1-->
             <groupId>org.apache.directory.jdbm</groupId>
             <artifactId>apacheds-jdbm1</artifactId>
@@ -224,7 +293,6 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
     <build>
         <plugins>
             <plugin>
@@ -248,7 +316,7 @@
                             </description>
 
                             <supportProviderName>Confluent, Inc.</supportProviderName>
-                            <supportSummary>Confluent supports the HDFS sink connector alongside community members as part of its Confluent Platform offering.</supportSummary>
+                            <supportSummary><![CDATA[This connector is <a href="https://www.confluent.io/subscription/">supported by Confluent</a> as part of a <a href="https://www.confluent.io/product/confluent-platform/">Confluent Platform</a> subscription.]]></supportSummary>
                             <supportUrl>https://docs.confluent.io/current/</supportUrl>
                             <supportLogo>logos/confluent.png</supportLogo>
 
@@ -257,10 +325,6 @@
                             <ownerName>Confluent, Inc.</ownerName>
                             <ownerUrl>https://confluent.io/</ownerUrl>
                             <ownerLogo>logos/confluent.png</ownerLogo>
-
-                            <dockerNamespace>confluentinc</dockerNamespace>
-                            <dockerName>cp-kafka-connect</dockerName>
-                            <dockerTag>${project.version}</dockerTag>
 
                             <componentTypes>
                                 <componentType>sink</componentType>
@@ -282,8 +346,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <compilerArgs>
-                        <arg>-Xlint:all</arg>
-                        <arg>-Xlint:-deprecation</arg>
+                        <arg>-Xlint:all,-deprecation,-processing</arg>
                         <arg>-Werror</arg>
                     </compilerArgs>
                     <showWarnings>true</showWarnings>
@@ -315,6 +378,13 @@
                 <configuration>
                     <reuseForks>false</reuseForks>
                     <forkCount>1</forkCount>
+                    <systemPropertyVariables>
+                        <datanucleus.schema.autoCreateAll>true</datanucleus.schema.autoCreateAll>
+                    </systemPropertyVariables>
+                    <additionalClasspathElements>
+                        <!--puts hive-site.xml on classpath - w/o HMS tables are not created-->
+                        <additionalClasspathElement>src/test/resources/conf</additionalClasspathElement>
+                    </additionalClasspathElements>
                 </configuration>
             </plugin>
             <plugin>
@@ -346,6 +416,16 @@
                             </includes>
                         </fileset>
                     </filesets>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>${maven.release.plugin.version}</version>
+                <configuration>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <remoteTagging>false</remoteTagging>
+                    <tagNameFormat>v@{project.version}</tagNameFormat>
                 </configuration>
             </plugin>
         </plugins>

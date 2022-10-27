@@ -152,7 +152,7 @@ public class AvroHiveUtilTest extends HiveTestBase {
   private void prepareData(String topic, int partition) throws Exception {
     TopicPartition tp = new TopicPartition(topic, partition);
     DataWriter hdfsWriter = createWriter(context, avroData);
-    hdfsWriter.recover(tp);
+    hdfsWriter.open(context.assignment());
 
     List<SinkRecord> sinkRecords = createSinkRecords(7);
 

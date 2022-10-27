@@ -17,8 +17,10 @@ package io.confluent.connect.hdfs;
 
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.http.HttpConfig;
@@ -52,6 +54,8 @@ import static org.junit.Assert.assertTrue;
 public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   private static File baseDir;
+  private static FileSystem fs;
+  private static MiniDFSCluster cluster;
   private static String hdfsPrincipal;
   private static MiniKdc kdc;
   private static String keytab;
@@ -59,11 +63,27 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
   private static String connectorPrincipal;
   private static String connectorKeytab;
 
-  private MiniDFSCluster cluster;
-  private FileSystem fs;
-
   @BeforeClass
-  public static void initKdc() throws Exception {
+  public static void setup() throws Exception {
+    initKdc();
+
+    cluster = createDFSCluster();
+    fs = cluster.getFileSystem();
+  }
+
+  @AfterClass
+  public static void cleanup() throws IOException {
+    if (fs != null) {
+      fs.close();
+    }
+    if (cluster != null) {
+      cluster.shutdown(true);
+    }
+    UserGroupInformation.reset();
+    shutdownKdc();
+  }
+
+  private static void initKdc() throws Exception {
     baseDir = new File(System.getProperty("test.build.dir", "target/test-dir"));
     FileUtil.fullyDelete(baseDir);
     assertTrue(baseDir.mkdirs());
@@ -83,8 +103,7 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
     connectorPrincipal = "connect-hdfs/localhost@" + kdc.getRealm();
   }
 
-  @AfterClass
-  public static void shutdownKdc() {
+  private static void shutdownKdc() {
     if (kdc != null) {
       kdc.stop();
     }
@@ -93,10 +112,6 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
-    conf = createSecureConfig("authentication");
-    cluster = createDFSCluster(conf);
-    cluster.waitActive();
-    fs = cluster.getFileSystem();
     Map<String, String> props = createProps();
     connectorConfig = new HdfsSinkConnectorConfig(props);
     super.setUp();
@@ -104,26 +119,18 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   @After
   public void tearDown() throws Exception {
-    if (fs != null) {
-      fs.close();
+    if (fs.exists(new Path("/")) && fs.isDirectory(new Path("/"))) {
+      for (FileStatus file : fs.listStatus(new Path("/"))) {
+        if (file.isDirectory()) {
+          fs.delete(file.getPath(), true);
+        } else {
+          fs.delete(file.getPath(), false);
+        }
+      }
     }
-    if (cluster != null) {
-      cluster.shutdown(true);
-    }
-    super.tearDown();
   }
 
-  private MiniDFSCluster createDFSCluster(Configuration conf) throws IOException {
-    MiniDFSCluster cluster;
-    String[] hosts = {"localhost", "localhost", "localhost"};
-    MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
-    builder.hosts(hosts).nameNodePort(9001).numDataNodes(3);
-    cluster = builder.build();
-    cluster.waitActive();
-    return cluster;
-  }
-
-  private Configuration createSecureConfig(String dataTransferProtection) throws Exception {
+  private static Configuration createSecureConfig(String dataTransferProtection) throws Exception {
     HdfsConfiguration conf = new HdfsConfiguration();
     SecurityUtil.setAuthenticationMethod(UserGroupInformation.AuthenticationMethod.KERBEROS, conf);
     conf.set(DFS_NAMENODE_KERBEROS_PRINCIPAL_KEY, hdfsPrincipal);
@@ -140,7 +147,7 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
     conf.set(DFS_ENCRYPT_DATA_TRANSFER_KEY,
              "true");//https://issues.apache.org/jira/browse/HDFS-7431
     String keystoresDir = baseDir.getAbsolutePath();
-    String sslConfDir = KeyStoreTestUtil.getClasspathDir(this.getClass());
+    String sslConfDir = KeyStoreTestUtil.getClasspathDir(TestWithSecureMiniDFSCluster.class);
     KeyStoreTestUtil.setupSSLConfig(keystoresDir, sslConfDir, conf, false);
     return conf;
   }
@@ -162,5 +169,17 @@ public class TestWithSecureMiniDFSCluster extends HdfsSinkConnectorTestBase {
     props.put(HdfsSinkConnectorConfig.CONNECT_HDFS_KEYTAB_CONFIG, keytab);
     props.put(HdfsSinkConnectorConfig.HDFS_NAMENODE_PRINCIPAL_CONFIG, hdfsPrincipal);
     return props;
+  }
+
+  private static MiniDFSCluster createDFSCluster() throws Exception {
+    MiniDFSCluster cluster = new MiniDFSCluster
+        .Builder(createSecureConfig("authentication"))
+        .hosts(new String[]{"localhost", "localhost", "localhost"})
+        .nameNodePort(9001)
+        .numDataNodes(3)
+        .build();
+    cluster.waitActive();
+
+    return cluster;
   }
 }

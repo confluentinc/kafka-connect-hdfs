@@ -56,6 +56,7 @@ public class HdfsSinkTaskWithSecureHDFSTest extends TestWithSecureMiniDFSCluster
 
     task.initialize(context);
     task.start(properties);
+    task.open(context.assignment());
     task.put(sinkRecords);
     task.stop();
 

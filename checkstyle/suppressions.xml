@@ -14,7 +14,7 @@
 
     <suppress
             checks="ClassDataAbstractionCoupling"
-            files="(DataWriter|WALFile).java"
+            files="(DataWriter|WALFile|OrcUtil).java"
     />
 
     <suppress

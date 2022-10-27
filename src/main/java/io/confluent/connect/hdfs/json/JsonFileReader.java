@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.json;
 
+import javax.annotation.Nonnull;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
 
@@ -37,6 +38,7 @@ public class JsonFileReader implements SchemaFileReader<HdfsSinkConnectorConfig,
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public boolean hasNext() {
     throw new UnsupportedOperationException();
   }
@@ -49,6 +51,8 @@ public class JsonFileReader implements SchemaFileReader<HdfsSinkConnectorConfig,
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  @Nonnull
   public Iterator<Object> iterator() {
     throw new UnsupportedOperationException();
   }

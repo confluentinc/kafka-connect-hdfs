@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.orc.OrcFormat;
 import io.confluent.connect.hdfs.parquet.ParquetFormat;
 import io.confluent.connect.hdfs.string.StringFormat;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -248,6 +249,7 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     List<Object> expectedFormatClasses = Arrays.<Object>asList(
         AvroFormat.class,
         JsonFormat.class,
+        OrcFormat.class,
         ParquetFormat.class,
         StringFormat.class
     );

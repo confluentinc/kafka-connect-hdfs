@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.parquet;
 
+import javax.annotation.Nonnull;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
@@ -55,6 +56,7 @@ public class ParquetFileReader
     }
   }
 
+  @Override
   public boolean hasNext() {
     throw new UnsupportedOperationException();
   }
@@ -67,6 +69,8 @@ public class ParquetFileReader
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  @Nonnull
   public Iterator<Object> iterator() {
     throw new UnsupportedOperationException();
   }

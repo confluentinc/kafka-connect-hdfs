@@ -15,6 +15,8 @@
 
 package io.confluent.connect.hdfs.parquet;
 
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -54,6 +56,7 @@ public class ParquetHiveUtil extends HiveUtil {
   public void alterSchema(String database, String tableName, Schema schema) {
     Table table = hiveMetaStore.getTable(database, tableName);
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    removeFieldPartitionColumn(columns, table.getPartitionKeys());
     table.setFields(columns);
     hiveMetaStore.alterTable(table);
   }
@@ -77,8 +80,9 @@ public class ParquetHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    // convert copycat schema schema to Hive columns
+    // convert Connect schema schema to Hive columns
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    removeFieldPartitionColumn(columns, partitioner.partitionFields());
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
     return table;
@@ -118,5 +122,23 @@ public class ParquetHiveUtil extends HiveUtil {
     } catch (ClassNotFoundException ex) {
       return oldClass;
     }
+  }
+
+  /**
+   * Remove the column that is later re-created by Hive when using the
+   * {@code partition.field.name} config.
+   *
+   * @param columns the hive columns from
+   *                {@link HiveSchemaConverter#convertSchema(Schema) convertSchema}.
+   * @param partitionFields the fields used for partitioning
+   */
+  private void removeFieldPartitionColumn(
+      List<FieldSchema> columns,
+      List<FieldSchema> partitionFields
+  ) {
+    Set<String> partitions = partitionFields.stream()
+        .map(FieldSchema::getName).collect(Collectors.toSet());
+
+    columns.removeIf(column -> partitions.contains(column.getName()));
   }
 }
