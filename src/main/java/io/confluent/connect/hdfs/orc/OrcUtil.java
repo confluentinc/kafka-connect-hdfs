@@ -30,7 +30,6 @@ import static org.apache.kafka.connect.data.Schema.Type.STRUCT;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BiFunction;
 import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
@@ -39,6 +38,7 @@ import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.io.ArrayPrimitiveWritable;
 import org.apache.hadoop.io.BooleanWritable;
@@ -62,7 +62,11 @@ import java.util.List;
 
 public final class OrcUtil {
 
-  private static Map<Type, BiFunction<Struct, Field, Object>> CONVERSION_MAP = new HashMap<>();
+  private interface OrcConverter {
+    Object convert(TypeInfo typeInfo, Struct struct, Field field);
+  }
+
+  private static final Map<Type, OrcConverter> CONVERSION_MAP = new HashMap<>();
 
   static {
     CONVERSION_MAP.put(ARRAY, OrcUtil::convertArray);
@@ -87,8 +91,8 @@ public final class OrcUtil {
    * @return the struct object
    */
   @SuppressWarnings("unchecked")
-  public static OrcStruct createOrcStruct(TypeInfo typeInfo, Object... objs) {
-    SettableStructObjectInspector oi = (SettableStructObjectInspector) 
+  public static OrcStruct createOrcStruct(TypeInfo typeInfo, Object[] objs) {
+    SettableStructObjectInspector oi = (SettableStructObjectInspector)
             OrcStruct.createObjectInspector(typeInfo);
 
     List<StructField> fields = (List<StructField>) oi.getAllStructFieldRefs();
@@ -107,53 +111,57 @@ public final class OrcUtil {
    * @param struct the struct to convert
    * @return the struct as a writable array
    */
-  public static Object[] convertStruct(Struct struct) {
+  public static Object[] convertStruct(TypeInfo typeInfo, Struct struct) {
     List<Object> data = new LinkedList<>();
     for (Field field : struct.schema().fields()) {
       if (struct.get(field) == null) {
         data.add(null);
       } else {
         Schema.Type schemaType = field.schema().type();
-        data.add(CONVERSION_MAP.get(schemaType).apply(struct, field));
+        data.add(CONVERSION_MAP.get(schemaType).convert(typeInfo, struct, field));
       }
     }
 
     return data.toArray();
   }
 
-  private static Object convertStruct(Struct struct, Field field) {
-    return convertStruct(struct.getStruct(field.name()));
+  private static Object convertStruct(TypeInfo typeInfo, Struct struct, Field field) {
+    Struct fieldStruct = struct.getStruct(field.name());
+    return createOrcStruct(
+        ((StructTypeInfo)typeInfo).getStructFieldTypeInfo(field.name()),
+        convertStruct(typeInfo, fieldStruct)
+    );
   }
 
-  private static Object convertArray(Struct struct, Field field) {
+  private static Object convertArray(TypeInfo typeInfo, Struct struct, Field field) {
     return new ArrayPrimitiveWritable(struct.getArray(field.name()).toArray());
   }
 
-  private static Object convertBoolean(Struct struct, Field field) {
+  private static Object convertBoolean(TypeInfo typeInfo, Struct struct, Field field) {
     return new BooleanWritable(struct.getBoolean(field.name()));
   }
 
-  private static Object convertBytes(Struct struct, Field field) {
+  private static Object convertBytes(TypeInfo typeInfo, Struct struct, Field field) {
     return new BytesWritable(struct.getBytes(field.name()));
   }
 
-  private static Object convertFloat32(Struct struct, Field field) {
+  private static Object convertFloat32(TypeInfo typeInfo, Struct struct, Field field) {
     return new FloatWritable(struct.getFloat32(field.name()));
   }
 
-  private static Object convertFloat64(Struct struct, Field field) {
+  private static Object convertFloat64(TypeInfo typeInfo, Struct struct, Field field) {
     return new DoubleWritable(struct.getFloat64(field.name()));
   }
 
-  private static Object convertInt8(Struct struct, Field field) {
+  private static Object convertInt8(TypeInfo typeInfo, Struct struct, Field field) {
     return new ByteWritable(struct.getInt8(field.name()));
   }
 
-  private static Object convertInt16(Struct struct, Field field) {
+  private static Object convertInt16(TypeInfo typeInfo, Struct struct, Field field) {
     return new ShortWritable(struct.getInt16(field.name()));
   }
 
-  private static Object convertInt32(Struct struct, Field field) {
+  private static Object convertInt32(TypeInfo typeInfo, Struct struct, Field field) {
 
     if (Date.LOGICAL_NAME.equals(field.schema().name())) {
       java.util.Date date = (java.util.Date) struct.get(field);
@@ -162,13 +170,13 @@ public final class OrcUtil {
 
     if (Time.LOGICAL_NAME.equals(field.schema().name())) {
       java.util.Date date = (java.util.Date) struct.get(field);
-      return new TimestampWritable(new java.sql.Timestamp(date.getTime()));
+      return new IntWritable((int) date.getTime());
     }
 
     return new IntWritable(struct.getInt32(field.name()));
   }
 
-  private static Object convertInt64(Struct struct, Field field) {
+  private static Object convertInt64(TypeInfo typeInfo, Struct struct, Field field) {
 
     if (Timestamp.LOGICAL_NAME.equals(field.schema().name())) {
       java.util.Date date = (java.util.Date) struct.get(field);
@@ -178,7 +186,7 @@ public final class OrcUtil {
     return new LongWritable(struct.getInt64(field.name()));
   }
 
-  private static Object convertMap(Struct struct, Field field) {
+  private static Object convertMap(TypeInfo typeInfo, Struct struct, Field field) {
     MapWritable mapWritable = new MapWritable();
     struct.getMap(field.name()).forEach(
         (key, value) -> mapWritable.put(new ObjectWritable(key), new ObjectWritable(value))
@@ -187,7 +195,7 @@ public final class OrcUtil {
     return mapWritable;
   }
 
-  private static Object convertString(Struct struct, Field field) {
+  private static Object convertString(TypeInfo typeInfo, Struct struct, Field field) {
     return new Text(struct.getString(field.name()));
   }
 }
