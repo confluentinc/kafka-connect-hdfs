@@ -28,12 +28,16 @@ import static org.apache.kafka.connect.data.Schema.Type.MAP;
 import static org.apache.kafka.connect.data.Schema.Type.STRING;
 import static org.apache.kafka.connect.data.Schema.Type.STRUCT;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector;
@@ -50,6 +54,7 @@ import org.apache.hadoop.io.MapWritable;
 import org.apache.hadoop.io.ObjectWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Schema.Type;
@@ -142,6 +147,12 @@ public final class OrcUtil {
   }
 
   private static Object convertBytes(TypeInfo typeInfo, Struct struct, Field field) {
+
+    if (Decimal.LOGICAL_NAME.equals(field.schema().name())) {
+      BigDecimal bigDecimal = (BigDecimal) struct.get(field.name());
+      return new HiveDecimalWritable(HiveDecimal.create(bigDecimal));
+    }
+
     return new BytesWritable(struct.getBytes(field.name()));
   }
 
