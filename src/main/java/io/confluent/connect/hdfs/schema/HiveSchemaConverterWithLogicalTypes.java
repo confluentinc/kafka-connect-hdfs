@@ -71,6 +71,10 @@ public class HiveSchemaConverterWithLogicalTypes {
           return TypeInfoFactory.dateTypeInfo;
         case Timestamp.LOGICAL_NAME:
           return TypeInfoFactory.timestampTypeInfo;
+        // NOTE: We currently leave TIME values as INT32 (the default).
+        //       Converting to a STRING would be ok too.
+        //       Sadly, writing as INTERVAL is unsupported in the kafka-connect library.
+        //       See: org.apache.hadoop.hive.ql.io.orc.WriterImpl - INTERVAL is missing
         //case Time.LOGICAL_NAME:
         //  return TypeInfoFactory.intervalDayTimeTypeInfo;
         default:
@@ -79,7 +83,6 @@ public class HiveSchemaConverterWithLogicalTypes {
     }
 
     // HiveSchemaConverter converts primitives just fine, just not all logical-types.
-    // TODO: Verify DECIMAL conversions work as expected
     return HiveSchemaConverter.convertPrimitiveMaybeLogical(schema);
   }
 }
