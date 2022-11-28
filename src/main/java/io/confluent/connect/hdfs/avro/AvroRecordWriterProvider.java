@@ -73,7 +73,6 @@ public class AvroRecordWriterProvider
           }
         }
 
-        log.trace("Sink record: {}", record);
         Object value = avroData.fromConnectData(schema, record.value());
         try {
           // AvroData wraps primitive types so their schema can be included. We need to unwrap

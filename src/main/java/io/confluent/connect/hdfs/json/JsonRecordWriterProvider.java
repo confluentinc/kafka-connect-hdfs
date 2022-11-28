@@ -76,7 +76,6 @@ public class JsonRecordWriterProvider implements RecordWriterProvider<HdfsSinkCo
 
         @Override
         public void write(SinkRecord record) {
-          log.trace("Sink record: {}", record.toString());
           try {
             Object value = record.value();
             if (value instanceof Struct) {
