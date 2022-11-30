@@ -27,8 +27,11 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -106,6 +109,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       //this.maxRetries = Math.max(0, jdbcConfig.getConnectionAttempts() - 1);
       // TODO: Verify db and schema match the connection string.
       // TODO: groupBy
+      // TODO: MD5 Optimization/pruning
 
       if (records.isEmpty()) {
         super.put(records);
@@ -159,9 +163,10 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
   }
 
   private SinkRecord transformRecord(SimpleSqlCache sqlCache,
-                                     SinkRecord record) throws SQLException {
-    JdbcTableInfo tableInfo = new JdbcTableInfo(record);
-    Struct oldValueStruct = (Struct) record.value();
+                                     SinkRecord oldRecord) throws SQLException {
+    JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord);
+    Struct oldValueStruct = (Struct) oldRecord.value();
+    Schema oldValueSchema = oldRecord.valueSchema();
 
     Set<String> configuredFieldNamesLower = configuredTables.getColumnNamesLower(tableInfo);
 
@@ -173,8 +178,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
     // Calculate the list of Columns to query from the DB
 
     Map<String, Field> oldFieldsMap =
-        record
-            .valueSchema()
+        oldValueSchema
             .fields()
             .stream()
             .collect(Collectors.toMap(
@@ -184,7 +188,11 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
                     .filter(((Predicate<String>) String::isEmpty).negate())
                     // NOTE: Should be impossible to reach here!
                     .orElseThrow(() -> new ConnectException(
-                        "Old Field [" + field.name() + "] is null or empty for Table [" + tableInfo.qualifiedName() + "]"
+                        "Old Field ["
+                            + field.name()
+                            + "] is null or empty for Table ["
+                            + tableInfo
+                            + "]"
                     )),
                 Function.identity()
             ));
@@ -228,7 +236,11 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
             .map(columnNameLower -> Optional
                 .ofNullable(allColumnsLowerMap.get(columnNameLower))
                 .orElseThrow(() -> new ConnectException(
-                    "Configured Column [" + columnNameLower + "] does not exist in Table [" + tableInfo.qualifiedName() + "]"
+                    "Configured Column ["
+                        + columnNameLower
+                        + "] does not exist in Table ["
+                        + tableInfo
+                        + "]"
                 ))
             )
             .sorted(JdbcColumn.byOrdinal)
@@ -245,7 +257,11 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
                 .map(primaryKeyName -> Optional
                     .ofNullable(allColumnsLowerMap.get(primaryKeyName))
                     .orElseThrow(() -> new ConnectException(
-                        "Primary Key [" + primaryKeyName + "] does not exist in Table [" + tableInfo.qualifiedName() + "]"
+                        "Primary Key ["
+                            + primaryKeyName
+                            + "] does not exist in Table ["
+                            + tableInfo
+                            + "]"
                     ))
                 )
                 .sorted(JdbcColumn.byOrdinal)
@@ -267,30 +283,17 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
             .sorted(JdbcColumn.byOrdinal)
             .peek(column -> {
               String columnName = column.getName();
-              Field existingField = record.valueSchema().field(columnName);
-              if (existingField == null) {
-                switch (column.getJdbcType()) {
-                  case BLOB:
-                  case CLOB:
-                  case SQLXML:
-                    newSchemaBuilder.field(
-                        columnName,
-                        column.isNullable() ? Schema.OPTIONAL_BYTES_SCHEMA : Schema.BYTES_SCHEMA
-                    );
-                    break;
-                  default:
-                    throw new ConnectException(
-                        "Cannot convert Column [" + column.getName() + "] type [" + column.getJdbcType() + "] into a Value Schema from Table [" + tableInfo.qualifiedName() + "]"
-                    );
-                }
-              } else
-                newSchemaBuilder.field(columnName, existingField.schema());
+              Schema fieldSchema =
+                  Optional
+                      .ofNullable(oldValueSchema.field(columnName))
+                      .map(Field::schema)
+                      .orElseGet(() -> toSchema(column));
+              newSchemaBuilder.field(columnName, fieldSchema);
             })
             .map(JdbcColumn::getName)
             .collect(Collectors.toSet());
 
-    record
-        .valueSchema()
+    oldValueSchema
         .fields()
         .forEach(field -> {
           String fieldName = field.name().trim();
@@ -330,42 +333,43 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
             + whereClause
             + ";";
 
-    JdbcSchema.JdbcTransformer<String> jdbcTransformer =
-        new JdbcSchema.StructToJdbcTransformer(oldValueStruct);
+    JdbcValueMapper<String> jdbcValueMapper =
+        new StructToJdbcValueMapper(oldValueStruct);
 
     // Execute the Query
 
     jdbcConnection.withPreparedStatement(sqlQuery, preparedStatement -> {
       int index = 0;
       for (JdbcColumn primaryKeyColumn : primaryKeyColumns) {
-        JdbcSchema.prepareWhereColumn(
+        JdbcQueryUtil.prepareWhereColumn(
             preparedStatement,
             primaryKeyColumn,
             ++index,
-            jdbcTransformer
+            jdbcValueMapper
         );
       }
 
       try (ResultSet resultSet = preparedStatement.executeQuery()) {
-        JdbcSchema.StructColumnVisitor columnVisitor =
-            new JdbcSchema.StructColumnVisitor(newValueStruct);
-
-        // NOTE: We should only have a single result!
         if (!resultSet.next()) {
-          // TODO: How do we detect if it is a DELETE?
+          // TODO: How do we detect if incoming record is a DELETE?
           log.warn(
-              "Cannot find ROW for [{}] in Table [{}]",
-              record.key(),
-              tableInfo.qualifiedName()
+              "Cannot find Row for PK [{}] in Table [{}]",
+              oldRecord.key(),
+              tableInfo
           );
         } else {
-          JdbcSchema.visitColumns(resultSet, columnVisitor);
+
+          // Read values from the DB into newValueStruct
+          JdbcQueryUtil.visitColumns(resultSet, columnVisitor(newValueStruct));
+
+          // NOTE: We should only have a single result!
           if (resultSet.next()) {
             throw new ConnectException(
                 "Got more than 1 row for query ["
-                    + record.key()
+                    + oldRecord.key()
                     + "] in Table ["
-                    + tableInfo.qualifiedName()
+                    + tableInfo
+                    + "]"
             );
           }
         }
@@ -373,14 +377,67 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       return null;
     });
 
-    return record.newRecord(
-        record.topic(),
-        record.kafkaPartition(),
-        record.keySchema(),
-        record.key(),
+    // Make sure the newValueStruct is fully populated
+    newValueStruct.validate();
+
+    // Create the newly transformed SourceRecord
+    return oldRecord.newRecord(
+        oldRecord.topic(),
+        oldRecord.kafkaPartition(),
+        oldRecord.keySchema(),
+        oldRecord.key(),
         newValueSchema,
         newValueStruct,
-        record.timestamp()
+        oldRecord.timestamp()
     );
+  }
+
+  private Schema toSchema(JdbcColumn column) {
+    switch (column.getJdbcType()) {
+      case BLOB:
+        return column.isNullable() ? Schema.OPTIONAL_BYTES_SCHEMA : Schema.BYTES_SCHEMA;
+      case CLOB:
+      case SQLXML:
+        return column.isNullable() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
+      default:
+        throw new ConnectException(
+            "Cannot convert Column ["
+                + column.getName()
+                + "] type ["
+                + column.getJdbcType()
+                + "] into a Value Schema"
+        );
+    }
+  }
+
+  private JdbcColumnVisitor columnVisitor(Struct struct) {
+    return new JdbcColumnVisitor() {
+      @Override
+      public void visit(String columnName, Blob blob) throws SQLException {
+        if (blob != null) {
+          // TODO: Would be so much better if we could stream this data, instead of loading it into a byte[]
+          byte[] bytes = blob.getBytes(1, (int) blob.length());
+          struct.put(columnName, bytes);
+        }
+      }
+
+      @Override
+      public void visit(String columnName, Clob clob) throws SQLException {
+        if (clob != null) {
+          // TODO: Would be so much better if we could stream this data, instead of loading it into a String
+          String text = clob.getSubString(1, (int) clob.length());
+          struct.put(columnName, text);
+        }
+      }
+
+      @Override
+      public void visit(String columnName, SQLXML sqlxml) throws SQLException {
+        if (sqlxml != null) {
+          // TODO: Would be so much better if we could stream this data, instead of loading it into a String
+          String text = sqlxml.getString();
+          struct.put(columnName, text);
+        }
+      }
+    };
   }
 }

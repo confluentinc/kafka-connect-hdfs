@@ -22,6 +22,8 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   private static final String HEADER_DB = "__source_db";
@@ -41,8 +43,8 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   public JdbcTableInfo(SinkRecord record) {
     this(
         (String) record.headers().lastWithName(HEADER_DB).value(),
-        (String) record.headers().lastWithName(HEADER_SCHEMA).value(),
-        (String) record.headers().lastWithName(HEADER_TABLE).value()
+        (String) record.headers().lastWithName(HEADER_SCHEMA).value(), // TODO: Validate Not Null
+        (String) record.headers().lastWithName(HEADER_TABLE).value() // TODO: Validate Not Null
     );
   }
 
@@ -96,5 +98,14 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   @Override
   public int hashCode() {
     return Objects.hash(getDb(), getSchema(), getTable());
+  }
+
+  @Override
+  public String toString() {
+    return Stream
+        .of(db, schema, table)
+        .map(value -> (value != null) ? value : "")
+        .map(String::trim)
+        .collect(Collectors.joining(".", "JdbcTableInfo{", "}"));
   }
 }

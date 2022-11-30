@@ -100,7 +100,7 @@ public class JdbcConnection implements AutoCloseable {
           String typeName = columns.getString("TYPE_NAME");
           log.debug(
               "Table [{}] Column [{}] Type [{}] TypeNum [{}]",
-              tableInfo.qualifiedName(),
+              tableInfo,
               columnName,
               typeName,
               dataTypeAsString
@@ -141,7 +141,7 @@ public class JdbcConnection implements AutoCloseable {
           //short kseq = columns.getShort("KEY_SEQ");
           primaryKeyNames.add(columnName);
         }
-        log.debug("Table [{}] PrimaryKeys: {}", tableInfo.qualifiedName(), primaryKeyNames);
+        log.debug("Table [{}] PrimaryKeys: {}", tableInfo, primaryKeyNames);
         return primaryKeyNames;
       }
     });
