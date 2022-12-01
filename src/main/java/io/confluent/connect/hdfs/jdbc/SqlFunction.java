@@ -15,16 +15,9 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-public interface JdbcValueMapper {
-  Boolean getBoolean(String columnName);
+import java.sql.SQLException;
 
-  Byte getByte(String columnName);
-
-  Integer getInteger(String columnName);
-
-  Long getLong(String columnName);
-
-  Short getShort(String columnName);
-
-  String getString(String columnName);
+@FunctionalInterface
+public interface SqlFunction<T, R> {
+  R apply(T t) throws SQLException;
 }

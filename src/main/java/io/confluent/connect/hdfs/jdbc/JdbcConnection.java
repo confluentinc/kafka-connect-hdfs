@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,64 +25,51 @@ import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * HdfsSinkConnector is a Kafka Connect Connector implementation that ingest data from Kafka to
- * HDFS.
+ * Wrapper of a singleton JDBC Connection, managing retries and reconnects.
+ * NOTE: This class is not meant for parallel calls on the same Connection.
  */
 public class JdbcConnection implements AutoCloseable {
   private static final Logger log = LoggerFactory.getLogger(JdbcConnection.class);
 
   private final String jdbcUrl;
   private final Properties jdbcProperties;
-  private Connection connection;
+  private final AtomicBoolean isClosed = new AtomicBoolean(false);
+  private volatile Connection currentConnection;
 
   public JdbcConnection(String jdbcUrl, Properties jdbcProperties) {
     this.jdbcUrl = jdbcUrl;
     this.jdbcProperties = jdbcProperties;
-  }
 
-  /**
-   * TODO: Close and reconnect if the connection fails or times out
-   */
-  public synchronized Connection getConnection() throws SQLException {
     // These config names are the same for both source and sink configs ...
     // Timeout is 40 seconds to be as long as possible for customer to have a long connection
     // handshake, while still giving enough time to validate once in the follower worker,
     // and again in the leader worker and still be under 90s REST serving timeout
     DriverManager.setLoginTimeout(40);
-    if (connection == null) {
-      log.info("Creating JDBC connection to {}", jdbcUrl);
-      connection = DriverManager.getConnection(jdbcUrl, jdbcProperties);
-      log.info("Created JDBC connection [{}] to {}", connection.hashCode(), jdbcUrl);
-    }
-    return connection;
   }
 
   @Override
-  public synchronized void close() {
-    Connection oldConnection = connection;
-    connection = null;
-    if (oldConnection != null) {
-      log.info("Closing JDBC Connection [{}} to {}", oldConnection.hashCode(), jdbcUrl);
-      try {
-        oldConnection.close();
-      } catch (Exception ex) {
-        log.warn("Failed to close connection [{}] to {}", oldConnection.hashCode(), jdbcUrl);
-      }
-    }
+  public void close() {
+    isClosed.set(true);
+    // NOTE: setCurrentConnection() may block while a new Connection is being constructed
+    Connection oldConnection = setCurrentConnection(null);
+    closeConnection(oldConnection);
   }
 
-  public List<JdbcColumn> fetchAllColumns(JdbcTableInfo tableInfo) throws SQLException {
-    return withConnection(connection -> {
+  public List<JdbcColumn> fetchAllColumns(JdbcRetrySpec retrySpec,
+                                          JdbcTableInfo tableInfo) throws SQLException {
+    return withConnection(retrySpec, connection -> {
       // We uppercase the schema and table because otherwise DB2 won't recognize them...
       try (
           ResultSet columns = connection.getMetaData().getColumns(
@@ -122,8 +110,9 @@ public class JdbcConnection implements AutoCloseable {
     });
   }
 
-  public Set<String> fetchPrimaryKeyNames(JdbcTableInfo tableInfo) throws SQLException {
-    return withConnection(connection -> {
+  public Set<String> fetchPrimaryKeyNames(JdbcRetrySpec retrySpec,
+                                          JdbcTableInfo tableInfo) throws SQLException {
+    return withConnection(retrySpec, connection -> {
       // We uppercase the schema and table because otherwise DB2 won't recognize them...
       try (
           ResultSet columns = connection.getMetaData().getPrimaryKeys(
@@ -147,54 +136,74 @@ public class JdbcConnection implements AutoCloseable {
     });
   }
 
-  public <R> R withStatement(SqlMethod.Function<Statement, R> fn) throws SQLException {
-    return withConnection(connection -> {
-      try (Statement stmt = getConnection().createStatement()) {
-        return fn.apply(stmt);
-      }
-    });
-  }
-
   public <R> R withPreparedStatement(
-      String query,
-      SqlMethod.Function<PreparedStatement, R> fn
+      JdbcRetrySpec retrySpec,
+      String sqlQuery,
+      SqlFunction<JdbcPreparedStatement, R> sqlFn
   ) throws SQLException {
-    return withConnection(connection -> {
-      try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-        return fn.apply(pstmt);
+    return withConnection(retrySpec, connection -> {
+      try (PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery)) {
+        return sqlFn.apply(new JdbcPreparedStatement(preparedStatement));
       }
     });
   }
 
-  public <T> T withConnection(SqlMethod.Function<Connection, T> fn) throws SQLException {
-    try {
-      return fn.apply(getConnection());
-    } catch (SQLException ex) {
-      log.error("Caught SQLException: {}", ex.getMessage(), ex);
-      throw ex;
-    }
+  public void withPreparedStatement(
+      JdbcRetrySpec retrySpec,
+      String sqlQuery,
+      SqlConsumer<JdbcPreparedStatement> sqlConsumer
+  ) throws SQLException {
+    withConnection(retrySpec, connection -> {
+      try (PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery)) {
+        sqlConsumer.accept(new JdbcPreparedStatement(preparedStatement));
+      }
+      return null;
+    });
   }
 
-  public <T> T withConnectionAndRetries(
-      int attempt,
-      int maxRetries,
-      SqlMethod.Function<Connection, T> fn
-  ) throws SQLException {
-    try {
-      return fn.apply(getConnection());
-    } catch (SQLException ex) {
-      if (attempt < maxRetries) {
+  @Override
+  public String toString() {
+    int connectionHash =
+        Optional
+            .ofNullable(currentConnection)
+            .map(Object::hashCode)
+            .orElse(0);
+    return "JdbcConnection{"
+        + "isClosed=" + isClosed
+        + ", jdbcUrl='" + jdbcUrl
+        + "', currentConnectionHash=" + connectionHash
+        + "}";
+  }
+
+  private <T> T withConnection(JdbcRetrySpec retrySpec,
+                               SqlFunction<Connection, T> sqlFn) throws SQLException {
+    int timesRetried = 0;
+    int maxRetries = Math.max(0, retrySpec.getMaxRetries());
+
+    while (true) {
+      try {
+        Connection connection = getOrCreateConnection();
+        return sqlFn.apply(connection);
+      } catch (SQLException ex) {
+
+        if (timesRetried++ >= maxRetries) {
+          log.error("Caught SQLException; no more retries: {}", ex.getMessage(), ex);
+          throw ex;
+        }
+
         log.warn(
-            "Caught SQLException; will reconnect and retry: [attempt {}] {}",
-            attempt,
+            "Caught SQLException; will reconnect and retry [{}/{}] in [{} ms]: {}",
+            timesRetried,
+            maxRetries,
+            retrySpec.getBackoff(),
             ex.getMessage(),
             ex
         );
-        close();
-        return withConnectionAndRetries(attempt + 1, maxRetries, fn);
+
+        closeConnection(setCurrentConnection(null));
+
+        sleep(retrySpec.getBackoff());
       }
-      log.error("Caught SQLException; no more retries: {}", ex.getMessage(), ex);
-      throw ex;
     }
   }
 
@@ -203,5 +212,88 @@ public class JdbcConnection implements AutoCloseable {
         .ofNullable(value)
         .map(String::toUpperCase)
         .orElse(null);
+  }
+
+  private static void sleep(Duration duration) {
+    long durationMillis =
+        Optional
+            .ofNullable(duration)
+            .filter(((Predicate<Duration>) Duration::isNegative).negate())
+            .map(Duration::toMillis)
+            .orElse(0L);
+
+    if (durationMillis > 0) {
+      try {
+        Thread.sleep(durationMillis);
+      } catch (InterruptedException e) {
+        // this is okay, we just wake up early
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+
+  /**
+   * TODO: This Connection NOT Threadsafe, so do not access across threads
+   */
+  private Connection getOrCreateConnection() throws SQLException {
+    if (isClosed.get()) {
+      throw new ConnectException("Cannot access closed Connection: " + this);
+    }
+
+    Connection tmpConnection = currentConnection;
+    return (tmpConnection != null)
+        ? tmpConnection
+        // NOTE: Connection might have been closed by JdbcConnection.close(), but do we care?
+        : getOrCreateConnectionSync();
+  }
+
+  private synchronized Connection getOrCreateConnectionSync() throws SQLException {
+    if (isClosed.get()) {
+      throw new ConnectException("Cannot access closed Connection: " + this);
+    }
+
+    Connection tmpConnection = currentConnection;
+    if (tmpConnection == null) {
+      // Double-check the connection _after_ creation,
+      // as this outer class may have been close()d in the interim
+      try {
+        log.info("Creating JDBC connection to {}", jdbcUrl);
+        tmpConnection = DriverManager.getConnection(jdbcUrl, jdbcProperties);
+        log.info(
+            "Created JDBC connection [{}] to {}",
+            tmpConnection.hashCode(),
+            jdbcUrl
+        );
+      } catch (SQLException | RuntimeException ex) {
+        closeConnection(tmpConnection);
+        throw ex;
+      }
+
+      // Did the outer/wrapping(this) JdbcConnection get closed in the interim?
+      if (isClosed.get()) {
+        closeConnection(tmpConnection);
+        throw new ConnectException("Cannot access closed Connection: " + this);
+      }
+      this.setCurrentConnection(tmpConnection);
+    }
+
+    return tmpConnection;
+  }
+
+  private void closeConnection(Connection connection) {
+    if (connection != null) {
+      log.info("Closing JDBC Connection [{}] to {}", connection.hashCode(), jdbcUrl);
+      try {
+        connection.close();
+      } catch (Exception ex) {
+        log.warn("Failed to close connection [{}] to {}", connection.hashCode(), jdbcUrl);
+      }
+    }
+  }
+
+  private synchronized Connection setCurrentConnection(Connection newConnection) {
+    Connection oldConnection = currentConnection;
+    currentConnection = newConnection;
+    return oldConnection;
   }
 }

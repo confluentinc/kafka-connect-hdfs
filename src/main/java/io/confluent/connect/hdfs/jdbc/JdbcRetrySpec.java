@@ -15,17 +15,25 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import java.sql.SQLException;
+import java.time.Duration;
 
-public final class SqlMethod {
+public class JdbcRetrySpec {
+  public static final JdbcRetrySpec NoRetries =
+      new JdbcRetrySpec(0, null);
 
-  @FunctionalInterface
-  public interface Function<T, R> {
-    R apply(T var1) throws SQLException;
+  private final int maxRetries;
+  private final Duration backoff;
+
+  public JdbcRetrySpec(int maxRetries, Duration backoff) {
+    this.maxRetries = maxRetries;
+    this.backoff = backoff;
   }
 
-  @FunctionalInterface
-  public interface Supplier<T> {
-    T get() throws SQLException;
+  public int getMaxRetries() {
+    return maxRetries;
+  }
+
+  public Duration getBackoff() {
+    return backoff;
   }
 }
