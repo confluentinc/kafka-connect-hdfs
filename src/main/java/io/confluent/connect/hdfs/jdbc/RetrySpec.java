@@ -17,15 +17,15 @@ package io.confluent.connect.hdfs.jdbc;
 
 import java.time.Duration;
 
-public class JdbcRetrySpec {
-  public static final JdbcRetrySpec NoRetries =
-      new JdbcRetrySpec(0, null);
+public class RetrySpec {
+  public static final RetrySpec NoRetries =
+      new RetrySpec(0, null);
 
   private final int maxRetries;
   private final Duration backoff;
 
-  public JdbcRetrySpec(int maxRetries, Duration backoff) {
-    this.maxRetries = maxRetries;
+  public RetrySpec(int maxRetries, Duration backoff) {
+    this.maxRetries = Math.max(0, maxRetries);
     this.backoff = backoff;
   }
 

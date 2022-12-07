@@ -15,7 +15,8 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.errors.RetriableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +26,7 @@ import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLTransientException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -33,6 +35,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -67,8 +70,22 @@ public class JdbcConnection implements AutoCloseable {
     closeConnection(oldConnection);
   }
 
-  public List<JdbcColumn> fetchAllColumns(JdbcRetrySpec retrySpec,
-                                          JdbcTableInfo tableInfo) throws SQLException {
+  public void commit() throws SQLException {
+    Connection connection = currentConnection;
+    if (connection != null) {
+      connection.commit();
+    }
+  }
+
+  public void rollback() throws SQLException {
+    Connection connection = currentConnection;
+    if (connection != null) {
+      connection.rollback();
+    }
+  }
+
+  public List<JdbcColumn> fetchAllColumns(RetrySpec retrySpec,
+                                          JdbcTableInfo tableInfo) {
     return withConnection(retrySpec, connection -> {
       // We uppercase the schema and table because otherwise DB2 won't recognize them...
       try (
@@ -106,12 +123,16 @@ public class JdbcConnection implements AutoCloseable {
             .stream()
             .sorted(JdbcColumn.byOrdinal)
             .collect(Collectors.toList());
+      } catch (SQLTransientException ex) {
+        throw new RetriableException(ex);
+      } catch (SQLException ex) {
+        throw new DataException(ex);
       }
     });
   }
 
-  public Set<String> fetchPrimaryKeyNames(JdbcRetrySpec retrySpec,
-                                          JdbcTableInfo tableInfo) throws SQLException {
+  public Set<String> fetchPrimaryKeyNames(RetrySpec retrySpec,
+                                          JdbcTableInfo tableInfo) {
     return withConnection(retrySpec, connection -> {
       // We uppercase the schema and table because otherwise DB2 won't recognize them...
       try (
@@ -132,32 +153,26 @@ public class JdbcConnection implements AutoCloseable {
         }
         log.debug("Table [{}] PrimaryKeys: {}", tableInfo, primaryKeyNames);
         return primaryKeyNames;
+      } catch (SQLTransientException ex) {
+        throw new RetriableException(ex);
+      } catch (SQLException ex) {
+        throw new DataException(ex);
       }
     });
   }
 
-  public <R> R withPreparedStatement(
-      JdbcRetrySpec retrySpec,
-      String sqlQuery,
-      SqlFunction<JdbcPreparedStatement, R> sqlFn
-  ) throws SQLException {
+  public <R> R withPreparedStatement(RetrySpec retrySpec,
+                                     String sqlQuery,
+                                     Function<PreparedStatement, R> fn
+  ) {
     return withConnection(retrySpec, connection -> {
       try (PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery)) {
-        return sqlFn.apply(new JdbcPreparedStatement(preparedStatement));
+        return fn.apply(preparedStatement);
+      } catch (SQLTransientException ex) {
+        throw new RetriableException(ex);
+      } catch (SQLException ex) {
+        throw new DataException(ex);
       }
-    });
-  }
-
-  public void withPreparedStatement(
-      JdbcRetrySpec retrySpec,
-      String sqlQuery,
-      SqlConsumer<JdbcPreparedStatement> sqlConsumer
-  ) throws SQLException {
-    withConnection(retrySpec, connection -> {
-      try (PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery)) {
-        sqlConsumer.accept(new JdbcPreparedStatement(preparedStatement));
-      }
-      return null;
     });
   }
 
@@ -169,30 +184,33 @@ public class JdbcConnection implements AutoCloseable {
             .map(Object::hashCode)
             .orElse(0);
     return "JdbcConnection{"
-        + "isClosed=" + isClosed
-        + ", jdbcUrl='" + jdbcUrl
-        + "', currentConnectionHash=" + connectionHash
-        + "}";
+           + "isClosed=" + isClosed
+           + ", jdbcUrl='" + jdbcUrl
+           + "', currentConnectionHash=" + connectionHash
+           + "}";
   }
 
-  private <T> T withConnection(JdbcRetrySpec retrySpec,
-                               SqlFunction<Connection, T> sqlFn) throws SQLException {
+  private <T> T withConnection(RetrySpec retrySpec,
+                               Function<Connection, T> fn) {
     int timesRetried = 0;
-    int maxRetries = Math.max(0, retrySpec.getMaxRetries());
+    int maxRetries = retrySpec.getMaxRetries();
 
     while (true) {
       try {
-        Connection connection = getOrCreateConnection();
-        return sqlFn.apply(connection);
-      } catch (SQLException ex) {
-
+        try {
+          Connection connection = getOrCreateConnection();
+          return fn.apply(connection);
+        } catch (SQLTransientException ex) {
+          throw new RetriableException(ex);
+        }
+      } catch (RetriableException | org.apache.kafka.common.errors.RetriableException ex) {
         if (timesRetried++ >= maxRetries) {
-          log.error("Caught SQLException; no more retries: {}", ex.getMessage(), ex);
+          log.error("Caught RetriableException but no more retries: {}", ex.getMessage(), ex);
           throw ex;
         }
 
         log.warn(
-            "Caught SQLException; will reconnect and retry [{}/{}] in [{} ms]: {}",
+            "Caught RetriableException; will reconnect and retry [{}/{}] in [{} ms]: {}",
             timesRetried,
             maxRetries,
             retrySpec.getBackoff(),
@@ -203,6 +221,9 @@ public class JdbcConnection implements AutoCloseable {
         closeConnection(setCurrentConnection(null));
 
         sleep(retrySpec.getBackoff());
+      } catch (SQLException ex) {
+        log.error("Caught non-retriable SQLException: {}", ex.getMessage(), ex);
+        throw new DataException(ex);
       }
     }
   }
@@ -237,7 +258,7 @@ public class JdbcConnection implements AutoCloseable {
    */
   private Connection getOrCreateConnection() throws SQLException {
     if (isClosed.get()) {
-      throw new ConnectException("Cannot access closed Connection: " + this);
+      throw new DataException("Cannot access closed Connection: " + this);
     }
 
     Connection tmpConnection = currentConnection;
@@ -249,7 +270,7 @@ public class JdbcConnection implements AutoCloseable {
 
   private synchronized Connection getOrCreateConnectionSync() throws SQLException {
     if (isClosed.get()) {
-      throw new ConnectException("Cannot access closed Connection: " + this);
+      throw new DataException("Cannot access closed Connection: " + this);
     }
 
     Connection tmpConnection = currentConnection;
@@ -272,7 +293,7 @@ public class JdbcConnection implements AutoCloseable {
       // Did the outer/wrapping(this) JdbcConnection get closed in the interim?
       if (isClosed.get()) {
         closeConnection(tmpConnection);
-        throw new ConnectException("Cannot access closed Connection: " + this);
+        throw new DataException("Cannot access closed Connection: " + this);
       }
       this.setCurrentConnection(tmpConnection);
     }

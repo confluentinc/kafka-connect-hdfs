@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -26,18 +25,16 @@ class SqlCache {
   private final Map<JdbcTableInfo, List<JdbcColumn>> allColumnsMap = new HashMap<>();
   private final Map<JdbcTableInfo, List<JdbcColumn>> primaryKeyColumnsMap = new HashMap<>();
   private final JdbcConnection jdbcConnection;
-  private final JdbcRetrySpec retrySpec;
+  private final RetrySpec retrySpec;
 
   public SqlCache(JdbcConnection jdbcConnection,
-                  JdbcRetrySpec retrySpec) {
+                  RetrySpec retrySpec) {
 
     this.jdbcConnection = jdbcConnection;
     this.retrySpec = retrySpec;
   }
 
-  public synchronized List<JdbcColumn> fetchAllColumns(
-      JdbcTableInfo tableInfo
-  ) throws SQLException {
+  public synchronized List<JdbcColumn> fetchAllColumns(JdbcTableInfo tableInfo) {
     List<JdbcColumn> allColumns = allColumnsMap.get(tableInfo);
 
     if (allColumns == null) {
@@ -47,9 +44,7 @@ class SqlCache {
     return allColumns;
   }
 
-  public synchronized List<JdbcColumn> fetchPrimaryKeyColumns(
-      JdbcTableInfo tableInfo
-  ) throws SQLException {
+  public synchronized List<JdbcColumn> fetchPrimaryKeyColumns(JdbcTableInfo tableInfo) {
     List<JdbcColumn> primaryKeyColumns = primaryKeyColumnsMap.get(tableInfo);
 
     if (primaryKeyColumns == null) {

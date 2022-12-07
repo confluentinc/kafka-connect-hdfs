@@ -18,7 +18,7 @@ package io.confluent.connect.hdfs.jdbc;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
-import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -75,7 +75,7 @@ public class JdbcSchema {
       case SQLXML:
         return column.isNullable() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
       default:
-        throw new ConnectException(
+        throw new DataException(
             "Cannot convert Column ["
                 + column.getName()
                 + "] type ["

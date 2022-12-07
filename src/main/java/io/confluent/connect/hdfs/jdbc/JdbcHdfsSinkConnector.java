@@ -19,7 +19,6 @@ import io.confluent.connect.hdfs.HdfsSinkConnector;
 import io.confluent.connect.hdfs.Version;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkConnector;
 
 import java.util.HashMap;
@@ -41,7 +40,7 @@ public class JdbcHdfsSinkConnector extends SinkConnector {
   }
 
   @Override
-  public void start(Map<String, String> props) throws ConnectException {
+  public void start(Map<String, String> props) {
     configProperties = props;
   }
 
@@ -63,7 +62,7 @@ public class JdbcHdfsSinkConnector extends SinkConnector {
   }
 
   @Override
-  public void stop() throws ConnectException {
+  public void stop() {
 
   }
 

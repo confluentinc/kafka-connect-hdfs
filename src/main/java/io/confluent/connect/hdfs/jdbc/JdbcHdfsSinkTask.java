@@ -22,11 +22,11 @@ import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 public class JdbcHdfsSinkTask extends HdfsSinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcHdfsSinkTask.class);
 
-  private final JdbcRetrySpec retrySpec = JdbcRetrySpec.NoRetries; // TODO: Make Configurable
+  private final JdbcTableHashCache jdbcTableHashCache = new JdbcTableHashCache();
   private ConfiguredTables configuredTables;
   private JdbcConnection jdbcConnection;
 
@@ -75,7 +75,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
           getClass().getSimpleName() + " Couldn't start due to configuration error.",
           ex
       );
-    } catch (ConnectException ex) {
+    } catch (RuntimeException ex) {
       log.error(
           "{} Couldn't start due to: {}",
           getClass().getSimpleName(),
@@ -95,44 +95,38 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
   }
 
   @Override
-  public void put(Collection<SinkRecord> records) throws ConnectException {
+  public void put(Collection<SinkRecord> records) {
     log.debug("Read {} records from Kafka; retrieving Large columns from JDBC", records.size());
-    try {
-      // TODO: Keep track of schema changes
-      // TODO: Un-hardcode this
-      //this.maxRetries = Math.max(0, jdbcConfig.getConnectionAttempts() - 1);
-      // TODO: Verify db and schema match the connection string.
-      // TODO: groupBy
-      // TODO: MD5 Optimization/pruning
+    // TODO: Keep track of schema changes
+    // TODO: Verify db and schema match the connection string.
+    // TODO: groupBy
 
-      if (records.isEmpty()) {
-        super.put(records);
-      } else {
-        SqlCache sqlCache = new SqlCache(jdbcConnection, retrySpec);
+    if (records.isEmpty()) {
+      super.put(records);
+    } else {
+      // TODO: Make RetrySpec Configurable
+      SqlCache sqlCache = new SqlCache(jdbcConnection, RetrySpec.NoRetries);
 
-        // Iterate over each record, and put() each individually
-        for (SinkRecord record : records) {
-          Optional
-              .ofNullable(transformRecord(sqlCache, record))
-              .ifPresent(newRecord -> {
-                log.debug(
-                    "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
-                    newRecord.key(),
-                    newRecord
-                        .valueSchema()
-                        .fields()
-                        .stream()
-                        .map(Field::name)
-                        .collect(Collectors.joining(","))
-                );
-                super.put(Collections.singletonList(newRecord));
-              });
-        }
-        // Trigger a sync() to HDFS, even if no records were written.
-        super.put(Collections.emptyList());
+      // Iterate over each record, and put() each individually
+      for (SinkRecord record : records) {
+        Optional
+            .ofNullable(transformRecord(sqlCache, record))
+            .ifPresent(newRecord -> {
+              log.debug(
+                  "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
+                  newRecord.key(),
+                  newRecord
+                      .valueSchema()
+                      .fields()
+                      .stream()
+                      .map(Field::name)
+                      .collect(Collectors.joining(","))
+              );
+              super.put(Collections.singletonList(newRecord));
+            });
       }
-    } catch (SQLException ex) {
-      throw new ConnectException(ex);
+      // Trigger a sync() to HDFS, even if no records were written.
+      super.put(Collections.emptyList());
     }
   }
 
@@ -149,7 +143,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
   }
 
   @Override
-  public void stop() throws ConnectException {
+  public void stop() {
     log.info("Stopping {}", getClass().getSimpleName());
     if (jdbcConnection != null) {
       try {
@@ -162,7 +156,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
   }
 
   private SinkRecord transformRecord(SqlCache sqlCache,
-                                     SinkRecord oldRecord) throws SQLException {
+                                     SinkRecord oldRecord) {
     JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord);
 
     Set<String> configuredFieldNamesLower = configuredTables.getColumnNamesLower(tableInfo);
@@ -177,25 +171,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
     Schema oldValueSchema = oldRecord.valueSchema();
 
-    Map<String, Field> oldFieldsMap =
-        oldValueSchema
-            .fields()
-            .stream()
-            .collect(Collectors.toMap(
-                field -> Optional
-                    .ofNullable(field.name())
-                    .map(String::trim)
-                    .filter(((Predicate<String>) String::isEmpty).negate())
-                    // NOTE: Should be impossible to reach here!
-                    .orElseThrow(() -> new ConnectException(
-                        "Old Field ["
-                            + field.name()
-                            + "] is null or empty for Table ["
-                            + tableInfo
-                            + "]"
-                    )),
-                Function.identity()
-            ));
+    Map<String, Field> oldFieldsMap = toFieldsMap(oldValueSchema);
 
     Set<String> oldFieldNamesLower =
         oldFieldsMap
@@ -243,12 +219,12 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
             .filter(((Predicate<String>) primaryKeyColumnNamesLower::contains).negate())
             .map(columnNameLower -> Optional
                 .ofNullable(allColumnsLowerMap.get(columnNameLower))
-                .orElseThrow(() -> new ConnectException(
+                .orElseThrow(() -> new DataException(
                     "Configured Column ["
-                        + columnNameLower
-                        + "] does not exist in Table ["
-                        + tableInfo
-                        + "]"
+                    + columnNameLower
+                    + "] does not exist in Table ["
+                    + tableInfo
+                    + "]"
                 ))
             )
             .sorted(JdbcColumn.byOrdinal)
@@ -278,20 +254,28 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
         );
 
     // Execute the query
+    // TODO: Make RetrySpec Configurable
 
-    JdbcReader jdbcReader = new JdbcReader(jdbcConnection, retrySpec);
+    String primaryKeyStr = Optional
+        .ofNullable(oldRecord.key())
+        .map(Object::toString)
+        .orElse("");
 
-    jdbcReader.executeQuery(
+    boolean hasChangedColumns = JdbcQueryUtil.executeQuery(
+        jdbcTableHashCache,
+        jdbcConnection,
+        RetrySpec.NoRetries,
         tableInfo,
         primaryKeyColumns,
         columnsToQuery,
-        JdbcReader.structToJdbcValueMapper(oldValueStruct),
-        JdbcReader.columnToStructVisitor(newValueStruct),
-        () -> Optional
-            .ofNullable(oldRecord.key())
-            .map(Object::toString)
-            .orElse("")
+        oldValueStruct,
+        newValueStruct,
+        primaryKeyStr
     );
+
+    if (!hasChangedColumns) {
+      return null;
+    }
 
     // Make sure the newValueStruct is fully populated
     newValueStruct.validate();
@@ -306,5 +290,26 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
         newValueStruct,
         oldRecord.timestamp()
     );
+  }
+
+  private Map<String, Field> toFieldsMap(Schema schema) {
+    return schema
+        .fields()
+        .stream()
+        .collect(Collectors.toMap(
+            field -> Optional
+                .ofNullable(field.name())
+                .map(String::trim)
+                .filter(((Predicate<String>) String::isEmpty).negate())
+                // NOTE: Should be impossible to reach here!
+                .orElseThrow(() -> new DataException(
+                    "Field ["
+                    + field.name()
+                    + "] is null or empty for Schema ["
+                    + schema.name()
+                    + "]"
+                )),
+            Function.identity()
+        ));
   }
 }
