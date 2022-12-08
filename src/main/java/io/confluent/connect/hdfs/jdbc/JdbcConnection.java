@@ -27,7 +27,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLTransientException;
-import java.time.Duration;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -36,7 +35,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -192,40 +190,17 @@ public class JdbcConnection implements AutoCloseable {
 
   private <T> T withConnection(RetrySpec retrySpec,
                                Function<Connection, T> fn) {
-    int timesRetried = 0;
-    int maxRetries = retrySpec.getMaxRetries();
-
-    while (true) {
+    return retrySpec.executeWithRetries(() -> {
       try {
-        try {
-          Connection connection = getOrCreateConnection();
-          return fn.apply(connection);
-        } catch (SQLTransientException ex) {
-          throw new RetriableException(ex);
-        }
-      } catch (RetriableException | org.apache.kafka.common.errors.RetriableException ex) {
-        if (timesRetried++ >= maxRetries) {
-          log.error("Caught RetriableException but no more retries: {}", ex.getMessage(), ex);
-          throw ex;
-        }
-
-        log.warn(
-            "Caught RetriableException; will reconnect and retry [{}/{}] in [{} ms]: {}",
-            timesRetried,
-            maxRetries,
-            retrySpec.getBackoff(),
-            ex.getMessage(),
-            ex
-        );
-
+        Connection connection = getOrCreateConnection();
+        return fn.apply(connection);
+      } catch (SQLTransientException ex) {
         closeConnection(setCurrentConnection(null));
-
-        sleep(retrySpec.getBackoff());
+        throw new RetriableException(ex);
       } catch (SQLException ex) {
-        log.error("Caught non-retriable SQLException: {}", ex.getMessage(), ex);
         throw new DataException(ex);
       }
-    }
+    });
   }
 
   private static String toUpperCase(String value) {
@@ -233,24 +208,6 @@ public class JdbcConnection implements AutoCloseable {
         .ofNullable(value)
         .map(String::toUpperCase)
         .orElse(null);
-  }
-
-  private static void sleep(Duration duration) {
-    long durationMillis =
-        Optional
-            .ofNullable(duration)
-            .filter(((Predicate<Duration>) Duration::isNegative).negate())
-            .map(Duration::toMillis)
-            .orElse(0L);
-
-    if (durationMillis > 0) {
-      try {
-        Thread.sleep(durationMillis);
-      } catch (InterruptedException e) {
-        // this is okay, we just wake up early
-        Thread.currentThread().interrupt();
-      }
-    }
   }
 
   /**

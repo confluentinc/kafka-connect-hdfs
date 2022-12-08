@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-public class JdbcTableHashCache {
+public class JdbcHashCache {
   // TODO: Make configurable
   private static final int MAX_CACHE_SIZE = 10000;
 

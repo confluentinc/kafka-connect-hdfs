@@ -76,7 +76,7 @@ public class JdbcQueryUtil {
   }
 
   public static boolean executeQuery(
-      JdbcTableHashCache jdbcTableHashCache,
+      JdbcHashCache jdbcHashCache,
       JdbcConnection jdbcConnection,
       RetrySpec retrySpec,
       JdbcTableInfo tableInfo,
@@ -88,7 +88,7 @@ public class JdbcQueryUtil {
   ) {
     FilteredColumnToStructVisitor columnVisitor =
         new FilteredColumnToStructVisitor(
-            jdbcTableHashCache,
+            jdbcHashCache,
             newStruct,
             tableInfo,
             primaryKeyStr

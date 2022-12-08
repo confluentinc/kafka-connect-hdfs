@@ -25,17 +25,17 @@ import java.sql.SQLXML;
 
 class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
 
-  private final JdbcTableHashCache jdbcTableHashCache;
+  private final JdbcHashCache jdbcHashCache;
   private final Struct struct;
   private final JdbcTableInfo tableInfo;
   private final String primaryKey;
   private boolean columnsChanged = false;
 
-  public FilteredColumnToStructVisitor(JdbcTableHashCache jdbcTableHashCache,
+  public FilteredColumnToStructVisitor(JdbcHashCache jdbcHashCache,
                                        Struct struct,
                                        JdbcTableInfo tableInfo,
                                        String primaryKey) {
-    this.jdbcTableHashCache = jdbcTableHashCache;
+    this.jdbcHashCache = jdbcHashCache;
     this.struct = struct;
     this.tableInfo = tableInfo;
     this.primaryKey = primaryKey;
@@ -54,7 +54,7 @@ class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
         : null;
 
     // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = jdbcTableHashCache.updateCache(
+    boolean columnChanged = jdbcHashCache.updateCache(
         tableInfo,
         primaryKey,
         columnName,
@@ -78,7 +78,7 @@ class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
         : null;
 
     // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = jdbcTableHashCache.updateCache(
+    boolean columnChanged = jdbcHashCache.updateCache(
         tableInfo,
         primaryKey,
         columnName,
@@ -102,7 +102,7 @@ class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
         : null;
 
     // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = jdbcTableHashCache.updateCache(
+    boolean columnChanged = jdbcHashCache.updateCache(
         tableInfo,
         primaryKey,
         columnName,

@@ -15,25 +15,83 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
+import org.apache.kafka.connect.errors.RetriableException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Duration;
+import java.util.Optional;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class RetrySpec {
-  public static final RetrySpec NoRetries =
-      new RetrySpec(0, null);
+  private static final Logger log = LoggerFactory.getLogger(RetrySpec.class);
 
-  private final int maxRetries;
+  public static final RetrySpec NoRetries =
+      new RetrySpec(1, null);
+
+  private final int maxAttempts;
   private final Duration backoff;
 
-  public RetrySpec(int maxRetries, Duration backoff) {
-    this.maxRetries = Math.max(0, maxRetries);
+  public RetrySpec(int maxAttempts, Duration backoff) {
+    this.maxAttempts = Math.max(1, maxAttempts);
     this.backoff = backoff;
   }
 
-  public int getMaxRetries() {
-    return maxRetries;
+  public <T> T executeWithRetries(Supplier<T> supplier) {
+    int timesAttempted = 0;
+
+    while (true) {
+      try {
+        return supplier.get();
+      } catch (RetriableException | org.apache.kafka.common.errors.RetriableException ex) {
+        if (++timesAttempted >= maxAttempts) {
+          log.error("Caught RetriableException but no more retries: {}", ex.getMessage(), ex);
+          throw ex;
+        }
+
+        log.warn(
+            "Caught RetriableException [attempts {}/{}]; will retry in [{}]: {}",
+            timesAttempted,
+            maxAttempts,
+            backoff,
+            ex.getMessage(),
+            ex
+        );
+
+        sleep(backoff);
+      } catch (RuntimeException ex) {
+        log.error("Caught non-retriable SQLException: {}", ex.getMessage(), ex);
+        throw ex;
+      }
+    }
   }
 
-  public Duration getBackoff() {
-    return backoff;
+  @Override
+  public String toString() {
+    return "RetrySpec{"
+           + "maxAttempts="
+           + maxAttempts
+           + ", backoff="
+           + backoff
+           + "}";
+  }
+
+  private static void sleep(Duration duration) {
+    long durationMillis =
+        Optional
+            .ofNullable(duration)
+            .filter(((Predicate<Duration>) Duration::isNegative).negate())
+            .map(Duration::toMillis)
+            .orElse(0L);
+
+    if (durationMillis > 0) {
+      try {
+        Thread.sleep(durationMillis);
+      } catch (InterruptedException e) {
+        // this is okay, we just wake up early
+        Thread.currentThread().interrupt();
+      }
+    }
   }
 }

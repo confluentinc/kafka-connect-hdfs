@@ -19,29 +19,23 @@ import io.confluent.connect.hdfs.HdfsSinkTask;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.data.Field;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class JdbcHdfsSinkTask extends HdfsSinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcHdfsSinkTask.class);
 
-  private final JdbcTableHashCache jdbcTableHashCache = new JdbcTableHashCache();
+  private final JdbcHashCache jdbcHashCache = new JdbcHashCache();
   private ConfiguredTables configuredTables;
+  private RetrySpec retrySpec;
   private JdbcConnection jdbcConnection;
 
   public JdbcHdfsSinkTask() {
@@ -59,6 +53,11 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       JdbcHdfsSinkConnectorConfig connectorConfig = new JdbcHdfsSinkConnectorConfig(props);
 
       configuredTables = new ConfiguredTables(props);
+
+      retrySpec = new RetrySpec(
+          connectorConfig.getConnectionAttempts() - 1,
+          connectorConfig.getConnectionBackoff()
+      );
 
       jdbcConnection = new JdbcConnection(
           connectorConfig.getConnectionUrl(),
@@ -99,35 +98,36 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
     log.debug("Read {} records from Kafka; retrieving Large columns from JDBC", records.size());
     // TODO: Keep track of schema changes
     // TODO: Verify db and schema match the connection string.
-    // TODO: groupBy
+    // TODO: groupBy?
 
-    if (records.isEmpty()) {
-      super.put(records);
-    } else {
-      // TODO: Make RetrySpec Configurable
-      SqlCache sqlCache = new SqlCache(jdbcConnection, RetrySpec.NoRetries);
+    JdbcRecordTransformer recordTransformer = new JdbcRecordTransformer(
+        jdbcConnection,
+        retrySpec,
+        configuredTables,
+        jdbcHashCache
+    );
 
-      // Iterate over each record, and put() each individually
-      for (SinkRecord record : records) {
-        Optional
-            .ofNullable(transformRecord(sqlCache, record))
-            .ifPresent(newRecord -> {
-              log.debug(
-                  "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
-                  newRecord.key(),
-                  newRecord
-                      .valueSchema()
-                      .fields()
-                      .stream()
-                      .map(Field::name)
-                      .collect(Collectors.joining(","))
-              );
-              super.put(Collections.singletonList(newRecord));
-            });
-      }
-      // Trigger a sync() to HDFS, even if no records were written.
-      super.put(Collections.emptyList());
-    }
+    // Iterate over each record, and put() each individually
+    records
+        .stream()
+        .map(recordTransformer::transformRecord)
+        .filter(Objects::nonNull)
+        .peek(newRecord -> log.debug(
+            "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
+            newRecord.key(),
+            newRecord
+                .valueSchema()
+                .fields()
+                .stream()
+                .map(Field::name)
+                .collect(Collectors.joining(","))
+        ))
+        .map(Collections::singletonList)
+        .forEach(super::put);
+
+    // Trigger a sync() to HDFS, even if no records were written.
+    // This updates all accounting and delayed writes, etc...
+    super.put(Collections.emptyList());
   }
 
   @Override
@@ -153,163 +153,5 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       }
     }
     super.stop();
-  }
-
-  private SinkRecord transformRecord(SqlCache sqlCache,
-                                     SinkRecord oldRecord) {
-    JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord);
-
-    Set<String> configuredFieldNamesLower = configuredTables.getColumnNamesLower(tableInfo);
-
-    // No columns to Query? No need to write anything at all to HDFS
-
-    if (configuredFieldNamesLower.isEmpty()) {
-      return null;
-    }
-
-    // Calculate the list of Columns to query from the DB
-
-    Schema oldValueSchema = oldRecord.valueSchema();
-
-    Map<String, Field> oldFieldsMap = toFieldsMap(oldValueSchema);
-
-    Set<String> oldFieldNamesLower =
-        oldFieldsMap
-            .keySet()
-            .stream()
-            .map(String::toLowerCase)
-            .collect(Collectors.toSet());
-
-    Set<String> columnNamesLowerToQuery =
-        configuredFieldNamesLower
-            .stream()
-            .filter(((Predicate<String>) oldFieldNamesLower::contains).negate())
-            .collect(Collectors.toSet());
-
-    // NOTE: No actual columns to Query? No need to write anything at all to HDFS
-
-    if (columnNamesLowerToQuery.isEmpty()) {
-      return null;
-    }
-
-    // Gather Column Metadata from the DB
-
-    List<JdbcColumn> allColumns = sqlCache.fetchAllColumns(tableInfo);
-
-    Map<String, JdbcColumn> allColumnsLowerMap =
-        allColumns
-            .stream()
-            .collect(Collectors.toMap(
-                column -> column.getName().toLowerCase(),
-                Function.identity()
-            ));
-
-    List<JdbcColumn> primaryKeyColumns = sqlCache.fetchPrimaryKeyColumns(tableInfo);
-
-    Set<String> primaryKeyColumnNamesLower =
-        primaryKeyColumns
-            .stream()
-            .map(JdbcColumn::getName)
-            .map(String::toLowerCase)
-            .collect(Collectors.toSet());
-
-    List<JdbcColumn> columnsToQuery =
-        columnNamesLowerToQuery
-            .stream()
-            .filter(((Predicate<String>) primaryKeyColumnNamesLower::contains).negate())
-            .map(columnNameLower -> Optional
-                .ofNullable(allColumnsLowerMap.get(columnNameLower))
-                .orElseThrow(() -> new DataException(
-                    "Configured Column ["
-                    + columnNameLower
-                    + "] does not exist in Table ["
-                    + tableInfo
-                    + "]"
-                ))
-            )
-            .sorted(JdbcColumn.byOrdinal)
-            .collect(Collectors.toList());
-
-    // Create the Schema and new value Struct
-
-    Schema newValueSchema = JdbcSchema.createSchema(
-        configuredFieldNamesLower,
-        oldValueSchema,
-        primaryKeyColumns,
-        columnsToQuery
-    );
-
-    Struct newValueStruct = new Struct(newValueSchema);
-
-    // Populate the newValueStruct with existing values from oldValueStruct
-
-    Struct oldValueStruct = (Struct) oldRecord.value();
-
-    newValueSchema
-        .fields()
-        .forEach(newField -> Optional
-            .ofNullable(oldFieldsMap.get(newField.name()))
-            .flatMap(oldField -> Optional.ofNullable(oldValueStruct.get(oldField)))
-            .ifPresent(oldValue -> newValueStruct.put(newField, oldValue))
-        );
-
-    // Execute the query
-    // TODO: Make RetrySpec Configurable
-
-    String primaryKeyStr = Optional
-        .ofNullable(oldRecord.key())
-        .map(Object::toString)
-        .orElse("");
-
-    boolean hasChangedColumns = JdbcQueryUtil.executeQuery(
-        jdbcTableHashCache,
-        jdbcConnection,
-        RetrySpec.NoRetries,
-        tableInfo,
-        primaryKeyColumns,
-        columnsToQuery,
-        oldValueStruct,
-        newValueStruct,
-        primaryKeyStr
-    );
-
-    if (!hasChangedColumns) {
-      return null;
-    }
-
-    // Make sure the newValueStruct is fully populated
-    newValueStruct.validate();
-
-    // Create the newly transformed SourceRecord
-    return oldRecord.newRecord(
-        oldRecord.topic(),
-        oldRecord.kafkaPartition(),
-        oldRecord.keySchema(),
-        oldRecord.key(),
-        newValueSchema,
-        newValueStruct,
-        oldRecord.timestamp()
-    );
-  }
-
-  private Map<String, Field> toFieldsMap(Schema schema) {
-    return schema
-        .fields()
-        .stream()
-        .collect(Collectors.toMap(
-            field -> Optional
-                .ofNullable(field.name())
-                .map(String::trim)
-                .filter(((Predicate<String>) String::isEmpty).negate())
-                // NOTE: Should be impossible to reach here!
-                .orElseThrow(() -> new DataException(
-                    "Field ["
-                    + field.name()
-                    + "] is null or empty for Schema ["
-                    + schema.name()
-                    + "]"
-                )),
-            Function.identity()
-        ));
   }
 }
