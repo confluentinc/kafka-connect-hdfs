@@ -39,20 +39,34 @@ public class RetrySpec {
   }
 
   public <T> T executeWithRetries(Supplier<T> supplier) {
-    int timesAttempted = 0;
+    int attempt = 1;
 
     while (true) {
       try {
+        log.debug(
+            "Executing for [{}] [attempt {}/{}]",
+            supplier.hashCode(),
+            attempt,
+            maxAttempts
+        );
         return supplier.get();
       } catch (RetriableException | org.apache.kafka.common.errors.RetriableException ex) {
-        if (++timesAttempted >= maxAttempts) {
-          log.error("Caught RetriableException but no more retries: {}", ex.getMessage(), ex);
+        if (attempt >= maxAttempts) {
+          log.error(
+              "Caught RetriableException, but no more retries for [{}] [attempt {}/{}]: {}",
+              supplier.hashCode(),
+              attempt,
+              maxAttempts,
+              ex.getMessage(),
+              ex
+          );
           throw ex;
         }
 
         log.warn(
-            "Caught RetriableException [attempts {}/{}]; will retry in [{}]: {}",
-            timesAttempted,
+            "Caught RetriableException for [{}] [attempt {}/{}]; will retry in [{}]: {}",
+            supplier.hashCode(),
+            attempt,
             maxAttempts,
             backoff,
             ex.getMessage(),
@@ -60,8 +74,14 @@ public class RetrySpec {
         );
 
         sleep(backoff);
+        attempt++;
       } catch (RuntimeException ex) {
-        log.error("Caught non-retriable SQLException: {}", ex.getMessage(), ex);
+        log.error(
+            "Caught non-retriable Exception for [{}]: {}",
+            supplier.hashCode(),
+            ex.getMessage(),
+            ex
+        );
         throw ex;
       }
     }

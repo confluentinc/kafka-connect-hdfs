@@ -29,7 +29,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.SQLTransientException;
 import java.sql.SQLXML;
 import java.util.Collection;
 import java.util.HashMap;
@@ -158,10 +157,8 @@ public class JdbcQueryUtil {
             );
           }
         }
-      } catch (SQLTransientException ex) {
-        throw new RetriableException(ex);
       } catch (SQLException ex) {
-        throw new DataException(ex);
+        throw new RetriableException(ex);
       }
       // TODO: Rollback?
 
@@ -192,10 +189,8 @@ public class JdbcQueryUtil {
               )
           )
           .accept(preparedStatement, index, jdbcType, struct, fieldName);
-    } catch (SQLTransientException ex) {
-      throw new RetriableException(ex);
     } catch (SQLException ex) {
-      throw new DataException(ex);
+      throw new RetriableException(ex);
     }
   }
 
