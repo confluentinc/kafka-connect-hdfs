@@ -64,7 +64,6 @@ public class StringRecordWriterProvider implements RecordWriterProvider<HdfsSink
 
       @Override
       public void write(SinkRecord record) {
-        log.trace("Sink record: {}", record.toString());
         try {
           String value = (String) record.value();
           writer.write(value);
