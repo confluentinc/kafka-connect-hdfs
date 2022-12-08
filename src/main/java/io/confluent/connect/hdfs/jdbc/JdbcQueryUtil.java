@@ -52,6 +52,7 @@ public class JdbcQueryUtil {
   @FunctionalInterface
   private interface ResultSetConsumer {
     void accept(ResultSet resultSet,
+                JDBCType jdbcType,
                 String columnName,
                 JdbcColumnVisitor columnVisitor) throws SQLException;
   }
@@ -60,6 +61,7 @@ public class JdbcQueryUtil {
   private static final Map<JDBCType, ResultSetConsumer> jdbcTypeResultSetMap = new HashMap<>();
 
   static {
+    // TODO: Add more as needed, if Primary Keys are other data types
     jdbcTypePrepareMap.put(JDBCType.BIGINT, JdbcQueryUtil::setLong);
     jdbcTypePrepareMap.put(JDBCType.BOOLEAN, JdbcQueryUtil::setBoolean);
     jdbcTypePrepareMap.put(JDBCType.CHAR, JdbcQueryUtil::setString);
@@ -68,7 +70,7 @@ public class JdbcQueryUtil {
     jdbcTypePrepareMap.put(JDBCType.SMALLINT, JdbcQueryUtil::setShort);
     jdbcTypePrepareMap.put(JDBCType.TINYINT, JdbcQueryUtil::setByte);
     jdbcTypePrepareMap.put(JDBCType.VARCHAR, JdbcQueryUtil::setString);
-
+    // TODO: Add more as needed, if Query results are not all LOBs
     jdbcTypeResultSetMap.put(JDBCType.BLOB, JdbcQueryUtil::visitBlob);
     jdbcTypeResultSetMap.put(JDBCType.CLOB, JdbcQueryUtil::visitClob);
     jdbcTypeResultSetMap.put(JDBCType.SQLXML, JdbcQueryUtil::visitSqlXml);
@@ -81,17 +83,28 @@ public class JdbcQueryUtil {
       JdbcTableInfo tableInfo,
       List<JdbcColumn> primaryKeyColumns,
       Collection<JdbcColumn> columnsToQuery,
-      Struct oldStruct,
-      Struct newStruct,
-      String primaryKeyStr
+      Struct oldValueStruct,
+      Struct newValueStruct,
+      Object oldKey
   ) {
+    String primaryKeyStr = Optional
+        .ofNullable(oldKey)
+        .map(Object::toString)
+        .orElse("");
+
     FilteredColumnToStructVisitor columnVisitor =
         new FilteredColumnToStructVisitor(
             jdbcHashCache,
-            newStruct,
+            newValueStruct,
             tableInfo,
             primaryKeyStr
         );
+
+    String selectClause =
+        columnsToQuery
+            .stream()
+            .map(JdbcColumn::getName)
+            .collect(Collectors.joining(","));
 
     String whereClause =
         primaryKeyColumns
@@ -102,7 +115,7 @@ public class JdbcQueryUtil {
 
     String sqlQuery =
         "SELECT "
-        + columnsToQuery.stream().map(JdbcColumn::getName).collect(Collectors.joining(","))
+        + selectClause
         + " FROM "
         + tableInfo.qualifiedName()
         + " WHERE "
@@ -123,7 +136,7 @@ public class JdbcQueryUtil {
             preparedStatement,
             index++,
             primaryKeyColumn.getJdbcType(),
-            oldStruct,
+            oldValueStruct,
             primaryKeyColumn.getName()
         );
       }
@@ -214,7 +227,7 @@ public class JdbcQueryUtil {
               + tableName
               + "]"
           ))
-          .accept(resultSet, columnName, columnVisitor);
+          .accept(resultSet, jdbcType, columnName, columnVisitor);
     }
   }
 
@@ -297,54 +310,44 @@ public class JdbcQueryUtil {
   }
 
   private static void visitBlob(ResultSet resultSet,
+                                JDBCType jdbcType,
                                 String columnName,
                                 JdbcColumnVisitor columnVisitor) throws SQLException {
-    Blob blob = resultSet.getBlob(columnName);
-    if (blob != null) {
-      log.debug("Visit Column [{}] type [{}] = length [{}]",
-                columnName,
-                JDBCType.BLOB,
-                blob.length()
-      );
-    } else {
-      log.info(
-          "Visit Column [{}] type [{}] = null",
-          columnName,
-          JDBCType.BLOB
-      );
-    }
-    columnVisitor.visit(columnName, blob);
+    Blob value = resultSet.getBlob(columnName);
+    log.debug(
+        "Visit Column [{}] type [{}] length [{}]",
+        columnName,
+        jdbcType,
+        (value != null) ? value.length() : null
+    );
+    columnVisitor.visit(columnName, value);
   }
 
   private static void visitClob(ResultSet resultSet,
+                                JDBCType jdbcType,
                                 String columnName,
                                 JdbcColumnVisitor columnVisitor) throws SQLException {
-    Clob clob = resultSet.getClob(columnName);
-    if (clob != null) {
-      log.debug("Visit Column [{}] type [{}] = length [{}]",
-                columnName,
-                JDBCType.CLOB,
-                clob.length()
-      );
-    } else {
-      log.info(
-          "Visit Column [{}] type [{}] = null",
-          columnName,
-          JDBCType.CLOB
-      );
-    }
-    columnVisitor.visit(columnName, clob);
+    Clob value = resultSet.getClob(columnName);
+    log.debug(
+        "Visit Column [{}] type [{}] length [{}]",
+        columnName,
+        jdbcType,
+        (value != null) ? value.length() : null
+    );
+    columnVisitor.visit(columnName, value);
   }
 
   private static void visitSqlXml(ResultSet resultSet,
+                                  JDBCType jdbcType,
                                   String columnName,
                                   JdbcColumnVisitor columnVisitor) throws SQLException {
-    SQLXML sqlxml = resultSet.getSQLXML(columnName);
-    log.debug("Visit Column [{}] type [{}] = isNull [{}]",
-              columnName,
-              JDBCType.SQLXML,
-              sqlxml == null
+    SQLXML value = resultSet.getSQLXML(columnName);
+    log.debug(
+        "Visit Column [{}] type [{}] state [{}]",
+        columnName,
+        jdbcType,
+        (value != null) ? "not-null" : null
     );
-    columnVisitor.visit(columnName, sqlxml);
+    columnVisitor.visit(columnName, value);
   }
 }

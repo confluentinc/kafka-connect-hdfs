@@ -145,12 +145,6 @@ public class JdbcRecordTransformer {
         );
 
     // Execute the query
-    // TODO: Make RetrySpec Configurable
-
-    String primaryKeyStr = Optional
-        .ofNullable(oldRecord.key())
-        .map(Object::toString)
-        .orElse("");
 
     boolean hasChangedColumns = JdbcQueryUtil.executeQuery(
         jdbcHashCache,
@@ -161,7 +155,7 @@ public class JdbcRecordTransformer {
         columnsToQuery,
         oldValueStruct,
         newValueStruct,
-        primaryKeyStr
+        oldRecord.key()
     );
 
     if (!hasChangedColumns) {

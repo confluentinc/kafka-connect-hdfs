@@ -100,6 +100,10 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
     // TODO: Verify db and schema match the connection string.
     // TODO: groupBy?
 
+    // NOTE: Do not pre-allocate JdbcRecordTransformer,
+    //       as it needs to have a fresh SqlCache every iteration.
+    // TODO: Determine if it is safe to long-term cache Table Schemas,
+    //       or do they change often enough to warrant a refresh every iteration?
     JdbcRecordTransformer recordTransformer = new JdbcRecordTransformer(
         jdbcConnection,
         retrySpec,
