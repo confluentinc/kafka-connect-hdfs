@@ -39,21 +39,29 @@ public class RetrySpec {
   }
 
   public <T> T executeWithRetries(Supplier<T> supplier) {
-    int attempt = 1;
+    int attempt = 0;
 
     while (true) {
+      attempt++;
       try {
-        log.debug(
-            "Executing for [{}] [attempt {}/{}]",
+        log.trace(
+            "Starting execution for [{}] attempt [{}/{}]",
             supplier.hashCode(),
             attempt,
             maxAttempts
         );
-        return supplier.get();
+        T t = supplier.get();
+        log.trace(
+            "Successfully completed execution for [{}] attempt [{}/{}]",
+            supplier.hashCode(),
+            attempt,
+            maxAttempts
+        );
+        return t;
       } catch (RetriableException | org.apache.kafka.common.errors.RetriableException ex) {
         if (attempt >= maxAttempts) {
           log.error(
-              "Caught RetriableException, but no more retries for [{}] [attempt {}/{}]: {}",
+              "Caught RetriableException for [{}] attempt [{}/{}]; no more retries: {}",
               supplier.hashCode(),
               attempt,
               maxAttempts,
@@ -64,7 +72,7 @@ public class RetrySpec {
         }
 
         log.warn(
-            "Caught RetriableException for [{}] [attempt {}/{}]; will retry in [{}]: {}",
+            "Caught RetriableException for [{}] attempt [{}/{}]; will retry in [{}]: {}",
             supplier.hashCode(),
             attempt,
             maxAttempts,
@@ -74,11 +82,12 @@ public class RetrySpec {
         );
 
         sleep(backoff);
-        attempt++;
       } catch (RuntimeException ex) {
         log.error(
-            "Caught non-retriable Exception for [{}]: {}",
+            "Caught non-retriable Exception for [{}] attempt [{}/{}]: {}",
             supplier.hashCode(),
+            attempt,
+            maxAttempts,
             ex.getMessage(),
             ex
         );

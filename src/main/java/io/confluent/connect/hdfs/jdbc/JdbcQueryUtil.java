@@ -124,9 +124,10 @@ public class JdbcQueryUtil {
 
     // Execute the Query
     log.debug(
-        "Executing SQL Query for PK [{}] in Table [{}]",
+        "Executing SQL Query for PK [{}] in Table [{}]: {}",
         primaryKeyStr,
-        tableInfo
+        tableInfo,
+        sqlQuery
     );
 
     return jdbcConnection.withPreparedStatement(retrySpec, sqlQuery, preparedStatement -> {

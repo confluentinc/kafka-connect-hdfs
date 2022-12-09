@@ -51,4 +51,14 @@ public class JdbcColumn {
   public boolean isNullable() {
     return nullable;
   }
+
+  @Override
+  public String toString() {
+    return "JdbcColumn{" +
+           "name='" + name + '\'' +
+           ", jdbcType=" + jdbcType +
+           ", ordinal=" + ordinal +
+           ", nullable=" + nullable +
+           '}';
+  }
 }

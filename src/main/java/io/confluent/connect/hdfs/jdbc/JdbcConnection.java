@@ -96,24 +96,26 @@ public class JdbcConnection implements AutoCloseable {
         List<JdbcColumn> columnList = new LinkedList<>();
         while (columns.next()) {
           String columnName = columns.getString("COLUMN_NAME").trim();
-          // NOTE: This returns the wrong value in some cases (2009/XML becomes 1111)
-          //int dataType = columns.getInt("DATA_TYPE");
-          String dataTypeAsString = columns.getString("DATA_TYPE");
+          // WARNING: This returns the wrong value in some cases (2009/XML becomes 1111)
+          int dataTypeNum = columns.getInt("DATA_TYPE");
+          String dataTypeStr = columns.getString("DATA_TYPE");
           String typeName = columns.getString("TYPE_NAME");
-          log.debug(
-              "Table [{}] Column [{}] Type [{}] TypeNum [{}]",
-              tableInfo,
-              columnName,
-              typeName,
-              dataTypeAsString
-          );
           // TODO: Validate dataType against typeName
-          JDBCType dataType = JDBCType.valueOf(Integer.parseInt(dataTypeAsString));
+          JDBCType jdbcType = JDBCType.valueOf(Integer.parseInt(dataTypeStr));
           boolean nullable = columns.getBoolean("NULLABLE");
           //String isAutoIncrement = columns.getString("IS_AUTOINCREMENT");
           //int radix = columns.getInt("NUM_PREC_RADIX");
           int ordinal = columns.getInt("ORDINAL_POSITION");
-          columnList.add(new JdbcColumn(columnName, dataType, ordinal, nullable));
+          JdbcColumn jdbcColumn = new JdbcColumn(columnName, jdbcType, ordinal, nullable);
+          log.debug(
+              "Loaded Column for Table [{}] TypeName [{}] DataType [{} ==? {}] = {}",
+              tableInfo,
+              typeName,
+              dataTypeStr,
+              dataTypeNum,
+              jdbcColumn
+          );
+          columnList.add(jdbcColumn);
         }
 
         return columnList

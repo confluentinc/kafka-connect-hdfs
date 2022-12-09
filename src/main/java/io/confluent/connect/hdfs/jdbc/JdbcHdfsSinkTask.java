@@ -55,7 +55,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       configuredTables = new ConfiguredTables(props);
 
       retrySpec = new RetrySpec(
-          connectorConfig.getConnectionAttempts() - 1,
+          connectorConfig.getConnectionAttempts(),
           connectorConfig.getConnectionBackoff()
       );
 
