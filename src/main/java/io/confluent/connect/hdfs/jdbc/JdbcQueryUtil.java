@@ -90,6 +90,7 @@ public class JdbcQueryUtil {
     String primaryKeyStr = Optional
         .ofNullable(oldKey)
         .map(Object::toString)
+        .map(String::trim)
         .orElse("");
 
     FilteredColumnToStructVisitor columnVisitor =

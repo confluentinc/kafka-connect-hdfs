@@ -15,7 +15,7 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.header.Headers;
 
 import javax.annotation.Nonnull;
 import java.util.Comparator;
@@ -40,11 +40,11 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
           .thenComparing(JdbcTableInfo::getSchema, Comparator.nullsFirst(Comparator.naturalOrder()))
           .thenComparing(JdbcTableInfo::getTable, Comparator.nullsFirst(Comparator.naturalOrder()));
 
-  public JdbcTableInfo(SinkRecord record) {
+  public JdbcTableInfo(Headers headers) {
     this(
-        (String) record.headers().lastWithName(HEADER_DB).value(),
-        (String) record.headers().lastWithName(HEADER_SCHEMA).value(), // TODO: Validate Not Null
-        (String) record.headers().lastWithName(HEADER_TABLE).value() // TODO: Validate Not Null
+        (String) headers.lastWithName(HEADER_DB).value(),
+        (String) headers.lastWithName(HEADER_SCHEMA).value(), // TODO: Validate Not Null
+        (String) headers.lastWithName(HEADER_TABLE).value() // TODO: Validate Not Null
     );
   }
 

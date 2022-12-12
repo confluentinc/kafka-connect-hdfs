@@ -48,7 +48,7 @@ public class JdbcRecordTransformer {
   }
 
   public SinkRecord transformRecord(SinkRecord oldRecord) {
-    JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord);
+    JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord.headers());
 
     Set<String> configuredFieldNamesLower = configuredTables.getColumnNamesLower(tableInfo);
 
@@ -58,7 +58,7 @@ public class JdbcRecordTransformer {
       return null;
     }
 
-    // Calculate the list of Columns to query from the DB
+    // Calculate the list of Columns to query
 
     Schema oldValueSchema = oldRecord.valueSchema();
 
@@ -77,7 +77,7 @@ public class JdbcRecordTransformer {
             .filter(((Predicate<String>) oldFieldNamesLower::contains).negate())
             .collect(Collectors.toSet());
 
-    // NOTE: No actual columns to Query? No need to write anything at all to HDFS
+    // No actual columns to Query? No need to write anything at all to HDFS
 
     if (columnNamesLowerToQuery.isEmpty()) {
       return null;
@@ -85,10 +85,9 @@ public class JdbcRecordTransformer {
 
     // Gather Column Metadata from the DB
 
-    List<JdbcColumn> allColumns = sqlCache.fetchAllColumns(tableInfo);
-
     Map<String, JdbcColumn> allColumnsLowerMap =
-        allColumns
+        sqlCache
+            .fetchAllColumns(tableInfo)
             .stream()
             .collect(Collectors.toMap(
                 column -> column.getName().toLowerCase(),
@@ -121,7 +120,7 @@ public class JdbcRecordTransformer {
             .sorted(JdbcColumn.byOrdinal)
             .collect(Collectors.toList());
 
-    // Create the Schema and new value Struct
+    // Create the mew Schema and new value Struct
 
     Schema newValueSchema = JdbcSchema.createSchema(
         configuredFieldNamesLower,
@@ -146,17 +145,22 @@ public class JdbcRecordTransformer {
 
     // Execute the query
 
-    boolean hasChangedColumns = JdbcQueryUtil.executeQuery(
-        jdbcHashCache,
-        jdbcConnection,
-        retrySpec,
-        tableInfo,
-        primaryKeyColumns,
-        columnsToQuery,
-        oldValueStruct,
-        newValueStruct,
-        oldRecord.key()
-    );
+    boolean hasChangedColumns =
+        JdbcQueryUtil.executeQuery(
+            jdbcHashCache,
+            jdbcConnection,
+            retrySpec,
+            tableInfo,
+            primaryKeyColumns,
+            columnsToQuery,
+            oldValueStruct,
+            newValueStruct,
+            oldRecord.key()
+        );
+
+    // Only write a record if there are changes in the LOB(s).
+    // This is an optimization for when LOBs already exist in the cache.
+    // TODO: Make this optimization configurable, so it can be disabled from the config
 
     if (!hasChangedColumns) {
       return null;
