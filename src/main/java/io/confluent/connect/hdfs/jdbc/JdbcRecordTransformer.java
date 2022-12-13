@@ -21,6 +21,8 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
+import javax.sql.DataSource;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,24 +32,20 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class JdbcRecordTransformer {
-  private final JdbcConnection jdbcConnection;
-  private final RetrySpec retrySpec;
+  private final DataSource dataSource;
   private final ConfiguredTables configuredTables;
   private final JdbcHashCache jdbcHashCache;
-  private final SqlCache sqlCache;
 
-  public JdbcRecordTransformer(JdbcConnection jdbcConnection,
-                               RetrySpec retrySpec,
+  public JdbcRecordTransformer(DataSource dataSource,
                                ConfiguredTables configuredTables,
                                JdbcHashCache jdbcHashCache) {
-    this.jdbcConnection = jdbcConnection;
-    this.retrySpec = retrySpec;
+    this.dataSource = dataSource;
     this.configuredTables = configuredTables;
     this.jdbcHashCache = jdbcHashCache;
-    this.sqlCache = new SqlCache(jdbcConnection, retrySpec);
   }
 
-  public SinkRecord transformRecord(SinkRecord oldRecord) {
+  public SinkRecord transformRecord(SqlMetadataCache sqlMetadataCache,
+                                    SinkRecord oldRecord) throws SQLException {
     JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord.headers());
 
     Set<String> configuredFieldNamesLower = configuredTables.getColumnNamesLower(tableInfo);
@@ -86,7 +84,7 @@ public class JdbcRecordTransformer {
     // Gather Column Metadata from the DB
 
     Map<String, JdbcColumn> allColumnsLowerMap =
-        sqlCache
+        sqlMetadataCache
             .fetchAllColumns(tableInfo)
             .stream()
             .collect(Collectors.toMap(
@@ -94,7 +92,7 @@ public class JdbcRecordTransformer {
                 Function.identity()
             ));
 
-    List<JdbcColumn> primaryKeyColumns = sqlCache.fetchPrimaryKeyColumns(tableInfo);
+    List<JdbcColumn> primaryKeyColumns = sqlMetadataCache.fetchPrimaryKeyColumns(tableInfo);
 
     Set<String> primaryKeyColumnNamesLower =
         primaryKeyColumns
@@ -148,8 +146,7 @@ public class JdbcRecordTransformer {
     boolean hasChangedColumns =
         JdbcQueryUtil.executeQuery(
             jdbcHashCache,
-            jdbcConnection,
-            retrySpec,
+            dataSource,
             tableInfo,
             primaryKeyColumns,
             columnsToQuery,

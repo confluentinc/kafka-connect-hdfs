@@ -63,7 +63,6 @@ public class JdbcHdfsSinkConnector extends SinkConnector {
 
   @Override
   public void stop() {
-
   }
 
   @Override

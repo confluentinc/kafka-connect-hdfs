@@ -15,41 +15,39 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
+import javax.sql.DataSource;
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-class SqlCache {
+class SqlMetadataCache {
   private final Map<JdbcTableInfo, List<JdbcColumn>> allColumnsMap = new HashMap<>();
   private final Map<JdbcTableInfo, List<JdbcColumn>> primaryKeyColumnsMap = new HashMap<>();
-  private final JdbcConnection jdbcConnection;
-  private final RetrySpec retrySpec;
+  private final DataSource dataSource;
 
-  public SqlCache(JdbcConnection jdbcConnection,
-                  RetrySpec retrySpec) {
-
-    this.jdbcConnection = jdbcConnection;
-    this.retrySpec = retrySpec;
+  public SqlMetadataCache(DataSource dataSource) {
+    this.dataSource = dataSource;
   }
 
-  public synchronized List<JdbcColumn> fetchAllColumns(JdbcTableInfo tableInfo) {
+  public synchronized List<JdbcColumn> fetchAllColumns(JdbcTableInfo tableInfo) throws SQLException {
     List<JdbcColumn> allColumns = allColumnsMap.get(tableInfo);
 
     if (allColumns == null) {
-      allColumns = jdbcConnection.fetchAllColumns(retrySpec, tableInfo);
+      allColumns = JdbcQueryUtil.fetchAllColumns(dataSource, tableInfo);
       allColumnsMap.put(tableInfo, allColumns);
     }
     return allColumns;
   }
 
-  public synchronized List<JdbcColumn> fetchPrimaryKeyColumns(JdbcTableInfo tableInfo) {
+  public synchronized List<JdbcColumn> fetchPrimaryKeyColumns(JdbcTableInfo tableInfo) throws SQLException {
     List<JdbcColumn> primaryKeyColumns = primaryKeyColumnsMap.get(tableInfo);
 
     if (primaryKeyColumns == null) {
       Collection<String> primaryKeyNames =
-          jdbcConnection.fetchPrimaryKeyNames(retrySpec, tableInfo);
+          JdbcQueryUtil.fetchPrimaryKeyNames(dataSource, tableInfo);
 
       // TODO: Do we need to check and make sure the PK exists in the list of columns?
       primaryKeyColumns =

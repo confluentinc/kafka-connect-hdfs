@@ -16,14 +16,14 @@
 package io.confluent.connect.hdfs.jdbc;
 
 import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
-import org.apache.kafka.connect.errors.RetriableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.sql.Blob;
 import java.sql.Clob;
+import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -32,9 +32,12 @@ import java.sql.SQLException;
 import java.sql.SQLXML;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class JdbcQueryUtil {
@@ -76,30 +79,92 @@ public class JdbcQueryUtil {
     jdbcTypeResultSetMap.put(JDBCType.SQLXML, JdbcQueryUtil::visitSqlXml);
   }
 
+  public static List<JdbcColumn> fetchAllColumns(
+      DataSource dataSource,
+      JdbcTableInfo tableInfo
+  ) throws SQLException {
+    try (Connection connection = dataSource.getConnection();
+         // We uppercase the schema and table because otherwise DB2 won't recognize them...
+         ResultSet columns = connection.getMetaData().getColumns(
+             null,
+             toUpperCase(tableInfo.getSchema()),
+             toUpperCase(tableInfo.getTable()),
+             null
+         )
+    ) {
+      List<JdbcColumn> columnList = new LinkedList<>();
+      while (columns.next()) {
+        String columnName = columns.getString("COLUMN_NAME").trim();
+        // WARNING: This returns the wrong value in some cases (2009/XML becomes 1111)
+        int dataTypeNum = columns.getInt("DATA_TYPE");
+        String dataTypeStr = columns.getString("DATA_TYPE");
+        String typeName = columns.getString("TYPE_NAME");
+        // TODO: Validate dataType against typeName
+        JDBCType jdbcType = JDBCType.valueOf(Integer.parseInt(dataTypeStr));
+        boolean nullable = columns.getBoolean("NULLABLE");
+        //String isAutoIncrement = columns.getString("IS_AUTOINCREMENT");
+        //int radix = columns.getInt("NUM_PREC_RADIX");
+        int ordinal = columns.getInt("ORDINAL_POSITION");
+        JdbcColumn jdbcColumn = new JdbcColumn(columnName, jdbcType, ordinal, nullable);
+        log.debug(
+            "Loaded Column for Table [{}] TypeName [{}] DataType [{} ==? {}] = {}",
+            tableInfo,
+            typeName,
+            dataTypeStr,
+            dataTypeNum,
+            jdbcColumn
+        );
+        columnList.add(jdbcColumn);
+      }
+
+      return columnList
+          .stream()
+          .sorted(JdbcColumn.byOrdinal)
+          .collect(Collectors.toList());
+    }
+  }
+
+  public static Set<String> fetchPrimaryKeyNames(
+      DataSource dataSource,
+      JdbcTableInfo tableInfo
+  ) throws SQLException {
+    try (Connection connection = dataSource.getConnection();
+         // We uppercase the schema and table because otherwise DB2 won't recognize them...
+         ResultSet columns = connection.getMetaData().getPrimaryKeys(
+             null,
+             toUpperCase(tableInfo.getSchema()),
+             toUpperCase(tableInfo.getTable())
+         )
+    ) {
+      Set<String> primaryKeyNames = new HashSet<>();
+      while (columns.next()) {
+        //String schem = columns.getString("TABLE_SCHEM");
+        //String tn = columns.getString("TABLE_NAME");
+        String columnName = columns.getString("COLUMN_NAME").trim();
+        //String pkName = columns.getString("PK_NAME");
+        //short kseq = columns.getShort("KEY_SEQ");
+        primaryKeyNames.add(columnName);
+      }
+      log.debug("Table [{}] PrimaryKeys: {}", tableInfo, primaryKeyNames);
+      return primaryKeyNames;
+    }
+  }
+
   public static boolean executeQuery(
       JdbcHashCache jdbcHashCache,
-      JdbcConnection jdbcConnection,
-      RetrySpec retrySpec,
+      DataSource dataSource,
       JdbcTableInfo tableInfo,
       List<JdbcColumn> primaryKeyColumns,
       Collection<JdbcColumn> columnsToQuery,
       Struct oldValueStruct,
       Struct newValueStruct,
       Object oldKey
-  ) {
+  ) throws SQLException {
     String primaryKeyStr = Optional
         .ofNullable(oldKey)
         .map(Object::toString)
         .map(String::trim)
         .orElse("");
-
-    FilteredColumnToStructVisitor columnVisitor =
-        new FilteredColumnToStructVisitor(
-            jdbcHashCache,
-            newValueStruct,
-            tableInfo,
-            primaryKeyStr
-        );
 
     String selectClause =
         columnsToQuery
@@ -131,7 +196,8 @@ public class JdbcQueryUtil {
         sqlQuery
     );
 
-    return jdbcConnection.withPreparedStatement(retrySpec, sqlQuery, preparedStatement -> {
+    try (Connection connection = dataSource.getConnection();
+         PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery)) {
       int index = 1;
       for (JdbcColumn primaryKeyColumn : primaryKeyColumns) {
         JdbcQueryUtil.setPreparedValue(
@@ -142,6 +208,14 @@ public class JdbcQueryUtil {
             primaryKeyColumn.getName()
         );
       }
+
+      FilteredColumnToStructVisitor columnVisitor =
+          new FilteredColumnToStructVisitor(
+              jdbcHashCache,
+              newValueStruct,
+              tableInfo,
+              primaryKeyStr
+          );
 
       try (ResultSet resultSet = preparedStatement.executeQuery()) {
         if (!resultSet.next()) {
@@ -172,41 +246,35 @@ public class JdbcQueryUtil {
             );
           }
         }
-      } catch (SQLException ex) {
-        throw new RetriableException(ex);
       }
       // TODO: Rollback?
 
       return columnVisitor.hasChangedColumns();
-    });
+    }
   }
 
   public static void setPreparedValue(PreparedStatement preparedStatement,
                                       int index,
                                       JDBCType jdbcType,
                                       Struct struct,
-                                      String fieldName
-  ) {
-    try {
-      if (JDBCType.NULL == jdbcType) {
-        preparedStatement.setNull(index, jdbcType.getVendorTypeNumber());
-        return;
-      }
-      Optional
-          .ofNullable(jdbcTypePrepareMap.get(jdbcType))
-          .orElseThrow(
-              () -> new DataException(
-                  "Unsupported Query Column ["
-                  + fieldName
-                  + "] type ["
-                  + jdbcType
-                  + "] in PreparedStatement"
-              )
-          )
-          .accept(preparedStatement, index, jdbcType, struct, fieldName);
-    } catch (SQLException ex) {
-      throw new RetriableException(ex);
+                                      String fieldName) throws SQLException {
+    if (JDBCType.NULL == jdbcType) {
+      preparedStatement.setNull(index, jdbcType.getVendorTypeNumber());
+      return;
     }
+
+    Optional
+        .ofNullable(jdbcTypePrepareMap.get(jdbcType))
+        .orElseThrow(
+            () -> new DataException(
+                "Unsupported Query Column ["
+                + fieldName
+                + "] type ["
+                + jdbcType
+                + "] in PreparedStatement"
+            )
+        )
+        .accept(preparedStatement, index, jdbcType, struct, fieldName);
   }
 
   public static void visitResultSetColumns(ResultSet resultSet,
@@ -220,7 +288,7 @@ public class JdbcQueryUtil {
       // TODO: For now, we only support LOB types. Will we ever need any other types?
       Optional
           .ofNullable(jdbcTypeResultSetMap.get(jdbcType))
-          .orElseThrow(() -> new ConnectException(
+          .orElseThrow(() -> new DataException(
               "Unsupported ResultSet Column ["
               + columnName
               + "] type ["
@@ -351,5 +419,12 @@ public class JdbcQueryUtil {
         (value != null) ? "not-null" : null
     );
     columnVisitor.visit(columnName, value);
+  }
+
+  private static String toUpperCase(String value) {
+    return Optional
+        .ofNullable(value)
+        .map(String::toUpperCase)
+        .orElse(null);
   }
 }

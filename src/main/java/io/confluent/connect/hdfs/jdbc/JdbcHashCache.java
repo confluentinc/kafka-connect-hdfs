@@ -23,6 +23,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+/**
+ * Cache of LOB hashes, for pruning unnecessary HDFS writes
+ */
 public class JdbcHashCache {
   // TODO: Make configurable
   private static final int MAX_CACHE_SIZE = 10000;

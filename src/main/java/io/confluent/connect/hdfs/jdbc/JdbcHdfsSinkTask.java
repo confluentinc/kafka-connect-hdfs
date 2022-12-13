@@ -15,80 +15,57 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import io.confluent.connect.hdfs.HdfsSinkTask;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class JdbcHdfsSinkTask extends HdfsSinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcHdfsSinkTask.class);
 
   private final JdbcHashCache jdbcHashCache = new JdbcHashCache();
+  private HikariConfig hikariConfig;
   private ConfiguredTables configuredTables;
-  private RetrySpec retrySpec;
-  private JdbcConnection jdbcConnection;
-
-  public JdbcHdfsSinkTask() {
-  }
+  private HikariDataSource dataSource;
+  private JdbcRecordTransformer recordTransformer;
 
   @Override
   public void start(Map<String, String> props) {
-    log.info(
-        "{} Loading {}",
-        getClass().getSimpleName(),
-        JdbcHdfsSinkConnectorConfig.class.getSimpleName()
-    );
-
     try {
+      log.info("Loading JDBC configs");
+
       JdbcHdfsSinkConnectorConfig connectorConfig = new JdbcHdfsSinkConnectorConfig(props);
+      hikariConfig = new HikariConfig();
+      hikariConfig.setJdbcUrl(connectorConfig.getConnectionUrl());
+      hikariConfig.setUsername(connectorConfig.getConnectionUser());
+      hikariConfig.setPassword(connectorConfig.getConnectionPassword().value());
 
       configuredTables = new ConfiguredTables(props);
 
-      retrySpec = new RetrySpec(
-          connectorConfig.getConnectionAttempts(),
-          connectorConfig.getConnectionBackoff()
-      );
-
-      jdbcConnection = new JdbcConnection(
-          connectorConfig.getConnectionUrl(),
-          connectorConfig.getConnectionProperties()
-      );
-    } catch (ConfigException ex) {
+      log.info("Successfully loaded JDBC configs");
+    } catch (RuntimeException ex) {
       log.error(
-          "{} Couldn't start due to configuration error: {}",
-          getClass().getSimpleName(),
+          "JDBC configuration error: {}",
           ex.getMessage(),
           ex
       );
       throw new ConnectException(
-          getClass().getSimpleName() + " Couldn't start due to configuration error.",
+          "JDBC configuration error: " + ex.getMessage(),
           ex
       );
-    } catch (RuntimeException ex) {
-      log.error(
-          "{} Couldn't start due to: {}",
-          getClass().getSimpleName(),
-          ex.getMessage(),
-          ex
-      );
-      throw ex;
     }
-
-    log.info(
-        "{} Loaded {} successfully",
-        getClass().getSimpleName(),
-        JdbcHdfsSinkConnectorConfig.class.getSimpleName()
-    );
 
     super.start(props);
   }
@@ -100,34 +77,36 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
     // TODO: Verify db and schema match the connection string.
     // TODO: groupBy?
 
-    // NOTE: Do not pre-allocate JdbcRecordTransformer,
-    //       as it needs to have a fresh SqlCache every iteration.
-    // TODO: Determine if it is safe to long-term cache Table Schemas,
+    // NOTE: We need to have a fresh SqlCache every iteration.
+    // TODO: Determine if it is safe to cache Table Schemas long-term,
     //       or do they change often enough to warrant a refresh every iteration?
-    JdbcRecordTransformer recordTransformer = new JdbcRecordTransformer(
-        jdbcConnection,
-        retrySpec,
-        configuredTables,
-        jdbcHashCache
-    );
+    SqlMetadataCache sqlMetadataCache = new SqlMetadataCache(dataSource);
 
     // Iterate over each record, and put() each individually
-    records
-        .stream()
-        .map(recordTransformer::transformRecord)
-        .filter(Objects::nonNull)
-        .peek(newRecord -> log.debug(
+    for (SinkRecord record : records) {
+      try {
+        SinkRecord transformedRecord =
+            recordTransformer.transformRecord(sqlMetadataCache, record);
+        log.debug(
             "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
-            newRecord.key(),
-            newRecord
+            transformedRecord.key(),
+            transformedRecord
                 .valueSchema()
                 .fields()
                 .stream()
                 .map(Field::name)
                 .collect(Collectors.joining(","))
-        ))
-        .map(Collections::singletonList)
-        .forEach(super::put);
+        );
+
+        super.put(Collections.singletonList(transformedRecord));
+      } catch (SQLException ex) {
+        log.error("Failed to transform Record: {}", ex.getMessage(), ex);
+        throw new DataException(
+            "Failed to transform Record: " + ex.getMessage(),
+            ex
+        );
+      }
+    }
 
     // Trigger a sync() to HDFS, even if no records were written.
     // This updates all accounting and delayed writes, etc...
@@ -136,26 +115,38 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    //log.info("Opening {}", getClass().getSimpleName());
+    log.info("Opening JDBC DataSource: {}", hikariConfig.getJdbcUrl());
+
+    dataSource = new HikariDataSource(hikariConfig);
+
+    recordTransformer = new JdbcRecordTransformer(
+        dataSource,
+        configuredTables,
+        jdbcHashCache
+    );
+
+    log.info("Successfully opened JDBC DataSource: {}", dataSource.getJdbcUrl());
+
     super.open(partitions);
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    //log.info("Closing {}", getClass().getSimpleName());
+    if (dataSource != null) {
+      try {
+        log.info("Closing JDBC DataSource {}", hikariConfig.getJdbcUrl());
+        dataSource.close();
+      } catch (Exception ex) {
+        log.warn("Failed to close DataSource: {}", ex.getMessage(), ex);
+      }
+    }
+
     super.close(partitions);
   }
 
   @Override
   public void stop() {
     log.info("Stopping {}", getClass().getSimpleName());
-    if (jdbcConnection != null) {
-      try {
-        jdbcConnection.close();
-      } catch (Exception ex) {
-        log.warn("Failed to close JdbcConnection: {}", ex.getMessage(), ex);
-      }
-    }
     super.stop();
   }
 }
