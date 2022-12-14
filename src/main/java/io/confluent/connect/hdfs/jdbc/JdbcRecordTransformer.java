@@ -144,23 +144,35 @@ public class JdbcRecordTransformer {
 
     // Execute the query
 
-    boolean hasChangedColumns =
-        JdbcQueryUtil.executeQuery(
+    String primaryKeyStr = Optional
+        .ofNullable(oldRecord.key())
+        .map(Object::toString)
+        .map(String::trim)
+        .orElse("");
+
+    FilteredColumnToStructVisitor columnVisitor =
+        new FilteredColumnToStructVisitor(
             jdbcHashCache,
-            dataSource,
-            tableInfo,
-            primaryKeyColumns,
-            columnsToQuery,
-            oldValueStruct,
             newValueStruct,
-            oldRecord.key()
+            tableInfo,
+            primaryKeyStr
         );
+
+    JdbcQueryUtil.executeSingletonQuery(
+        dataSource,
+        tableInfo,
+        primaryKeyColumns,
+        columnsToQuery,
+        new StructToJdbcValueMapper(oldValueStruct),
+        columnVisitor,
+        primaryKeyStr
+    );
 
     // Only write a record if there are changes in the LOB(s).
     // This is an optimization for when LOBs already exist in the cache.
     // TODO: Make this optimization configurable, so it can be disabled from the config
 
-    if (!hasChangedColumns) {
+    if (!columnVisitor.hasChangedColumns()) {
       return null;
     }
 

@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +47,7 @@ public class JdbcQueryUtil {
     void accept(PreparedStatement preparedStatement,
                 int index,
                 JDBCType jdbcType,
-                Struct struct,
+                JdbcValueMapper valueMapper,
                 String fieldName) throws SQLException;
   }
 
@@ -150,22 +149,15 @@ public class JdbcQueryUtil {
     }
   }
 
-  public static boolean executeQuery(
-      JdbcHashCache jdbcHashCache,
+  public static void executeSingletonQuery(
       DataSource dataSource,
       JdbcTableInfo tableInfo,
       List<JdbcColumnInfo> primaryKeyColumns,
       Collection<JdbcColumnInfo> columnsToQuery,
-      Struct oldValueStruct,
-      Struct newValueStruct,
-      Object oldKey
+      JdbcValueMapper valueMapper,
+      JdbcColumnVisitor columnVisitor,
+      String primaryKeyStr
   ) throws SQLException {
-    String primaryKeyStr = Optional
-        .ofNullable(oldKey)
-        .map(Object::toString)
-        .map(String::trim)
-        .orElse("");
-
     String selectClause =
         columnsToQuery
             .stream()
@@ -204,18 +196,10 @@ public class JdbcQueryUtil {
             preparedStatement,
             index++,
             primaryKeyColumn.getJdbcType(),
-            oldValueStruct,
+            valueMapper,
             primaryKeyColumn.getName()
         );
       }
-
-      FilteredColumnToStructVisitor columnVisitor =
-          new FilteredColumnToStructVisitor(
-              jdbcHashCache,
-              newValueStruct,
-              tableInfo,
-              primaryKeyStr
-          );
 
       try (ResultSet resultSet = preparedStatement.executeQuery()) {
         if (!resultSet.next()) {
@@ -248,15 +232,13 @@ public class JdbcQueryUtil {
         }
       }
       // TODO: Rollback?
-
-      return columnVisitor.hasChangedColumns();
     }
   }
 
   public static void setPreparedValue(PreparedStatement preparedStatement,
                                       int index,
                                       JDBCType jdbcType,
-                                      Struct struct,
+                                      JdbcValueMapper valueMapper,
                                       String fieldName) throws SQLException {
     if (JDBCType.NULL == jdbcType) {
       preparedStatement.setNull(index, jdbcType.getVendorTypeNumber());
@@ -274,7 +256,7 @@ public class JdbcQueryUtil {
                 + "] in PreparedStatement"
             )
         )
-        .accept(preparedStatement, index, jdbcType, struct, fieldName);
+        .accept(preparedStatement, index, jdbcType, valueMapper, fieldName);
   }
 
   public static void visitResultSetColumns(ResultSet resultSet,
@@ -304,9 +286,9 @@ public class JdbcQueryUtil {
   private static void setBoolean(PreparedStatement preparedStatement,
                                  int index,
                                  JDBCType jdbcType,
-                                 Struct struct,
+                                 JdbcValueMapper valueMapper,
                                  String fieldName) throws SQLException {
-    Boolean value = struct.getBoolean(fieldName);
+    Boolean value = valueMapper.getBoolean(fieldName);
     if (value != null) {
       preparedStatement.setBoolean(index, value);
     } else {
@@ -317,9 +299,9 @@ public class JdbcQueryUtil {
   private static void setByte(PreparedStatement preparedStatement,
                               int index,
                               JDBCType jdbcType,
-                              Struct struct,
+                              JdbcValueMapper valueMapper,
                               String fieldName) throws SQLException {
-    Byte value = struct.getInt8(fieldName);
+    Byte value = valueMapper.getByte(fieldName);
     if (value != null) {
       preparedStatement.setByte(index, value);
     } else {
@@ -330,9 +312,9 @@ public class JdbcQueryUtil {
   private static void setInt(PreparedStatement preparedStatement,
                              int index,
                              JDBCType jdbcType,
-                             Struct struct,
+                             JdbcValueMapper valueMapper,
                              String fieldName) throws SQLException {
-    Integer value = struct.getInt32(fieldName);
+    Integer value = valueMapper.getInteger(fieldName);
     if (value != null) {
       preparedStatement.setInt(index, value);
     } else {
@@ -343,9 +325,9 @@ public class JdbcQueryUtil {
   private static void setLong(PreparedStatement preparedStatement,
                               int index,
                               JDBCType jdbcType,
-                              Struct struct,
+                              JdbcValueMapper valueMapper,
                               String fieldName) throws SQLException {
-    Long value = struct.getInt64(fieldName);
+    Long value = valueMapper.getLong(fieldName);
     if (value != null) {
       preparedStatement.setLong(index, value);
     } else {
@@ -356,9 +338,9 @@ public class JdbcQueryUtil {
   private static void setShort(PreparedStatement preparedStatement,
                                int index,
                                JDBCType jdbcType,
-                               Struct struct,
+                               JdbcValueMapper valueMapper,
                                String fieldName) throws SQLException {
-    Short value = struct.getInt16(fieldName);
+    Short value = valueMapper.getShort(fieldName);
     if (value != null) {
       preparedStatement.setShort(index, value);
     } else {
@@ -369,9 +351,9 @@ public class JdbcQueryUtil {
   private static void setString(PreparedStatement preparedStatement,
                                 int index,
                                 JDBCType jdbcType,
-                                Struct struct,
+                                JdbcValueMapper valueMapper,
                                 String fieldName) throws SQLException {
-    String value = struct.getString(fieldName);
+    String value = valueMapper.getString(fieldName);
     if (value != null) {
       preparedStatement.setString(index, value);
     } else {

@@ -25,6 +25,8 @@ import java.util.function.Function;
 
 /**
  * Cache of LOB hashes, for pruning unnecessary HDFS writes
+ * <p/>
+ * TODO: Only update the Cache if the underlying Record is written to HDFS!
  */
 public class JdbcHashCache {
   // TODO: Make configurable
