@@ -29,8 +29,8 @@ import java.util.stream.Stream;
 public class JdbcSchema {
   public static Schema createSchema(Set<String> configuredFieldNamesLower,
                                     Schema oldSchema,
-                                    Collection<JdbcColumn> primaryKeyColumns,
-                                    Collection<JdbcColumn> columnsToQuery) {
+                                    Collection<JdbcColumnInfo> primaryKeyColumns,
+                                    Collection<JdbcColumnInfo> columnsToQuery) {
     SchemaBuilder newSchemaBuilder = SchemaBuilder.struct();
 
     Set<String> newColumnNames =
@@ -41,7 +41,7 @@ public class JdbcSchema {
             )
             // Unnecessary, as columnsToQuery already filtered out all primary keys
             //.filter(distinctBy(JdbcColumn::getName))
-            .sorted(JdbcColumn.byOrdinal)
+            .sorted(JdbcColumnInfo.byOrdinal)
             .peek(column -> {
               String columnName = column.getName();
               Schema fieldSchema =
@@ -51,7 +51,7 @@ public class JdbcSchema {
                       .orElseGet(() -> toSchema(column));
               newSchemaBuilder.field(columnName, fieldSchema);
             })
-            .map(JdbcColumn::getName)
+            .map(JdbcColumnInfo::getName)
             .collect(Collectors.toSet());
 
     oldSchema
@@ -67,7 +67,7 @@ public class JdbcSchema {
     return newSchemaBuilder.build();
   }
 
-  private static Schema toSchema(JdbcColumn column) {
+  private static Schema toSchema(JdbcColumnInfo column) {
     switch (column.getJdbcType()) {
       case BLOB:
         return column.isNullable() ? Schema.OPTIONAL_BYTES_SCHEMA : Schema.BYTES_SCHEMA;
@@ -77,10 +77,10 @@ public class JdbcSchema {
       default:
         throw new DataException(
             "Cannot convert Column ["
-                + column.getName()
-                + "] type ["
-                + column.getJdbcType()
-                + "] into a Value Schema"
+            + column.getName()
+            + "] type ["
+            + column.getJdbcType()
+            + "] into a Value Schema"
         );
     }
   }

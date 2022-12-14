@@ -17,19 +17,21 @@ package io.confluent.connect.hdfs.jdbc;
 
 import java.sql.JDBCType;
 import java.util.Comparator;
+import java.util.Objects;
 
-public class JdbcColumn {
+public class JdbcColumnInfo {
   private final String name;
   private final JDBCType jdbcType;
   private final int ordinal;
   private final boolean nullable;
 
-  public static Comparator<JdbcColumn> byOrdinal = Comparator.comparingInt(JdbcColumn::getOrdinal);
+  public static Comparator<JdbcColumnInfo> byOrdinal =
+      Comparator.comparingInt(JdbcColumnInfo::getOrdinal);
 
-  public JdbcColumn(String name,
-                    JDBCType jdbcType,
-                    int ordinal,
-                    boolean nullable) {
+  public JdbcColumnInfo(String name,
+                        JDBCType jdbcType,
+                        int ordinal,
+                        boolean nullable) {
     this.name = name;
     this.jdbcType = jdbcType;
     this.ordinal = ordinal;
@@ -53,8 +55,29 @@ public class JdbcColumn {
   }
 
   @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof JdbcColumnInfo)) {
+      return false;
+    }
+    JdbcColumnInfo column = (JdbcColumnInfo) o;
+    return Objects.equals(getName(), column.getName())
+           && getJdbcType() == column.getJdbcType()
+           && getOrdinal() == column.getOrdinal()
+           && isNullable() == column.isNullable();
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(getName(), getJdbcType(), getOrdinal(), isNullable());
+  }
+
+  @Override
   public String toString() {
-    return "JdbcColumn{"
+    return getClass().getSimpleName()
+           + "{"
            + "name='" + name + "'"
            + ", jdbcType=" + jdbcType
            + ", ordinal=" + ordinal

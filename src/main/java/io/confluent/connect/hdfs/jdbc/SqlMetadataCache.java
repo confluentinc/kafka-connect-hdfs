@@ -24,18 +24,20 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 class SqlMetadataCache {
-  private final Map<JdbcTableInfo, List<JdbcColumn>> allColumnsMap = new HashMap<>();
-  private final Map<JdbcTableInfo, List<JdbcColumn>> primaryKeyColumnsMap = new HashMap<>();
+  private final Map<JdbcTableInfo, List<JdbcColumnInfo>> allColumnsMap =
+      new HashMap<>();
+  private final Map<JdbcTableInfo, List<JdbcColumnInfo>> primaryKeyColumnsMap =
+      new HashMap<>();
   private final DataSource dataSource;
 
   public SqlMetadataCache(DataSource dataSource) {
     this.dataSource = dataSource;
   }
 
-  public synchronized List<JdbcColumn> fetchAllColumns(
+  public synchronized List<JdbcColumnInfo> fetchAllColumns(
       JdbcTableInfo tableInfo
   ) throws SQLException {
-    List<JdbcColumn> allColumns = allColumnsMap.get(tableInfo);
+    List<JdbcColumnInfo> allColumns = allColumnsMap.get(tableInfo);
 
     if (allColumns == null) {
       allColumns = JdbcQueryUtil.fetchAllColumns(dataSource, tableInfo);
@@ -44,16 +46,16 @@ class SqlMetadataCache {
     return allColumns;
   }
 
-  public synchronized List<JdbcColumn> fetchPrimaryKeyColumns(
+  public synchronized List<JdbcColumnInfo> fetchPrimaryKeyColumns(
       JdbcTableInfo tableInfo
   ) throws SQLException {
-    List<JdbcColumn> primaryKeyColumns = primaryKeyColumnsMap.get(tableInfo);
+    List<JdbcColumnInfo> primaryKeyColumns = primaryKeyColumnsMap.get(tableInfo);
 
     if (primaryKeyColumns == null) {
       Collection<String> primaryKeyNames =
           JdbcQueryUtil.fetchPrimaryKeyNames(dataSource, tableInfo);
 
-      // TODO: Do we need to check and make sure the PK exists in the list of columns?
+      // TODO: Do we need to verify the PK exists in the list of columns?
       primaryKeyColumns =
           fetchAllColumns(tableInfo)
               .stream()

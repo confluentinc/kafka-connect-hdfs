@@ -79,7 +79,7 @@ public class JdbcQueryUtil {
     jdbcTypeResultSetMap.put(JDBCType.SQLXML, JdbcQueryUtil::visitSqlXml);
   }
 
-  public static List<JdbcColumn> fetchAllColumns(
+  public static List<JdbcColumnInfo> fetchAllColumns(
       DataSource dataSource,
       JdbcTableInfo tableInfo
   ) throws SQLException {
@@ -92,7 +92,7 @@ public class JdbcQueryUtil {
              null
          )
     ) {
-      List<JdbcColumn> columnList = new LinkedList<>();
+      List<JdbcColumnInfo> columnList = new LinkedList<>();
       while (columns.next()) {
         String columnName = columns.getString("COLUMN_NAME").trim();
         // WARNING: This returns the wrong value in some cases (2009/XML becomes 1111)
@@ -105,7 +105,7 @@ public class JdbcQueryUtil {
         //String isAutoIncrement = columns.getString("IS_AUTOINCREMENT");
         //int radix = columns.getInt("NUM_PREC_RADIX");
         int ordinal = columns.getInt("ORDINAL_POSITION");
-        JdbcColumn jdbcColumn = new JdbcColumn(columnName, jdbcType, ordinal, nullable);
+        JdbcColumnInfo jdbcColumn = new JdbcColumnInfo(columnName, jdbcType, ordinal, nullable);
         log.debug(
             "Loaded Column for Table [{}] TypeName [{}] DataType [{} ==? {}] = {}",
             tableInfo,
@@ -119,7 +119,7 @@ public class JdbcQueryUtil {
 
       return columnList
           .stream()
-          .sorted(JdbcColumn.byOrdinal)
+          .sorted(JdbcColumnInfo.byOrdinal)
           .collect(Collectors.toList());
     }
   }
@@ -154,8 +154,8 @@ public class JdbcQueryUtil {
       JdbcHashCache jdbcHashCache,
       DataSource dataSource,
       JdbcTableInfo tableInfo,
-      List<JdbcColumn> primaryKeyColumns,
-      Collection<JdbcColumn> columnsToQuery,
+      List<JdbcColumnInfo> primaryKeyColumns,
+      Collection<JdbcColumnInfo> columnsToQuery,
       Struct oldValueStruct,
       Struct newValueStruct,
       Object oldKey
@@ -169,13 +169,13 @@ public class JdbcQueryUtil {
     String selectClause =
         columnsToQuery
             .stream()
-            .map(JdbcColumn::getName)
+            .map(JdbcColumnInfo::getName)
             .collect(Collectors.joining(","));
 
     String whereClause =
         primaryKeyColumns
             .stream()
-            .map(JdbcColumn::getName)
+            .map(JdbcColumnInfo::getName)
             .map(primaryKeyName -> primaryKeyName + "=?")
             .collect(Collectors.joining(" AND "));
 
@@ -199,7 +199,7 @@ public class JdbcQueryUtil {
     try (Connection connection = dataSource.getConnection();
          PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery)) {
       int index = 1;
-      for (JdbcColumn primaryKeyColumn : primaryKeyColumns) {
+      for (JdbcColumnInfo primaryKeyColumn : primaryKeyColumns) {
         JdbcQueryUtil.setPreparedValue(
             preparedStatement,
             index++,

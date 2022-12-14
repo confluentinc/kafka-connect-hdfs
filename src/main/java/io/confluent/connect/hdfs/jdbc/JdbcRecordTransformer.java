@@ -83,7 +83,7 @@ public class JdbcRecordTransformer {
 
     // Gather Column Metadata from the DB
 
-    Map<String, JdbcColumn> allColumnsLowerMap =
+    Map<String, JdbcColumnInfo> allColumnsLowerMap =
         sqlMetadataCache
             .fetchAllColumns(tableInfo)
             .stream()
@@ -92,16 +92,17 @@ public class JdbcRecordTransformer {
                 Function.identity()
             ));
 
-    List<JdbcColumn> primaryKeyColumns = sqlMetadataCache.fetchPrimaryKeyColumns(tableInfo);
+    List<JdbcColumnInfo> primaryKeyColumns =
+        sqlMetadataCache.fetchPrimaryKeyColumns(tableInfo);
 
     Set<String> primaryKeyColumnNamesLower =
         primaryKeyColumns
             .stream()
-            .map(JdbcColumn::getName)
+            .map(JdbcColumnInfo::getName)
             .map(String::toLowerCase)
             .collect(Collectors.toSet());
 
-    List<JdbcColumn> columnsToQuery =
+    List<JdbcColumnInfo> columnsToQuery =
         columnNamesLowerToQuery
             .stream()
             .filter(((Predicate<String>) primaryKeyColumnNamesLower::contains).negate())
@@ -115,7 +116,7 @@ public class JdbcRecordTransformer {
                     + "]"
                 ))
             )
-            .sorted(JdbcColumn.byOrdinal)
+            .sorted(JdbcColumnInfo.byOrdinal)
             .collect(Collectors.toList());
 
     // Create the mew Schema and new value Struct

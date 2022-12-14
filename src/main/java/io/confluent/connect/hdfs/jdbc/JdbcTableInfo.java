@@ -36,15 +36,26 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
 
   public static Comparator<JdbcTableInfo> comparator =
       Comparator
-          .comparing(JdbcTableInfo::getDb, Comparator.nullsFirst(Comparator.naturalOrder()))
-          .thenComparing(JdbcTableInfo::getSchema, Comparator.nullsFirst(Comparator.naturalOrder()))
-          .thenComparing(JdbcTableInfo::getTable, Comparator.nullsFirst(Comparator.naturalOrder()));
+          .comparing(
+              JdbcTableInfo::getDb,
+              Comparator.nullsFirst(Comparator.naturalOrder())
+          )
+          .thenComparing(
+              JdbcTableInfo::getSchema,
+              Comparator.nullsFirst(Comparator.naturalOrder())
+          )
+          .thenComparing(
+              JdbcTableInfo::getTable,
+              Comparator.nullsFirst(Comparator.naturalOrder())
+          );
 
   public JdbcTableInfo(Headers headers) {
     this(
         (String) headers.lastWithName(HEADER_DB).value(),
-        (String) headers.lastWithName(HEADER_SCHEMA).value(), // TODO: Validate Not Null
-        (String) headers.lastWithName(HEADER_TABLE).value() // TODO: Validate Not Null
+        // TODO: Validate not null or empty?
+        (String) headers.lastWithName(HEADER_SCHEMA).value(),
+        // TODO: Validate not null or empty!
+        (String) headers.lastWithName(HEADER_TABLE).value()
     );
   }
 
@@ -67,7 +78,11 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   }
 
   public String qualifiedName() {
-    return String.join(".", getSchema(), getTable());
+    return Stream
+        .of(schema, table)
+        .map(String::trim)
+        .filter(((Predicate<String>) String::isEmpty).negate())
+        .collect(Collectors.joining("."));
   }
 
   @Override
@@ -104,8 +119,8 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   public String toString() {
     return Stream
         .of(db, schema, table)
-        .map(value -> (value != null) ? value : "")
         .map(String::trim)
+        .filter(((Predicate<String>) String::isEmpty).negate())
         .collect(Collectors.joining(".", "JdbcTableInfo{", "}"));
   }
 }
