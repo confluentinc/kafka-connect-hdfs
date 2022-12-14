@@ -39,7 +39,7 @@
 
     <suppress
             checks="NPathComplexity"
-            files="(TopicPartitionWriter).java"
+            files="(TopicPartitionWriter|WALFile|DataWriter).java"
     />
 
     <suppress

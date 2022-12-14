@@ -67,7 +67,7 @@ public class DataWriter {
   private static final Time SYSTEM_TIME = new SystemTime();
   private final Time time;
 
-  private Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
+  private final Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private String url;
   private HdfsStorage storage;
   private String topicsDir;
@@ -100,47 +100,35 @@ public class DataWriter {
 
   }
 
+  @SuppressWarnings("unchecked")
   public DataWriter(
-      HdfsSinkConnectorConfig connectorConfig,
+      HdfsSinkConnectorConfig config,
       SinkTaskContext context,
       AvroData avroData,
       Time time
   ) {
     this.time = time;
     try {
-      String hadoopHome = connectorConfig.getString(HdfsSinkConnectorConfig.HADOOP_HOME_CONFIG);
-      System.setProperty("hadoop.home.dir", hadoopHome);
+      System.setProperty("hadoop.home.dir", config.hadoopHome());
 
-      this.connectorConfig = connectorConfig;
+      this.connectorConfig = config;
       this.avroData = avroData;
       this.context = context;
 
-      String hadoopConfDir = connectorConfig.getString(
-          HdfsSinkConnectorConfig.HADOOP_CONF_DIR_CONFIG
-      );
-      log.info("Hadoop configuration directory {}", hadoopConfDir);
-      Configuration conf = connectorConfig.getHadoopConfiguration();
-      if (!hadoopConfDir.equals("")) {
-        conf.addResource(new Path(hadoopConfDir + "/core-site.xml"));
-        conf.addResource(new Path(hadoopConfDir + "/hdfs-site.xml"));
+      log.info("Hadoop configuration directory {}", config.hadoopConfDir());
+      Configuration conf = config.getHadoopConfiguration();
+      if (!config.hadoopConfDir().equals("")) {
+        conf.addResource(new Path(config.hadoopConfDir() + "/core-site.xml"));
+        conf.addResource(new Path(config.hadoopConfDir() + "/hdfs-site.xml"));
       }
 
-      boolean secureHadoop = connectorConfig.getBoolean(
-          HdfsSinkConnectorConfig.HDFS_AUTHENTICATION_KERBEROS_CONFIG
-      );
-      if (secureHadoop) {
+      if (config.kerberosAuthentication()) {
         SecurityUtil.setAuthenticationMethod(
             UserGroupInformation.AuthenticationMethod.KERBEROS,
             conf
         );
-        String principalConfig = connectorConfig.getString(
-            HdfsSinkConnectorConfig.CONNECT_HDFS_PRINCIPAL_CONFIG
-        );
-        String keytab = connectorConfig.getString(
-            HdfsSinkConnectorConfig.CONNECT_HDFS_KEYTAB_CONFIG
-        );
 
-        if (principalConfig == null || keytab == null) {
+        if (config.connectHdfsPrincipal() == null || config.connectHdfsKeytab() == null) {
           throw new ConfigException(
               "Hadoop is using Kerberos for authentication, you need to provide both a connect "
                   + "principal and the path to the keytab of the principal.");
@@ -149,12 +137,9 @@ public class DataWriter {
         conf.set("hadoop.security.authentication", "kerberos");
         conf.set("hadoop.security.authorization", "true");
         String hostname = InetAddress.getLocalHost().getCanonicalHostName();
-        String namenodePrincipalConfig = connectorConfig.getString(
-            HdfsSinkConnectorConfig.HDFS_NAMENODE_PRINCIPAL_CONFIG
-        );
 
         String namenodePrincipal = SecurityUtil.getServerPrincipal(
-            namenodePrincipalConfig,
+            config.hdfsNamenodePrincipal(),
             hostname
         );
         // namenode principal is needed for multi-node hadoop cluster
@@ -165,73 +150,49 @@ public class DataWriter {
 
         UserGroupInformation.setConfiguration(conf);
         // replace the _HOST specified in the principal config to the actual host
-        String principal = SecurityUtil.getServerPrincipal(principalConfig, hostname);
-        UserGroupInformation.loginUserFromKeytab(principal, keytab);
+        String principal = SecurityUtil.getServerPrincipal(config.connectHdfsPrincipal(), hostname);
+        UserGroupInformation.loginUserFromKeytab(principal, config.connectHdfsKeytab());
         final UserGroupInformation ugi = UserGroupInformation.getLoginUser();
         log.info("Login as: " + ugi.getUserName());
 
-        final long renewPeriod = connectorConfig.getLong(
-            HdfsSinkConnectorConfig.KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG
-        );
-
         isRunning = true;
-        ticketRenewThread = new Thread(new Runnable() {
-          @Override
-          public void run() {
-            synchronized (DataWriter.this) {
-              while (isRunning) {
-                try {
-                  DataWriter.this.wait(renewPeriod);
-                  if (isRunning) {
-                    ugi.reloginFromKeytab();
-                  }
-                } catch (IOException e) {
-                  // We ignore this exception during relogin as each successful relogin gives
-                  // additional 24 hours of authentication in the default config. In normal
-                  // situations, the probability of failing relogin 24 times is low and if
-                  // that happens, the task will fail eventually.
-                  log.error("Error renewing the ticket", e);
-                } catch (InterruptedException e) {
-                  // ignored
-                }
-              }
-            }
-          }
-        });
-        log.info("Starting the Kerberos ticket renew thread with period {}ms.", renewPeriod);
+        ticketRenewThread = new Thread(() -> renewKerberosTicket(ugi));
+        log.info(
+            "Starting the Kerberos ticket renew thread with period {} ms.",
+            config.kerberosTicketRenewPeriodMs()
+        );
         ticketRenewThread.start();
       }
 
-      url = connectorConfig.getUrl();
-      topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+      url = config.url();
+      topicsDir = config.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
 
       @SuppressWarnings("unchecked")
-      Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) connectorConfig
+      Class<? extends HdfsStorage> storageClass = (Class<? extends HdfsStorage>) config
           .getClass(StorageCommonConfig.STORAGE_CLASS_CONFIG);
       storage = io.confluent.connect.storage.StorageFactory.createStorage(
           storageClass,
           HdfsSinkConnectorConfig.class,
-          connectorConfig,
+          config,
           url
       );
 
       createDir(topicsDir);
       createDir(topicsDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
-      String logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
-      createDir(logsDir);
+      createDir(config.logsDir());
 
       // Try to instantiate as a new-style storage-common type class, then fall back to old-style
       // with no parameters
       try {
         Class<io.confluent.connect.storage.format.Format> formatClass =
             (Class<io.confluent.connect.storage.format.Format>)
-                connectorConfig.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+                config.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
         newFormat = formatClass.getConstructor(HdfsStorage.class).newInstance(storage);
         newWriterProvider = newFormat.getRecordWriterProvider();
         schemaFileReader = newFormat.getSchemaFileReader();
       } catch (NoSuchMethodException e) {
         Class<Format> formatClass =
-            (Class<Format>) connectorConfig.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
+            (Class<Format>) config.getClass(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG);
         format = formatClass.getConstructor().newInstance();
         writerProvider = format.getRecordWriterProvider();
         final io.confluent.connect.hdfs.SchemaFileReader oldReader
@@ -273,18 +234,18 @@ public class DataWriter {
         };
       }
 
-      partitioner = newPartitioner(connectorConfig);
+      partitioner = newPartitioner(config);
 
-      hiveIntegration = connectorConfig.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
+      hiveIntegration = config.getBoolean(HiveConfig.HIVE_INTEGRATION_CONFIG);
       if (hiveIntegration) {
-        hiveDatabase = connectorConfig.getString(HiveConfig.HIVE_DATABASE_CONFIG);
-        hiveMetaStore = new HiveMetaStore(conf, connectorConfig);
+        hiveDatabase = config.getString(HiveConfig.HIVE_DATABASE_CONFIG);
+        hiveMetaStore = new HiveMetaStore(conf, config);
         if (format != null) {
-          hive = format.getHiveUtil(connectorConfig, hiveMetaStore);
+          hive = format.getHiveUtil(config, hiveMetaStore);
         } else if (newFormat != null) {
           final io.confluent.connect.storage.hive.HiveUtil newHiveUtil
-              = newFormat.getHiveFactory().createHiveUtil(connectorConfig, hiveMetaStore);
-          hive = new HiveUtil(connectorConfig, hiveMetaStore) {
+              = newFormat.getHiveFactory().createHiveUtil(config, hiveMetaStore);
+          hive = new HiveUtil(config, hiveMetaStore) {
             @Override
             public void createTable(
                 String database, String tableName, Schema schema,
@@ -313,7 +274,7 @@ public class DataWriter {
             writerProvider,
             newWriterProvider,
             partitioner,
-            connectorConfig,
+            config,
             context,
             avroData,
             hiveMetaStore,
@@ -325,8 +286,7 @@ public class DataWriter {
         );
         topicPartitionWriters.put(tp, topicPartitionWriter);
       }
-    } catch (
-        ClassNotFoundException
+    } catch (ClassNotFoundException
             | IllegalAccessException
             | InstantiationException
             | InvocationTargetException
@@ -447,11 +407,14 @@ public class DataWriter {
     // data may have continued to be processed and we'd have to restart from the recovery stage,
     // make sure we apply the WAL, and only reuse the temp file if the starting offset is still
     // valid. For now, we prefer the simpler solution that may result in a bit of wasted effort.
-    for (TopicPartition tp : topicPartitionWriters.keySet()) {
+    for (TopicPartitionWriter writer : topicPartitionWriters.values()) {
       try {
-        topicPartitionWriters.get(tp).close();
+        if (writer != null) {
+          // In some failure modes, the writer might not have been created for all assignments
+          writer.close();
+        }
       } catch (ConnectException e) {
-        log.error("Error closing writer for {}. Error: {}", tp, e.getMessage());
+        log.warn("Unable to close writer for topic partition {}: ", writer.topicPartition(), e);
       }
     }
     topicPartitionWriters.clear();
@@ -635,5 +598,26 @@ public class DataWriter {
     map.put(PartitionerConfig.LOCALE_CONFIG, config.getString(PartitionerConfig.LOCALE_CONFIG));
     map.put(PartitionerConfig.TIMEZONE_CONFIG, config.getString(PartitionerConfig.TIMEZONE_CONFIG));
     return map;
+  }
+
+  private void renewKerberosTicket(UserGroupInformation ugi) {
+    synchronized (DataWriter.this) {
+      while (isRunning) {
+        try {
+          DataWriter.this.wait(connectorConfig.kerberosTicketRenewPeriodMs());
+          if (isRunning) {
+            ugi.reloginFromKeytab();
+          }
+        } catch (IOException e) {
+          // We ignore this exception during relogin as each successful relogin gives
+          // additional 24 hours of authentication in the default config. In normal
+          // situations, the probability of failing relogin 24 times is low and if
+          // that happens, the task will fail eventually.
+          log.error("Error renewing the ticket", e);
+        } catch (InterruptedException e) {
+          // ignored
+        }
+      }
+    }
   }
 }

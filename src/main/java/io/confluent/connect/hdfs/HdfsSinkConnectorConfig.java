@@ -14,6 +14,8 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.parquet.ParquetFormat;
+import io.confluent.connect.hdfs.string.StringFormat;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.kafka.common.config.AbstractConfig;
@@ -49,6 +51,7 @@ import io.confluent.connect.storage.partitioner.HourlyPartitioner;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnector.TASK_ID_CONFIG_NAME;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_CONFIG;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DISPLAY;
 import static io.confluent.connect.storage.common.StorageCommonConfig.STORAGE_CLASS_DOC;
@@ -126,15 +129,20 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
 
   static {
     STORAGE_CLASS_RECOMMENDER.addValidValues(
-        Arrays.<Object>asList(HdfsStorage.class)
+        Arrays.asList(HdfsStorage.class)
     );
 
     FORMAT_CLASS_RECOMMENDER.addValidValues(
-        Arrays.<Object>asList(AvroFormat.class, JsonFormat.class)
+        Arrays.asList(
+            AvroFormat.class,
+            JsonFormat.class,
+            ParquetFormat.class,
+            StringFormat.class
+        )
     );
 
     PARTITIONER_CLASS_RECOMMENDER.addValidValues(
-        Arrays.<Object>asList(
+        Arrays.asList(
             DefaultPartitioner.class,
             HourlyPartitioner.class,
             DailyPartitioner.class,
@@ -287,7 +295,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     return configDef;
   }
 
-  private final String name;
   private final String url;
   private final StorageCommonConfig commonConfig;
   private final HiveConfig hiveConfig;
@@ -295,6 +302,7 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private final Map<String, ComposableConfig> propertyToConfig = new HashMap<>();
   private final Set<AbstractConfig> allConfigs = new HashSet<>();
   private Configuration hadoopConfig;
+  private int taskId;
 
   public HdfsSinkConnectorConfig(Map<String, String> props) {
     this(newConfigDef() , addDefaults(props));
@@ -307,8 +315,9 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     hiveConfig = new HiveConfig(originalsStrings());
     ConfigDef partitionerConfigDef = PartitionerConfig.newConfigDef(PARTITIONER_CLASS_RECOMMENDER);
     partitionerConfig = new PartitionerConfig(partitionerConfigDef, originalsStrings());
-    this.name = parseName(originalsStrings());
     this.hadoopConfig = new Configuration();
+    taskId = props.get(TASK_ID_CONFIG_NAME) != null
+        ? Integer.parseInt(props.get(TASK_ID_CONFIG_NAME)) : -1;
     addToGlobal(hiveConfig);
     addToGlobal(partitionerConfig);
     addToGlobal(commonConfig);
@@ -340,11 +349,6 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     propsCopy.putIfAbsent(STORAGE_CLASS_CONFIG, HdfsStorage.class.getName());
     propsCopy.putIfAbsent(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, AvroFormat.class.getName());
     return propsCopy;
-  }
-
-  protected static String parseName(Map<String, String> props) {
-    String nameProp = props.get("name");
-    return nameProp != null ? nameProp : "HDFS-sink";
   }
 
   private void addToGlobal(AbstractConfig config) {
@@ -380,11 +384,43 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     );
   }
 
-  public String getName() {
-    return name;
+  public String connectHdfsPrincipal() {
+    return getString(CONNECT_HDFS_PRINCIPAL_CONFIG);
   }
 
-  public String getUrl() {
+  public String connectHdfsKeytab() {
+    return getString(CONNECT_HDFS_KEYTAB_CONFIG);
+  }
+
+  public String hadoopConfDir() {
+    return getString(HADOOP_CONF_DIR_CONFIG);
+  }
+
+  public String hadoopHome() {
+    return getString(HADOOP_HOME_CONFIG);
+  }
+
+  public String hdfsNamenodePrincipal() {
+    return getString(HDFS_NAMENODE_PRINCIPAL_CONFIG);
+  }
+
+  public boolean kerberosAuthentication() {
+    return getBoolean(HDFS_AUTHENTICATION_KERBEROS_CONFIG);
+  }
+
+  public long kerberosTicketRenewPeriodMs() {
+    return getLong(KERBEROS_TICKET_RENEW_PERIOD_MS_CONFIG);
+  }
+
+  public String logsDir() {
+    return getString(LOGS_DIR_CONFIG);
+  }
+
+  public String name() {
+    return originalsStrings().getOrDefault("name", "HDFS-sink");
+  }
+
+  public String url() {
     return url;
   }
 
@@ -486,6 +522,10 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
         container.define(key);
       }
     }
+  }
+
+  public int getTaskId() {
+    return taskId;
   }
 
   public static void main(String[] args) {

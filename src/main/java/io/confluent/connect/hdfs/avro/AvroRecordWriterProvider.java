@@ -14,11 +14,11 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.storage.HdfsStorage;
+import java.io.OutputStream;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.Path;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
@@ -36,9 +36,11 @@ public class AvroRecordWriterProvider
     implements io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(AvroRecordWriterProvider.class);
   private static final String EXTENSION = ".avro";
+  private final HdfsStorage storage;
   private final AvroData avroData;
 
-  AvroRecordWriterProvider(AvroData avroData) {
+  AvroRecordWriterProvider(HdfsStorage storage, AvroData avroData) {
+    this.storage = storage;
     this.avroData = avroData;
   }
 
@@ -54,7 +56,6 @@ public class AvroRecordWriterProvider
   ) {
     return new io.confluent.connect.storage.format.RecordWriter() {
       final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
-      final Path path = new Path(filename);
       Schema schema = null;
 
       @Override
@@ -63,8 +64,7 @@ public class AvroRecordWriterProvider
           schema = record.valueSchema();
           try {
             log.info("Opening record writer for: {}", filename);
-            final FSDataOutputStream out = path.getFileSystem(conf.getHadoopConfiguration())
-                .create(path);
+            final OutputStream out = storage.create(filename, true);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
             writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
             writer.create(avroSchema, out);

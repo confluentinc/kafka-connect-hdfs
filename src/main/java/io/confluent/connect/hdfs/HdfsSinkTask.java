@@ -14,6 +14,8 @@
 
 package io.confluent.connect.hdfs;
 
+import static io.confluent.connect.hdfs.HdfsSinkConnector.TASK_ID_CONFIG_NAME;
+
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
@@ -40,6 +42,10 @@ public class HdfsSinkTask extends SinkTask {
   private DataWriter hdfsWriter;
   private AvroData avroData;
 
+  private String taskId;
+  private String connectorName;
+  private String connectorNameAndTaskId;
+
   public HdfsSinkTask() {}
 
   @Override
@@ -49,6 +55,10 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void start(Map<String, String> props) {
+    connectorName = props.get("name");
+    taskId = props.get(TASK_ID_CONFIG_NAME);
+    connectorNameAndTaskId = String.format("%s-%s", connectorName, taskId);
+
     Set<TopicPartition> assignment = context.assignment();
     try {
       HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
@@ -84,12 +94,24 @@ public class HdfsSinkTask extends SinkTask {
     } catch (ConfigException e) {
       throw new ConnectException("Couldn't start HdfsSinkConnector due to configuration error.", e);
     } catch (ConnectException e) {
+      // Log at info level to help explain reason, but Connect logs the actual exception at ERROR
       log.info("Couldn't start HdfsSinkConnector:", e);
       log.info("Shutting down HdfsSinkConnector.");
       if (hdfsWriter != null) {
-        hdfsWriter.close();
-        hdfsWriter.stop();
+        try {
+          try {
+            log.debug("Closing data writer due to task start failure.");
+            hdfsWriter.close();
+          } finally {
+            log.debug("Stopping data writer due to task start failure.");
+            hdfsWriter.stop();
+          }
+        } catch (Throwable t) {
+          log.debug("Error closing and stopping data writer: {}", t.getMessage(), t);
+        }
       }
+      // Always throw the original exception that prevent us from starting
+      throw e;
     }
 
     log.info("The connector relies on offsets in HDFS filenames, but does commit these offsets to "
@@ -135,11 +157,13 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
+    log.debug("Opening HDFS Sink Task {}", connectorNameAndTaskId);
     hdfsWriter.open(partitions);
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
+    log.debug("Closing HDFS Sink Task {}", connectorNameAndTaskId);
     if (hdfsWriter != null) {
       hdfsWriter.close();
     }
@@ -147,6 +171,7 @@ public class HdfsSinkTask extends SinkTask {
 
   @Override
   public void stop() throws ConnectException {
+    log.debug("Stopping HDFS Sink Task {}", connectorNameAndTaskId);
     if (hdfsWriter != null) {
       hdfsWriter.stop();
     }

@@ -16,6 +16,8 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.parquet.ParquetFormat;
+import io.confluent.connect.hdfs.string.StringFormat;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
@@ -63,14 +65,14 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   @Test
   public void testStorageCommonUrlPreferred() {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
-    assertEquals(url, connectorConfig.getUrl());
+    assertEquals(url, connectorConfig.url());
   }
 
   @Test
   public void testHdfsUrlIsValid() {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
     properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
-    assertEquals(url, connectorConfig.getUrl());
+    assertEquals(url, connectorConfig.url());
   }
 
   @Test
@@ -145,7 +147,9 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
 
     List<Object> expectedFormatClasses = Arrays.<Object>asList(
         AvroFormat.class,
-        JsonFormat.class
+        JsonFormat.class,
+        ParquetFormat.class,
+        StringFormat.class
     );
 
     List<Object> expectedPartitionerClasses = Arrays.<Object>asList(

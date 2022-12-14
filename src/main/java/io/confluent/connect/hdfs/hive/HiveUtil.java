@@ -28,7 +28,7 @@ public abstract class HiveUtil extends io.confluent.connect.storage.hive.HiveUti
 
   public HiveUtil(HdfsSinkConnectorConfig connectorConfig, HiveMetaStore hiveMetaStore) {
     super(connectorConfig, hiveMetaStore);
-    this.url = connectorConfig.getUrl();
+    this.url = connectorConfig.url();
   }
 
   @Override

@@ -93,6 +93,7 @@ public class WALFile {
     // starts and ends by scanning for this value.
     long lastSyncPos;                     // position of last sync
     byte[] sync;                          // 16 random bytes
+    private FileSystem fs;
     private FSDataOutputStream out;
     private DataOutputBuffer buffer = new DataOutputBuffer();
     private boolean appendMode;
@@ -135,14 +136,13 @@ public class WALFile {
         throw new IllegalArgumentException("file modifier options not compatible with stream");
       }
 
-      FileSystem fs = null;
       FSDataOutputStream out;
       boolean ownStream = fileOption != null;
 
       try {
         if (ownStream) {
           Path p = fileOption.getValue();
-          fs = p.getFileSystem(conf);
+          fs = FileSystem.newInstance(p.toUri(), conf);
           int bufferSize = bufferSizeOption == null
                            ? getBufferSize(conf)
                            : bufferSizeOption.getValue();
@@ -179,10 +179,12 @@ public class WALFile {
 
         init(connectorConfig, out, ownStream);
       } catch (RemoteException re) {
-        log.error("Failed creating a WAL Writer: " + re.getMessage());
-        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          if (fs != null) {
+        log.warn("Failed creating a WAL Writer: " + re.getMessage());
+        if (fs != null) {
+          try {
             fs.close();
+          } catch (Throwable t) {
+            log.error("Could not close filesystem", t);
           }
         }
         throw re;
@@ -289,6 +291,9 @@ public class WALFile {
      * WALFile.Reader#next(Writable)} may be called.  However the key may be earlier in the file
      * than key last written when this method was called (e.g., with block-compression, it may be
      * the first key in the block that was being written when this method was called).
+     *
+     * @return the current length of the output file.
+     * @throws IOException Exception on getting position
      */
     public synchronized long getLength() throws IOException {
       return out.getPos();
@@ -310,14 +315,25 @@ public class WALFile {
 
     @Override
     public synchronized void close() throws IOException {
-      keySerializer.close();
-      valSerializer.close();
-      if (out != null) {
-        // Close the underlying stream iff we own it...
-        if (ownOutputStream) {
-          out.close();
-        } else {
-          out.flush();
+      try {
+        keySerializer.close();
+        valSerializer.close();
+        if (out != null) {
+          // Close the underlying stream iff we own it...
+          if (ownOutputStream) {
+            out.close();
+          } else {
+            out.flush();
+          }
+
+        }
+      } finally {
+        if (fs != null) {
+          try {
+            fs.close();
+          } catch (Throwable t) {
+            log.error("Could not close FileSystem", t);
+          }
         }
         out = null;
       }
@@ -400,6 +416,7 @@ public class WALFile {
   public static class Reader implements java.io.Closeable {
 
     private String filename;
+    private FileSystem fs;
     private FSDataInputStream in;
     private DataOutputBuffer outBuf = new DataOutputBuffer();
 
@@ -440,12 +457,11 @@ public class WALFile {
       Path filename = null;
       FSDataInputStream file;
       final long len;
-      FileSystem fs = null;
 
       try {
         if (fileOpt != null) {
           filename = fileOpt.getValue();
-          fs = filename.getFileSystem(conf);
+          fs = FileSystem.newInstance(filename.toUri(),conf);
           int bufSize = bufOpt == null ? getBufferSize(conf) : bufOpt.getValue();
           len = null == lenOpt
                 ? fs.getFileStatus(filename).getLen()
@@ -462,9 +478,11 @@ public class WALFile {
         initialize(filename, file, start, len, conf, headerOnly != null);
       } catch (RemoteException re) {
         log.error("Failed creating a WAL Reader: " + re.getMessage());
-        if (re.getClassName().equals(WALConstants.LEASE_EXCEPTION_CLASS_NAME)) {
-          if (fs != null) {
+        if (fs != null) {
+          try {
             fs.close();
+          } catch (Throwable t) {
+            log.error("Error closing FileSystem", t);
           }
         }
         throw re;
@@ -558,8 +576,10 @@ public class WALFile {
      * @param fs The file system used to open the file.
      * @param file The file being read.
      * @param bufferSize The buffer size used to read the file.
-     * @param length The length being read if it is >= 0.  Otherwise, the length is not available.
+     * @param length The length being read if it is equal to or greater than 0.
+     *               Otherwise, the length is not available.
      * @return The opened stream.
+     * @throws IOException Exception on opening file.
      */
     protected FSDataInputStream openFile(
         FileSystem fs, Path file,
@@ -573,6 +593,7 @@ public class WALFile {
      *
      * @param tempReader <code>true</code> if we are constructing a temporary and hence do not
      *      initialize every component; <code>false</code> otherwise.
+     * @throws IOException Exception on opening file.
      */
     private void init(boolean tempReader) throws IOException {
       byte[] versionBlock = new byte[VERSION.length];
@@ -643,15 +664,23 @@ public class WALFile {
      */
     @Override
     public synchronized void close() throws IOException {
-      if (keyDeserializer != null) {
-        keyDeserializer.close();
-      }
-      if (valDeserializer != null) {
-        valDeserializer.close();
-      }
+      try {
+        if (keyDeserializer != null) {
+          keyDeserializer.close();
+        }
+        if (valDeserializer != null) {
+          valDeserializer.close();
+        }
 
-      // Close the input-stream
-      in.close();
+        // Close the input-stream
+        in.close();
+      } finally {
+        try {
+          fs.close();
+        } catch (Throwable t) {
+          log.error("Unable to close FileSystem", t);
+        }
+      }
     }
 
     private byte getVersion() {
@@ -676,6 +705,7 @@ public class WALFile {
      * Get the 'value' corresponding to the last read 'key'.
      *
      * @param val : The 'value' to be read.
+     * @throws IOException Exception on reading key.
      */
     public synchronized void getCurrentValue(Writable val)
         throws IOException {
@@ -702,6 +732,8 @@ public class WALFile {
      * Get the 'value' corresponding to the last read 'key'.
      *
      * @param val : The 'value' to be read.
+     * @return the value corresponding to the last read key.
+     * @throws IOException Exception on reading key.
      */
     public synchronized WALEntry getCurrentValue(WALEntry val)
         throws IOException {
@@ -763,6 +795,10 @@ public class WALFile {
     /**
      * Read the next key in the file into <code>key</code>, skipping its value.  True if another
      * entry exists, and false at end of file.
+     *
+     * @param key the writable to read the key into
+     * @return whether another key exists after reading a key
+     * @throws IOException Exception on reading key.
      */
     public synchronized boolean next(Writable key) throws IOException {
       if (key.getClass() != WALEntry.class) {
@@ -792,6 +828,11 @@ public class WALFile {
     /**
      * Read the next key/value pair in the file into <code>key</code> and <code>val</code>.  Returns
      * true if such a pair exists and false when at end of file
+     *
+     * @param key the writable to read the key into
+     * @param val the writable to read the val into
+     * @return whether another key value pair exists after reading a key
+     * @throws IOException Exception on reading key pair.
      */
     public synchronized boolean next(Writable key, Writable val) throws IOException {
       if (val.getClass() != WALEntry.class) {
@@ -829,6 +870,10 @@ public class WALFile {
 
     /**
      * Read the next key in the file, skipping its value.  Return null at end of file.
+     *
+     * @param key the current WALEntry
+     * @return null at the end of file
+     * @throws IOException Exception on reading key.
      */
     public synchronized WALEntry next(WALEntry key) throws IOException {
       outBuf.reset();
@@ -872,6 +917,10 @@ public class WALFile {
      *
      * <p>The position passed must be a position returned by {@link WALFile.Writer#getLength()} when
      * writing this file.  To seek to an arbitrary position, use {@link WALFile.Reader#sync(long)}.
+     *
+     * @param position a position returned by {@link WALFile.Writer#getLength()} whem
+     *                 writing this file.
+     * @throws IOException Exception on setting byte position
      */
     public synchronized void seek(long position) throws IOException {
       in.seek(position);
@@ -879,6 +928,9 @@ public class WALFile {
 
     /**
      * Seek to the next sync mark past a given position.
+     *
+     * @param position sync mark will be found past the given position.
+     * @throws IOException Exception on setting byte position.
      */
     public synchronized void sync(long position) throws IOException {
       if (position + SYNC_SIZE >= end) {
@@ -918,6 +970,7 @@ public class WALFile {
 
     /**
      * Returns true iff the previous call to next passed a sync mark.
+     * @return true iff the previous call to next passed a sync mark.
      */
     public synchronized boolean syncSeen() {
       return syncSeen;
@@ -925,6 +978,8 @@ public class WALFile {
 
     /**
      * Return the current byte position in the input file.
+     * @return the current byte position in the input file.
+     * @throws IOException Exception on getting position.
      */
     public synchronized long getPosition() throws IOException {
       return in.getPos();
@@ -932,6 +987,7 @@ public class WALFile {
 
     /**
      * Returns the name of the file.
+     * @return the name of the file
      */
     @Override
     public String toString() {
