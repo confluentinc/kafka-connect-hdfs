@@ -32,7 +32,9 @@ class SqlMetadataCache {
     this.dataSource = dataSource;
   }
 
-  public synchronized List<JdbcColumn> fetchAllColumns(JdbcTableInfo tableInfo) throws SQLException {
+  public synchronized List<JdbcColumn> fetchAllColumns(
+      JdbcTableInfo tableInfo
+  ) throws SQLException {
     List<JdbcColumn> allColumns = allColumnsMap.get(tableInfo);
 
     if (allColumns == null) {
@@ -42,7 +44,9 @@ class SqlMetadataCache {
     return allColumns;
   }
 
-  public synchronized List<JdbcColumn> fetchPrimaryKeyColumns(JdbcTableInfo tableInfo) throws SQLException {
+  public synchronized List<JdbcColumn> fetchPrimaryKeyColumns(
+      JdbcTableInfo tableInfo
+  ) throws SQLException {
     List<JdbcColumn> primaryKeyColumns = primaryKeyColumnsMap.get(tableInfo);
 
     if (primaryKeyColumns == null) {

@@ -54,11 +54,11 @@ public class JdbcColumn {
 
   @Override
   public String toString() {
-    return "JdbcColumn{" +
-           "name='" + name + '\'' +
-           ", jdbcType=" + jdbcType +
-           ", ordinal=" + ordinal +
-           ", nullable=" + nullable +
-           '}';
+    return "JdbcColumn{"
+           + "name='" + name + "'"
+           + ", jdbcType=" + jdbcType
+           + ", ordinal=" + ordinal
+           + ", nullable=" + nullable
+           + "}";
   }
 }

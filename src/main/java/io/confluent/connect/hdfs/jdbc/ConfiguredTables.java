@@ -41,8 +41,8 @@ public class ConfiguredTables {
         .stream()
         .filter(entry -> entry.getKey().trim().toLowerCase().startsWith(CONFIG_JDBC_PREFIX))
         .collect(Collectors.toMap(
-            entry -> configKeyTableInfo(entry.getKey()),
-            ConfiguredTables::valueToColumns
+            ConfiguredTables::entryKeyToTableInfo,
+            ConfiguredTables::entryValueToColumns
         ));
   }
 
@@ -63,7 +63,8 @@ public class ConfiguredTables {
         .filter(((Predicate<String>) String::isEmpty).negate());
   }
 
-  private static JdbcTableInfo configKeyTableInfo(String key) {
+  private static JdbcTableInfo entryKeyToTableInfo(Map.Entry<String, String> entry) {
+    String key = entry.getKey();
     List<String> keyPath = Arrays.asList(key.trim().toLowerCase().split("\\."));
     // First value in the array should be ~ CONFIG_JDBC_PREFIX (minus the trailing dot)
     if (keyPath.size() < 4) {
@@ -91,7 +92,7 @@ public class ConfiguredTables {
     return new JdbcTableInfo(db, schema, table);
   }
 
-  private static Set<String> valueToColumns(Map.Entry<?, String> entry) {
+  private static Set<String> entryValueToColumns(Map.Entry<String, String> entry) {
     Set<String> fieldNames = Arrays
         .stream(entry.getValue().split(","))
         .flatMap(fieldName -> trimToNone(fieldName).map(Stream::of).orElseGet(Stream::empty))
@@ -101,12 +102,11 @@ public class ConfiguredTables {
     if (fieldNames.isEmpty()) {
       throw new ConfigException(
           "Empty list of fields for ["
-              + entry.getKey()
-              + "]. Must be a comma-separated list."
+          + entry.getKey()
+          + "]. Must be a comma-separated list."
       );
     }
 
     return Collections.unmodifiableSet(fieldNames);
   }
-
 }
