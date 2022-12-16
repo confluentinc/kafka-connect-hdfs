@@ -23,6 +23,8 @@ import org.apache.kafka.connect.sink.SinkRecord;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,22 +35,33 @@ import java.util.stream.Collectors;
 
 public class JdbcRecordTransformer {
   private final DataSource dataSource;
-  private final ConfiguredTables configuredTables;
+  private final Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap;
   private final JdbcHashCache jdbcHashCache;
 
-  public JdbcRecordTransformer(DataSource dataSource,
-                               ConfiguredTables configuredTables,
-                               JdbcHashCache jdbcHashCache) {
+  public JdbcRecordTransformer(
+      DataSource dataSource,
+      Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap,
+      JdbcHashCache jdbcHashCache
+  ) {
     this.dataSource = dataSource;
-    this.configuredTables = configuredTables;
+    this.configuredTableColumnsMap = new HashMap<>(configuredTableColumnsMap);
     this.jdbcHashCache = jdbcHashCache;
   }
 
-  public SinkRecord transformRecord(SqlMetadataCache sqlMetadataCache,
-                                    SinkRecord oldRecord) throws SQLException {
+  /**
+   * NOTE: Not threadsafe, as several components update things like basic Collections
+   */
+  public SinkRecord transformRecord(
+      SqlMetadataCache sqlMetadataCache,
+      SinkRecord oldRecord
+  ) throws SQLException {
     JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord.headers());
 
-    Set<String> configuredFieldNamesLower = configuredTables.getColumnNamesLower(tableInfo);
+    Set<String> configuredFieldNamesLower =
+        configuredTableColumnsMap.computeIfAbsent(
+            tableInfo,
+            __ -> Collections.emptySet()
+        );
 
     // No columns to Query? No need to write anything at all to HDFS
 

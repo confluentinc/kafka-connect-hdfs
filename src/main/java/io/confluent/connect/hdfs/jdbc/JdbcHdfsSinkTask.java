@@ -30,14 +30,15 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class JdbcHdfsSinkTask extends HdfsSinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcHdfsSinkTask.class);
 
-  private final JdbcHashCache jdbcHashCache = new JdbcHashCache();
+  private JdbcHashCache jdbcHashCache;
   private HikariConfig hikariConfig;
-  private ConfiguredTables configuredTables;
+  private Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap;
   private HikariDataSource dataSource;
   private JdbcRecordTransformer recordTransformer;
 
@@ -47,12 +48,14 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       log.info("Loading JDBC configs");
 
       JdbcHdfsSinkConnectorConfig connectorConfig = new JdbcHdfsSinkConnectorConfig(props);
+
       hikariConfig = new HikariConfig();
       hikariConfig.setJdbcUrl(connectorConfig.getConnectionUrl());
       hikariConfig.setUsername(connectorConfig.getConnectionUser());
       hikariConfig.setPassword(connectorConfig.getConnectionPassword().value());
 
-      configuredTables = new ConfiguredTables(props);
+      configuredTableColumnsMap = connectorConfig.getJdbcFilterMap();
+      jdbcHashCache = new JdbcHashCache(connectorConfig.getHashCacheSize());
 
       log.info("Successfully loaded JDBC configs");
     } catch (RuntimeException ex) {
@@ -121,7 +124,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
     recordTransformer = new JdbcRecordTransformer(
         dataSource,
-        configuredTables,
+        configuredTableColumnsMap,
         jdbcHashCache
     );
 

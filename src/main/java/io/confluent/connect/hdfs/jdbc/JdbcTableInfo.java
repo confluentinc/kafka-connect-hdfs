@@ -20,8 +20,6 @@ import org.apache.kafka.connect.header.Headers;
 import javax.annotation.Nonnull;
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -60,9 +58,18 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   }
 
   public JdbcTableInfo(String db, String schema, String table) {
-    this.db = stripToNullOrLower(db);
-    this.schema = stripToNullOrLower(schema);
-    this.table = stripToNullOrLower(table);
+    this.db = JdbcUtil
+        .trimToNone(db)
+        .map(String::toLowerCase)
+        .orElse(null);
+    this.schema = JdbcUtil
+        .trimToNone(schema)
+        .map(String::toLowerCase)
+        .orElse(null);
+    this.table = JdbcUtil
+        .trimToNone(table)
+        .map(String::toLowerCase)
+        .orElse(null);
   }
 
   public String getDb() {
@@ -78,25 +85,16 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   }
 
   public String qualifiedName() {
+    // Same as toString, without being prefixed by the db
     return Stream
         .of(schema, table)
-        .map(String::trim)
-        .filter(((Predicate<String>) String::isEmpty).negate())
+        .filter(Objects::nonNull)
         .collect(Collectors.joining("."));
   }
 
   @Override
   public int compareTo(@Nonnull JdbcTableInfo tableInfo) {
     return comparator.compare(this, tableInfo);
-  }
-
-  private static String stripToNullOrLower(String value) {
-    return Optional
-        .ofNullable(value)
-        .map(String::trim)
-        .filter(((Predicate<String>) String::isEmpty).negate())
-        .map(String::toLowerCase)
-        .orElse(null);
   }
 
   @Override
@@ -119,8 +117,7 @@ class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   public String toString() {
     return Stream
         .of(db, schema, table)
-        .map(String::trim)
-        .filter(((Predicate<String>) String::isEmpty).negate())
+        .filter(Objects::nonNull)
         .collect(Collectors.joining(".", "JdbcTableInfo{", "}"));
   }
 }

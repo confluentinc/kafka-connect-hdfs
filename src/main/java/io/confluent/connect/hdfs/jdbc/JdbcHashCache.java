@@ -25,15 +25,17 @@ import java.util.function.Function;
 
 /**
  * Cache of LOB hashes, for pruning unnecessary HDFS writes
- * <p/>
- * TODO: Only update the Cache if the underlying Record is written to HDFS!
  */
 public class JdbcHashCache {
-  // TODO: Make configurable
-  private static final int MAX_CACHE_SIZE = 10000;
 
   private final Map<JdbcTableInfo, LinkedHashMap<String, Map<String, MD5Hash>>>
       tablePkColumnCache = new HashMap<>();
+
+  private final int maxHashSize;
+
+  public JdbcHashCache(int maxHashSize) {
+    this.maxHashSize = maxHashSize;
+  }
 
   /**
    * Update cache; and increment change-counter if hash has changed
@@ -75,7 +77,7 @@ public class JdbcHashCache {
           protected boolean removeEldestEntry(
               Map.Entry<String, Map<String, MD5Hash>> eldest
           ) {
-            return this.size() > MAX_CACHE_SIZE;
+            return this.size() > maxHashSize;
           }
         }
     );
