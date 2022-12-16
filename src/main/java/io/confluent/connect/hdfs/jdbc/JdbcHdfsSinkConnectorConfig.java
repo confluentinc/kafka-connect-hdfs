@@ -69,10 +69,11 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
   //   jdbc.filters.tableX.table=tableX
   //   jdbc.filters.tableX.columns=c1,c2,c3
 
-  public static final String JDBC_FILTER_DB = "db";
-  public static final String JDBC_FILTER_SCHEMA = "schema";
-  public static final String JDBC_FILTER_TABLE = "table";
-  public static final String JDBC_FILTER_COLUMNS = "columns";
+  public static final String JDBC_FILTER_DBNAME_CONFIG = "dbname";
+  public static final String JDBC_FILTER_TABLE_CONFIG = "table";
+  public static final String JDBC_FILTER_TABLE_DISPLAY = "<schema>.<tablename>";
+  public static final String JDBC_FILTER_COLUMNS_CONFIG = "columns";
+  public static final String JDBC_FILTER_COLUMNS_DOC = "Comma separated list of column names";
 
   public static ConfigDef newConfigDef() {
     int orderInDatabaseGroup = 0;
@@ -221,37 +222,58 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
     Map<String, Object> filterConfig = originalsWithPrefix(prefix);
 
     String db = Optional
-        .ofNullable(filterConfig.get(JDBC_FILTER_DB))
+        .ofNullable(filterConfig.get(JDBC_FILTER_DBNAME_CONFIG))
         .map(String.class::cast)
         .flatMap(JdbcUtil::trimToNone)
         .orElseThrow(() -> new ConfigException(
             "Missing or empty String value for required ["
             + prefix
-            + JDBC_FILTER_DB
+            + JDBC_FILTER_DBNAME_CONFIG
             + "]"
         ));
 
-    String schema = Optional
-        .ofNullable(filterConfig.get(JDBC_FILTER_SCHEMA))
+    String[] schemaAndTable = Optional
+        .ofNullable(filterConfig.get(JDBC_FILTER_TABLE_CONFIG))
         .map(String.class::cast)
-        .flatMap(JdbcUtil::trimToNone)
+        .map(csvColumns -> csvColumns.split("\\."))
         .orElseThrow(() -> new ConfigException(
             "Missing or empty String value for required ["
             + prefix
-            + JDBC_FILTER_SCHEMA
+            + JDBC_FILTER_TABLE_CONFIG
             + "]"
         ));
 
-    String table = Optional
-        .ofNullable(filterConfig.get(JDBC_FILTER_TABLE))
-        .map(String.class::cast)
-        .flatMap(JdbcUtil::trimToNone)
-        .orElseThrow(() -> new ConfigException(
-            "Missing or empty String value for required ["
-            + prefix
-            + JDBC_FILTER_TABLE
-            + "]"
-        ));
+    if (schemaAndTable.length != 2) {
+      throw new ConfigException(
+          "Invalid value for ["
+          + prefix
+          + JDBC_FILTER_TABLE_CONFIG
+          + "]. Expected: "
+          + JDBC_FILTER_TABLE_DISPLAY
+      );
+    }
+
+    String schema = schemaAndTable[0].trim();
+    if (schema.isEmpty()) {
+      throw new ConfigException(
+          "<schema> cannot be blank for ["
+          + prefix
+          + JDBC_FILTER_TABLE_CONFIG
+          + "]. Expected: "
+          + JDBC_FILTER_TABLE_DISPLAY
+      );
+    }
+
+    String table = schemaAndTable[1].trim();
+    if (table.isEmpty()) {
+      throw new ConfigException(
+          "<tablename> cannot be blank for ["
+          + prefix
+          + JDBC_FILTER_TABLE_CONFIG
+          + "]. Expected: "
+          + JDBC_FILTER_TABLE_DISPLAY
+      );
+    }
 
     return new JdbcTableInfo(db, schema, table);
   }
@@ -263,7 +285,7 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
 
     // Columns are required, and must not be empty
     Set<String> columns = Optional
-        .ofNullable(filterConfig.get(JDBC_FILTER_COLUMNS))
+        .ofNullable(filterConfig.get(JDBC_FILTER_COLUMNS_CONFIG))
         .map(String.class::cast)
         .map(csvColumns -> csvColumns.split(","))
         .map(Arrays::stream)
@@ -277,8 +299,9 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
       throw new ConfigException(
           "Missing or empty list of columns for ["
           + prefix
-          + JDBC_FILTER_COLUMNS
-          + "]. Must be a comma-separated list."
+          + JDBC_FILTER_COLUMNS_CONFIG
+          + "]. Expected: "
+          + JDBC_FILTER_COLUMNS_DOC
       );
     }
 
