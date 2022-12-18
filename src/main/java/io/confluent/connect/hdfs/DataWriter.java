@@ -356,7 +356,7 @@ public class DataWriter {
     }
   }
 
-  public void write(Collection<SinkRecord> records) {
+  public synchronized void write(Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
       String topic = record.topic();
       int partition = record.kafkaPartition();
