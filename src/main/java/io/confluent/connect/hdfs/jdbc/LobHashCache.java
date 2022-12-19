@@ -26,14 +26,14 @@ import java.util.function.Function;
 /**
  * Cache of LOB hashes, for pruning unnecessary HDFS writes
  */
-public class JdbcHashCache {
+public class LobHashCache {
 
   private final Map<JdbcTableInfo, LinkedHashMap<String, Map<String, MD5Hash>>>
       tablePkColumnCache = new HashMap<>();
 
   private final int maxHashSize;
 
-  public JdbcHashCache(int maxHashSize) {
+  public LobHashCache(int maxHashSize) {
     this.maxHashSize = maxHashSize;
   }
 

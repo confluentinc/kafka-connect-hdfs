@@ -25,32 +25,42 @@ public class StructToJdbcValueMapper implements JdbcValueMapper {
   }
 
   @Override
-  public Boolean getBoolean(String value) {
-    return struct.getBoolean(value);
+  public Boolean getBoolean(String key) {
+    return struct.getBoolean(key);
   }
 
   @Override
-  public Byte getByte(String value) {
-    return struct.getInt8(value);
+  public Byte getByte(String key) {
+    return struct.getInt8(key);
   }
 
   @Override
-  public Integer getInteger(String value) {
-    return struct.getInt32(value);
+  public Double getDouble(String key) {
+    return struct.getFloat64(key);
   }
 
   @Override
-  public Long getLong(String value) {
-    return struct.getInt64(value);
+  public Float getFloat(String key) {
+    return struct.getFloat32(key);
   }
 
   @Override
-  public Short getShort(String value) {
-    return struct.getInt16(value);
+  public Integer getInteger(String key) {
+    return struct.getInt32(key);
   }
 
   @Override
-  public String getString(String value) {
-    return struct.getString(value);
+  public Long getLong(String key) {
+    return struct.getInt64(key);
+  }
+
+  @Override
+  public Short getShort(String key) {
+    return struct.getInt16(key);
+  }
+
+  @Override
+  public String getString(String key) {
+    return struct.getString(key);
   }
 }

@@ -36,16 +36,16 @@ import java.util.stream.Collectors;
 public class JdbcRecordTransformer {
   private final DataSource dataSource;
   private final Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap;
-  private final JdbcHashCache jdbcHashCache;
+  private final LobHashCache lobHashCache;
 
   public JdbcRecordTransformer(
       DataSource dataSource,
       Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap,
-      JdbcHashCache jdbcHashCache
+      LobHashCache lobHashCache
   ) {
     this.dataSource = dataSource;
     this.configuredTableColumnsMap = new HashMap<>(configuredTableColumnsMap);
-    this.jdbcHashCache = jdbcHashCache;
+    this.lobHashCache = lobHashCache;
   }
 
   /**
@@ -165,7 +165,7 @@ public class JdbcRecordTransformer {
 
     FilteredColumnToStructVisitor columnVisitor =
         new FilteredColumnToStructVisitor(
-            jdbcHashCache,
+            lobHashCache,
             newValueStruct,
             tableInfo,
             primaryKeyStr

@@ -16,15 +16,19 @@
 package io.confluent.connect.hdfs.jdbc;
 
 public interface JdbcValueMapper {
-  Boolean getBoolean(String value);
+  Boolean getBoolean(String key);
 
-  Byte getByte(String value);
+  Byte getByte(String key);
 
-  Integer getInteger(String value);
+  Double getDouble(String key);
 
-  Long getLong(String value);
+  Float getFloat(String key);
 
-  Short getShort(String value);
+  Integer getInteger(String key);
 
-  String getString(String value);
+  Long getLong(String key);
+
+  Short getShort(String key);
+
+  String getString(String key);
 }

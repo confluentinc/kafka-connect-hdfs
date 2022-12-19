@@ -21,6 +21,10 @@ import java.sql.SQLException;
 import java.sql.SQLXML;
 
 public interface JdbcColumnVisitor {
+  //void visit(String columnName, Array value);
+
+  //void visit(String columnName, BigDecimal value);
+
   void visit(String columnName, Blob value) throws SQLException;
 
   //void visit(String columnName, Boolean value);
@@ -29,13 +33,27 @@ public interface JdbcColumnVisitor {
 
   void visit(String columnName, Clob value) throws SQLException;
 
+  //void visit(String columnName, Date value);
+
+  //void visit(String columnName, Double value);
+
+  //void visit(String columnName, Float value);
+
   //void visit(String columnName, Integer value);
 
   //void visit(String columnName, Long value);
+
+  //void visit(String columnName, Ref value);
 
   //void visit(String columnName, Short value);
 
   void visit(String columnName, SQLXML value) throws SQLException;
 
   //void visit(String columnName, String value);
+
+  //void visit(String columnName, Struct value);
+
+  //void visit(String columnName, Time value);
+
+  //void visit(String columnName, Timestamp value);
 }

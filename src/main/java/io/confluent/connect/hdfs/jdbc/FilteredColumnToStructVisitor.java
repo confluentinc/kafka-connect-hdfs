@@ -25,17 +25,17 @@ import java.sql.SQLXML;
 
 class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
 
-  private final JdbcHashCache jdbcHashCache;
+  private final LobHashCache lobHashCache;
   private final Struct struct;
   private final JdbcTableInfo tableInfo;
   private final String primaryKey;
   private boolean columnsChanged = false;
 
-  public FilteredColumnToStructVisitor(JdbcHashCache jdbcHashCache,
+  public FilteredColumnToStructVisitor(LobHashCache lobHashCache,
                                        Struct struct,
                                        JdbcTableInfo tableInfo,
                                        String primaryKey) {
-    this.jdbcHashCache = jdbcHashCache;
+    this.lobHashCache = lobHashCache;
     this.struct = struct;
     this.tableInfo = tableInfo;
     this.primaryKey = primaryKey;
@@ -54,16 +54,17 @@ class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
         : null;
 
     // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = jdbcHashCache.updateCache(
+    boolean columnChanged = lobHashCache.updateCache(
         tableInfo,
         primaryKey,
         columnName,
         bytes,
         MD5Hash::digest
     );
-    columnsChanged |= columnChanged;
 
     // If it has changed, write the new value to HDFS
+    columnsChanged |= columnChanged;
+
     if (bytes != null) {
       struct.put(columnName, bytes);
     }
@@ -78,16 +79,17 @@ class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
         : null;
 
     // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = jdbcHashCache.updateCache(
+    boolean columnChanged = lobHashCache.updateCache(
         tableInfo,
         primaryKey,
         columnName,
         valueStr,
         MD5Hash::digest
     );
-    columnsChanged |= columnChanged;
 
     // If it has changed, write the new value to HDFS
+    columnsChanged |= columnChanged;
+
     if (valueStr != null) {
       struct.put(columnName, valueStr);
     }
@@ -102,16 +104,17 @@ class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
         : null;
 
     // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = jdbcHashCache.updateCache(
+    boolean columnChanged = lobHashCache.updateCache(
         tableInfo,
         primaryKey,
         columnName,
         valueStr,
         MD5Hash::digest
     );
-    columnsChanged |= columnChanged;
 
     // If it has changed, write the new value to HDFS
+    columnsChanged |= columnChanged;
+
     if (valueStr != null) {
       struct.put(columnName, valueStr);
     }

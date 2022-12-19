@@ -65,10 +65,13 @@ public class JdbcQueryUtil {
   static {
     // TODO: Add more as needed, if Primary Keys are other data types
     jdbcTypePrepareMap.put(JDBCType.BIGINT, JdbcQueryUtil::setLong);
+    jdbcTypePrepareMap.put(JDBCType.BIT, JdbcQueryUtil::setBoolean);
     jdbcTypePrepareMap.put(JDBCType.BOOLEAN, JdbcQueryUtil::setBoolean);
-    jdbcTypePrepareMap.put(JDBCType.CHAR, JdbcQueryUtil::setString);
+    jdbcTypePrepareMap.put(JDBCType.DOUBLE, JdbcQueryUtil::setDouble);
+    jdbcTypePrepareMap.put(JDBCType.FLOAT, JdbcQueryUtil::setFloat);
     jdbcTypePrepareMap.put(JDBCType.INTEGER, JdbcQueryUtil::setInt);
     jdbcTypePrepareMap.put(JDBCType.LONGVARCHAR, JdbcQueryUtil::setString);
+    jdbcTypePrepareMap.put(JDBCType.REAL, JdbcQueryUtil::setFloat);
     jdbcTypePrepareMap.put(JDBCType.SMALLINT, JdbcQueryUtil::setShort);
     jdbcTypePrepareMap.put(JDBCType.TINYINT, JdbcQueryUtil::setByte);
     jdbcTypePrepareMap.put(JDBCType.VARCHAR, JdbcQueryUtil::setString);
@@ -304,6 +307,32 @@ public class JdbcQueryUtil {
     Byte value = valueMapper.getByte(fieldName);
     if (value != null) {
       preparedStatement.setByte(index, value);
+    } else {
+      preparedStatement.setNull(index, jdbcType.getVendorTypeNumber());
+    }
+  }
+
+  private static void setDouble(PreparedStatement preparedStatement,
+                                int index,
+                                JDBCType jdbcType,
+                                JdbcValueMapper valueMapper,
+                                String fieldName) throws SQLException {
+    Double value = valueMapper.getDouble(fieldName);
+    if (value != null) {
+      preparedStatement.setDouble(index, value);
+    } else {
+      preparedStatement.setNull(index, jdbcType.getVendorTypeNumber());
+    }
+  }
+
+  private static void setFloat(PreparedStatement preparedStatement,
+                               int index,
+                               JDBCType jdbcType,
+                               JdbcValueMapper valueMapper,
+                               String fieldName) throws SQLException {
+    Float value = valueMapper.getFloat(fieldName);
+    if (value != null) {
+      preparedStatement.setFloat(index, value);
     } else {
       preparedStatement.setNull(index, jdbcType.getVendorTypeNumber());
     }
