@@ -67,6 +67,7 @@ public class JdbcQueryUtil {
     jdbcTypePrepareMap.put(JDBCType.BIGINT, JdbcQueryUtil::setLong);
     jdbcTypePrepareMap.put(JDBCType.BIT, JdbcQueryUtil::setBoolean);
     jdbcTypePrepareMap.put(JDBCType.BOOLEAN, JdbcQueryUtil::setBoolean);
+    jdbcTypePrepareMap.put(JDBCType.CHAR, JdbcQueryUtil::setString);
     jdbcTypePrepareMap.put(JDBCType.DOUBLE, JdbcQueryUtil::setDouble);
     jdbcTypePrepareMap.put(JDBCType.FLOAT, JdbcQueryUtil::setFloat);
     jdbcTypePrepareMap.put(JDBCType.INTEGER, JdbcQueryUtil::setInt);
@@ -265,7 +266,8 @@ public class JdbcQueryUtil {
   public static void visitResultSetColumns(ResultSet resultSet,
                                            JdbcColumnVisitor columnVisitor) throws SQLException {
     ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-    for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+    int columnCount = resultSetMetaData.getColumnCount();
+    for (int i = 1; i <= columnCount; i++) {
       String columnName = resultSetMetaData.getColumnName(i);
       JDBCType jdbcType = JDBCType.valueOf(resultSetMetaData.getColumnType(i));
       String tableName = resultSetMetaData.getTableName(i);
