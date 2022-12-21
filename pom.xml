@@ -61,6 +61,8 @@
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
+        <dbunit.version>2.7.3</dbunit.version>
+        <h2.version>2.1.214</h2.version>
         <!-- temporary fix by pinning the version until we upgrade to a version of common that contains this or newer version.
             See https://github.com/confluentinc/common/pull/332 for details -->
         <dependency.check.version>6.1.6</dependency.check.version>
@@ -307,6 +309,18 @@
             <groupId>org.mockito</groupId>
             <artifactId>mockito-all</artifactId>
             <version>1.10.19</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.dbunit</groupId>
+            <artifactId>dbunit</artifactId>
+            <version>${dbunit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>${h2.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

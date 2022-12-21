@@ -1,0 +1,14 @@
+<dataset>
+    <TESTTABLE
+            ID="0"
+            MY_DATE="[now]"
+            MY_BLOB="[BASE64]VGhpcyBpcyBteSB0ZXh0Lg=="
+            MY_CLOB="test clob text"
+            MY_OTHER_CLOB="other clob text"
+    />
+    <TESTTABLE
+            ID="1"
+            MY_DATE="[now]"
+            MY_OTHER_CLOB="another clob text for id 1"
+    />
+</dataset>
