@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-class SqlMetadataCache {
+public class SqlMetadataCache {
   private final Map<JdbcTableInfo, List<JdbcColumnInfo>> allColumnsMap =
       new HashMap<>();
   private final Map<JdbcTableInfo, List<JdbcColumnInfo>> primaryKeyColumnsMap =

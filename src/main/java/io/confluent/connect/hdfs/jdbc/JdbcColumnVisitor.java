@@ -49,7 +49,7 @@ public interface JdbcColumnVisitor {
 
   void visit(String columnName, SQLXML value) throws SQLException;
 
-  //void visit(String columnName, String value);
+  void visit(String columnName, String value);
 
   //void visit(String columnName, Struct value);
 

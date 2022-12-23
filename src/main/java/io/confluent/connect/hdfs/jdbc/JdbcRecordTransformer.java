@@ -36,16 +36,16 @@ import java.util.stream.Collectors;
 public class JdbcRecordTransformer {
   private final DataSource dataSource;
   private final Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap;
-  private final LobHashCache lobHashCache;
+  private final HashCache hashCache;
 
   public JdbcRecordTransformer(
       DataSource dataSource,
       Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap,
-      LobHashCache lobHashCache
+      HashCache hashCache
   ) {
     this.dataSource = dataSource;
     this.configuredTableColumnsMap = new HashMap<>(configuredTableColumnsMap);
-    this.lobHashCache = lobHashCache;
+    this.hashCache = hashCache;
   }
 
   /**
@@ -165,10 +165,10 @@ public class JdbcRecordTransformer {
 
     FilteredColumnToStructVisitor columnVisitor =
         new FilteredColumnToStructVisitor(
-            lobHashCache,
-            newValueStruct,
+            hashCache,
             tableInfo,
-            primaryKeyStr
+            primaryKeyStr,
+            newValueStruct
         );
 
     JdbcQueryUtil.executeSingletonQuery(
@@ -181,8 +181,8 @@ public class JdbcRecordTransformer {
         primaryKeyStr
     );
 
-    // Only write a record if there are changes in the LOB(s).
-    // This is an optimization for when LOBs already exist in the cache.
+    // Only write a record if there are changes in the columns (usually LOBs),
+    // based on whether the cached Hash of each column has changed or not.
     // TODO: Make this optimization configurable, so it can be disabled from the config
 
     if (!columnVisitor.hasChangedColumns()) {

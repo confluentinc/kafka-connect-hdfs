@@ -26,6 +26,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.MessageDigest;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
 public class JdbcHdfsSinkTask extends HdfsSinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcHdfsSinkTask.class);
 
-  private LobHashCache lobHashCache;
+  private HashCache hashCache;
   private HikariConfig hikariConfig;
   private Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap;
   private HikariDataSource dataSource;
@@ -55,10 +56,21 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       hikariConfig.setPassword(connectorConfig.getConnectionPassword().value());
 
       configuredTableColumnsMap = connectorConfig.getJdbcFilterMap();
-      lobHashCache = new LobHashCache(connectorConfig.getHashCacheSize());
+      hashCache = new HashCache(
+          connectorConfig.getHashCacheSize(),
+          // TODO: Un-hardcode this
+          MessageDigest.getInstance("MD5")
+      );
 
       log.info("Successfully loaded JDBC configs");
-    } catch (RuntimeException ex) {
+    } catch (ConnectException ex) {
+      log.error(
+          "JDBC configuration error: {}",
+          ex.getMessage(),
+          ex
+      );
+      throw ex;
+    } catch (Exception ex) {
       log.error(
           "JDBC configuration error: {}",
           ex.getMessage(),
@@ -125,7 +137,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
     recordTransformer = new JdbcRecordTransformer(
         dataSource,
         configuredTableColumnsMap,
-        lobHashCache
+        hashCache
     );
 
     log.info("Successfully opened JDBC DataSource: {}", dataSource.getJdbcUrl());
