@@ -16,9 +16,9 @@
 package io.confluent.connect.hdfs.orc;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.schema.HiveSchemaConverterWithLogicalTypes;
 import io.confluent.connect.storage.format.RecordWriter;
 import io.confluent.connect.storage.format.RecordWriterProvider;
-import io.confluent.connect.storage.hive.HiveSchemaConverter;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
@@ -70,7 +70,7 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
                 }
               };
 
-              typeInfo = HiveSchemaConverter.convert(schema);
+              typeInfo = HiveSchemaConverterWithLogicalTypes.convert(schema);
               ObjectInspector objectInspector = OrcStruct.createObjectInspector(typeInfo);
 
               log.info("Opening ORC record writer for: {}", filename);
@@ -90,7 +90,10 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
             );
 
             Struct struct = (Struct) record.value();
-            OrcStruct row = OrcUtil.createOrcStruct(typeInfo, OrcUtil.convertStruct(struct));
+            OrcStruct row = OrcUtil.createOrcStruct(
+                typeInfo,
+                OrcUtil.convertStruct(typeInfo, struct)
+            );
             writer.addRow(row);
 
           } else {
