@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import org.apache.hadoop.io.MD5Hash;
 import org.apache.kafka.connect.data.Struct;
 
 import java.sql.Blob;
@@ -23,100 +22,60 @@ import java.sql.Clob;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 
-class FilteredColumnToStructVisitor implements JdbcColumnVisitor {
-
-  private final LobHashCache lobHashCache;
+public class FilteredColumnToStructVisitor extends FilteredJdbcColumnVisitor {
   private final Struct struct;
-  private final JdbcTableInfo tableInfo;
-  private final String primaryKey;
-  private boolean columnsChanged = false;
 
-  public FilteredColumnToStructVisitor(LobHashCache lobHashCache,
-                                       Struct struct,
+  public FilteredColumnToStructVisitor(HashCache hashCache,
                                        JdbcTableInfo tableInfo,
-                                       String primaryKey) {
-    this.lobHashCache = lobHashCache;
+                                       String primaryKey,
+                                       Struct struct) {
+    super(hashCache, tableInfo, primaryKey);
     this.struct = struct;
-    this.tableInfo = tableInfo;
-    this.primaryKey = primaryKey;
-  }
-
-  public boolean hasChangedColumns() {
-    return columnsChanged;
   }
 
   @Override
   public void visit(String columnName, Blob value) throws SQLException {
     // TODO: Would be so much better if we could stream this data
-    // TODO: Write to a disk-buffer first, and then run MD5? RocksDB?
+    // TODO: Write to a disk-buffer first, and then digest()? RocksDB?
     byte[] bytes = value != null
         ? value.getBytes(1L, (int) value.length())
         : null;
 
-    // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = lobHashCache.updateCache(
-        tableInfo,
-        primaryKey,
-        columnName,
-        bytes,
-        MD5Hash::digest
-    );
+    updateCache(columnName, bytes);
 
-    // If it has changed, write the new value to HDFS
-    columnsChanged |= columnChanged;
-
-    if (bytes != null) {
-      struct.put(columnName, bytes);
-    }
+    struct.put(columnName, bytes);
   }
 
   @Override
   public void visit(String columnName, Clob value) throws SQLException {
     // TODO: Would be so much better if we could stream this data
-    // TODO: Write to a disk-buffer first, and then run MD5? RocksDB?
+    // TODO: Write to a disk-buffer first, and then digest()? RocksDB?
     String valueStr = value != null
         ? value.getSubString(1L, (int) value.length())
         : null;
 
-    // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = lobHashCache.updateCache(
-        tableInfo,
-        primaryKey,
-        columnName,
-        valueStr,
-        MD5Hash::digest
-    );
+    updateCache(columnName, valueStr);
 
-    // If it has changed, write the new value to HDFS
-    columnsChanged |= columnChanged;
-
-    if (valueStr != null) {
-      struct.put(columnName, valueStr);
-    }
+    struct.put(columnName, valueStr);
   }
 
   @Override
   public void visit(String columnName, SQLXML value) throws SQLException {
     // TODO: Would be so much better if we could stream this data
-    // TODO: Write to a disk-buffer first, and then run MD5? RocksDB?
+    // TODO: Write to a disk-buffer first, and then digest()? RocksDB?
     String valueStr = value != null
         ? value.getString()
         : null;
 
-    // NOTE: MD5 Hashing takes about 1-2 seconds per gig, at least locally
-    boolean columnChanged = lobHashCache.updateCache(
-        tableInfo,
-        primaryKey,
-        columnName,
-        valueStr,
-        MD5Hash::digest
-    );
+    updateCache(columnName, valueStr);
 
-    // If it has changed, write the new value to HDFS
-    columnsChanged |= columnChanged;
+    struct.put(columnName, valueStr);
+  }
 
-    if (valueStr != null) {
-      struct.put(columnName, valueStr);
-    }
+  @Override
+  public void visit(String columnName, String value) {
+    updateCache(columnName, value);
+
+    struct.put(columnName, value);
   }
 }

@@ -221,7 +221,7 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
 
     Map<String, Object> filterConfig = originalsWithPrefix(prefix);
 
-    String db = Optional
+    final String db = Optional
         .ofNullable(filterConfig.get(JDBC_FILTER_DBNAME_CONFIG))
         .map(String.class::cast)
         .flatMap(JdbcUtil::trimToNone)
@@ -232,7 +232,7 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
             + "]"
         ));
 
-    String[] schemaAndTable = Optional
+    final String[] schemaAndTable = Optional
         .ofNullable(filterConfig.get(JDBC_FILTER_TABLE_CONFIG))
         .map(String.class::cast)
         .map(csvColumns -> csvColumns.split("\\."))
@@ -253,7 +253,8 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
       );
     }
 
-    String schema = schemaAndTable[0].trim();
+    final String schema = schemaAndTable[0].trim();
+
     if (schema.isEmpty()) {
       throw new ConfigException(
           "<schema> cannot be blank for ["
@@ -264,7 +265,8 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
       );
     }
 
-    String table = schemaAndTable[1].trim();
+    final String table = schemaAndTable[1].trim();
+
     if (table.isEmpty()) {
       throw new ConfigException(
           "<tablename> cannot be blank for ["

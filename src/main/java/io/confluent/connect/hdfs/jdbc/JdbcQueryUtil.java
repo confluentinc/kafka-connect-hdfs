@@ -76,10 +76,12 @@ public class JdbcQueryUtil {
     jdbcTypePrepareMap.put(JDBCType.SMALLINT, JdbcQueryUtil::setShort);
     jdbcTypePrepareMap.put(JDBCType.TINYINT, JdbcQueryUtil::setByte);
     jdbcTypePrepareMap.put(JDBCType.VARCHAR, JdbcQueryUtil::setString);
-    // TODO: Add more as needed, if Query results are not all LOBs
+    // TODO: Add more as needed, if Query results are not all LOBs or VARCHARS
     jdbcTypeResultSetMap.put(JDBCType.BLOB, JdbcQueryUtil::visitBlob);
     jdbcTypeResultSetMap.put(JDBCType.CLOB, JdbcQueryUtil::visitClob);
+    jdbcTypeResultSetMap.put(JDBCType.LONGVARCHAR, JdbcQueryUtil::visitString);
     jdbcTypeResultSetMap.put(JDBCType.SQLXML, JdbcQueryUtil::visitSqlXml);
+    jdbcTypeResultSetMap.put(JDBCType.VARCHAR, JdbcQueryUtil::visitString);
   }
 
   public static List<JdbcColumnInfo> fetchAllColumns(
@@ -90,8 +92,8 @@ public class JdbcQueryUtil {
          // We uppercase the schema and table because otherwise DB2 won't recognize them...
          ResultSet columns = connection.getMetaData().getColumns(
              null,
-             toUpperCase(tableInfo.getSchema()),
-             toUpperCase(tableInfo.getTable()),
+             JdbcUtil.toUpperCase(tableInfo.getSchema()),
+             JdbcUtil.toUpperCase(tableInfo.getTable()),
              null
          )
     ) {
@@ -135,8 +137,8 @@ public class JdbcQueryUtil {
          // We uppercase the schema and table because otherwise DB2 won't recognize them...
          ResultSet columns = connection.getMetaData().getPrimaryKeys(
              null,
-             toUpperCase(tableInfo.getSchema()),
-             toUpperCase(tableInfo.getTable())
+             JdbcUtil.toUpperCase(tableInfo.getSchema()),
+             JdbcUtil.toUpperCase(tableInfo.getTable())
          )
     ) {
       Set<String> primaryKeyNames = new HashSet<>();
@@ -420,24 +422,31 @@ public class JdbcQueryUtil {
     columnVisitor.visit(columnName, value);
   }
 
+  private static void visitString(ResultSet resultSet,
+                                  JDBCType jdbcType,
+                                  String columnName,
+                                  JdbcColumnVisitor columnVisitor) throws SQLException {
+    String value = resultSet.getString(columnName);
+    log.debug(
+        "Visit Column [{}] type [{}] length [{}]",
+        columnName,
+        jdbcType,
+        (value != null) ? value.length() : null
+    );
+    columnVisitor.visit(columnName, value);
+  }
+
   private static void visitSqlXml(ResultSet resultSet,
                                   JDBCType jdbcType,
                                   String columnName,
                                   JdbcColumnVisitor columnVisitor) throws SQLException {
     SQLXML value = resultSet.getSQLXML(columnName);
     log.debug(
-        "Visit Column [{}] type [{}] state [{}]",
+        "Visit Column [{}] type [{}] isNull? [{}]",
         columnName,
         jdbcType,
-        (value != null) ? "not-null" : null
+        (value == null)
     );
     columnVisitor.visit(columnName, value);
-  }
-
-  private static String toUpperCase(String value) {
-    return Optional
-        .ofNullable(value)
-        .map(String::toUpperCase)
-        .orElse(null);
   }
 }

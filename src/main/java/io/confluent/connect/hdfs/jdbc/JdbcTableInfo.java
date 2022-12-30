@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-class JdbcTableInfo implements Comparable<JdbcTableInfo> {
+public class JdbcTableInfo implements Comparable<JdbcTableInfo> {
   private static final String HEADER_DB = "__source_db";
   private static final String HEADER_SCHEMA = "__source_schema";
   private static final String HEADER_TABLE = "__source_table";
