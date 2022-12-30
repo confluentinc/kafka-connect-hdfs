@@ -58,6 +58,10 @@ public class JdbcQueryUtilTest extends AbstractJdbcTestCase {
   final MappedCaptor<Clob, String> clobMappedCaptor = MappedCaptor.clobCaptor();
   final MappedCaptor<Clob, String> otherClobMappedCaptor = MappedCaptor.clobCaptor();
 
+  public JdbcQueryUtilTest() {
+    super(InMemoryDatabase.HSQL);
+  }
+
   @Override
   public void tearDown() throws Exception {
     verifyNoMoreInteractions(
@@ -77,18 +81,19 @@ public class JdbcQueryUtilTest extends AbstractJdbcTestCase {
 
   @Test
   public void testFetchAllColumns() throws SQLException {
-    List<JdbcColumnInfo> columns = JdbcQueryUtil.fetchAllColumns(dataSource, tableInfo);
-    assertEquals(5, columns.size());
+    List<JdbcColumnInfo> columns = JdbcQueryUtil.fetchAllColumns(getDataSource(), tableInfo);
+    assertEquals(6, columns.size());
     assertEquals(idColumn, columns.get(0));
     assertEquals(dateColumn, columns.get(1));
     assertEquals(blobColumn, columns.get(2));
     assertEquals(clobColumn, columns.get(3));
     assertEquals(otherClobColumn, columns.get(4));
+    assertEquals(varcharColumn, columns.get(5));
   }
 
   @Test
   public void testFetchPrimaryKeyNames() throws SQLException {
-    Set<String> primaryKeyNames = JdbcQueryUtil.fetchPrimaryKeyNames(dataSource, tableInfo);
+    Set<String> primaryKeyNames = JdbcQueryUtil.fetchPrimaryKeyNames(getDataSource(), tableInfo);
     assertEquals(
         Collections.singleton("ID"),
         primaryKeyNames
@@ -331,6 +336,7 @@ public class JdbcQueryUtilTest extends AbstractJdbcTestCase {
     verify(valueMapperMock).getInteger("ID");
     verify(columnVisitorMock).visit(anyString(), any(Blob.class));
     verify(columnVisitorMock, times(2)).visit(anyString(), any(Clob.class));
+    verify(columnVisitorMock).visit("MY_VARCHAR", "vc1");
   }
 
   @Test
@@ -345,6 +351,7 @@ public class JdbcQueryUtilTest extends AbstractJdbcTestCase {
     verify(columnVisitorMock).visit(anyString(), (Blob) isNull());
     verify(columnVisitorMock).visit(anyString(), (Clob) isNull());
     verify(columnVisitorMock).visit(anyString(), any(Clob.class));
+    verify(columnVisitorMock).visit("MY_VARCHAR", (String) null);
   }
 
   private String mockMetaDataColumn(int columnId, JDBCType jdbcType) throws SQLException {
@@ -373,10 +380,10 @@ public class JdbcQueryUtilTest extends AbstractJdbcTestCase {
         .visit(eq("MY_OTHER_CLOB"), argThat(otherClobMappedCaptor));
 
     JdbcQueryUtil.executeSingletonQuery(
-        dataSource,
+        getDataSource(),
         tableInfo,
         Collections.singletonList(idColumn),
-        Arrays.asList(clobColumn, blobColumn, otherClobColumn),
+        Arrays.asList(clobColumn, blobColumn, otherClobColumn, varcharColumn),
         valueMapperMock,
         columnVisitorMock,
         "My PK is 0"

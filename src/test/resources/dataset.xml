@@ -5,6 +5,7 @@
             MY_BLOB="[BASE64]VGhpcyBpcyBteSB0ZXh0Lg=="
             MY_CLOB="test clob text"
             MY_OTHER_CLOB="other clob text"
+            MY_VARCHAR="vc1"
     />
     <TESTTABLE
             ID="1"
