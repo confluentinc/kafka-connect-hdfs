@@ -31,8 +31,10 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JdbcHdfsSinkTask extends HdfsSinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcHdfsSinkTask.class);
@@ -100,20 +102,24 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
     // Iterate over each record, and put() each individually
     for (SinkRecord record : records) {
       try {
-        SinkRecord transformedRecord =
-            recordTransformer.transformRecord(sqlMetadataCache, record);
-        log.debug(
-            "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
-            transformedRecord.key(),
-            transformedRecord
-                .valueSchema()
-                .fields()
-                .stream()
-                .map(Field::name)
-                .collect(Collectors.joining(","))
-        );
-
-        super.put(Collections.singletonList(transformedRecord));
+        Optional
+            .ofNullable(recordTransformer.transformRecord(sqlMetadataCache, record))
+            .map(Stream::of)
+            .orElseGet(Stream::empty)
+            .peek(transformedRecord -> {
+              log.debug(
+                  "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
+                  transformedRecord.key(),
+                  transformedRecord
+                      .valueSchema()
+                      .fields()
+                      .stream()
+                      .map(Field::name)
+                      .collect(Collectors.joining(","))
+              );
+            })
+            .map(Collections::singletonList)
+            .forEach(super::put);
       } catch (SQLException ex) {
         log.error("Failed to transform Record: {}", ex.getMessage(), ex);
         throw new DataException(

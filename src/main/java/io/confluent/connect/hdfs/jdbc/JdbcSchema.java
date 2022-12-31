@@ -72,7 +72,9 @@ public class JdbcSchema {
       case BLOB:
         return column.isNullable() ? Schema.OPTIONAL_BYTES_SCHEMA : Schema.BYTES_SCHEMA;
       case CLOB:
+      case LONGVARCHAR:
       case SQLXML:
+      case VARCHAR:
         return column.isNullable() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
       default:
         throw new DataException(
