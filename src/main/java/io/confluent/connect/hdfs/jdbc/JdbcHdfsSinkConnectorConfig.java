@@ -134,7 +134,7 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
         )
         .define(
             HASH_CACHE_ENABLED_CONFIG,
-            Type.INT,
+            Type.BOOLEAN,
             HASH_CACHE_ENABLED_DEFAULT,
             Importance.LOW,
             HASH_CACHE_ENABLED_DOC,
