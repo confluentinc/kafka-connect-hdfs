@@ -47,6 +47,13 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
   public static final String CONNECTION_PASSWORD_DOC = "JDBC connection password.";
   public static final String CONNECTION_PASSWORD_DISPLAY = "JDBC Password";
 
+  public static final String HASH_CACHE_ENABLED_CONFIG = "hash.cache.enabled";
+  public static final String HASH_CACHE_ENABLED_DOC =
+      "Enable support for Caching Hashed values for large columns,"
+      + " to prevent writing duplicate values.";
+  public static final String HASH_CACHE_ENABLED_DISPLAY = "Hash Cache size";
+  public static final boolean HASH_CACHE_ENABLED_DEFAULT = true;
+
   public static final String HASH_CACHE_SIZE_CONFIG = "hash.cache.size";
   public static final String HASH_CACHE_SIZE_DOC =
       "Maximum size of the Hash Cache. LRU entries are evicted from the cache.";
@@ -126,6 +133,17 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
             JDBC_FILTERS_DISPLAY
         )
         .define(
+            HASH_CACHE_ENABLED_CONFIG,
+            Type.INT,
+            HASH_CACHE_ENABLED_DEFAULT,
+            Importance.LOW,
+            HASH_CACHE_ENABLED_DOC,
+            HASH_CACHE_GROUP,
+            ++orderInHashCacheGroup,
+            Width.SHORT,
+            HASH_CACHE_ENABLED_DISPLAY
+        )
+        .define(
             HASH_CACHE_SIZE_CONFIG,
             Type.INT,
             HASH_CACHE_SIZE_DEFAULT,
@@ -176,6 +194,10 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
         .orElseThrow(() -> new ConfigException(
             "Missing Password value for required [" + CONNECTION_PASSWORD_CONFIG + "]"
         ));
+  }
+
+  public boolean isHashCacheEnabled() {
+    return getBoolean(HASH_CACHE_ENABLED_CONFIG);
   }
 
   public int getHashCacheSize() {

@@ -49,6 +49,7 @@ public class JdbcTableInfo implements Comparable<JdbcTableInfo> {
 
   public JdbcTableInfo(Headers headers) {
     this(
+        // TODO: Validate not null or empty?
         (String) headers.lastWithName(HEADER_DB).value(),
         // TODO: Validate not null or empty?
         (String) headers.lastWithName(HEADER_SCHEMA).value(),

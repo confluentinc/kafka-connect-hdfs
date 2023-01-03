@@ -58,11 +58,14 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       hikariConfig.setPassword(connectorConfig.getConnectionPassword().value());
 
       configuredTableColumnsMap = connectorConfig.getJdbcFilterMap();
-      hashCache = new HashCache(
-          connectorConfig.getHashCacheSize(),
-          // TODO: Un-hardcode this
-          MessageDigest.getInstance("MD5")
-      );
+
+      if (connectorConfig.isHashCacheEnabled()) {
+        hashCache = new HashCache(
+            connectorConfig.getHashCacheSize(),
+            // TODO: Un-hardcode this
+            MessageDigest.getInstance("MD5")
+        );
+      }
 
       log.info("Successfully loaded JDBC configs");
     } catch (ConnectException ex) {
@@ -89,13 +92,13 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
   @Override
   public void put(Collection<SinkRecord> records) {
-    log.debug("Read {} records from Kafka; retrieving Large columns from JDBC", records.size());
+    log.debug("put(large-columns): Processing {} records from Kafka", records.size());
     // TODO: Keep track of schema changes
     // TODO: Verify db and schema match the connection string.
     // TODO: groupBy?
 
     // NOTE: We need to have a fresh SqlCache every iteration.
-    // TODO: Determine if it is safe to cache Table Schemas long-term,
+    // TODO: Determine if it would be safe to cache Table Schemas long-term,
     //       or do they change often enough to warrant a refresh every iteration?
     SqlMetadataCache sqlMetadataCache = new SqlMetadataCache(dataSource);
 
@@ -132,6 +135,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
     // Trigger a sync() to HDFS, even if no records were written.
     // This updates all accounting and delayed writes, etc...
     super.put(Collections.emptyList());
+    log.debug("put(-large-files): Finished");
   }
 
   @Override

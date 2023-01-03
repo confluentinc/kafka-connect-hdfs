@@ -210,6 +210,7 @@ public class JdbcQueryUtil {
       try (ResultSet resultSet = preparedStatement.executeQuery()) {
         if (!resultSet.next()) {
           // TODO: How do we detect if incoming record is a DELETE?
+          //       So we don't end up writing large values for no reason.
           log.warn(
               "Cannot find Row {} in Table [{}]",
               primaryKeyStr,
@@ -274,7 +275,6 @@ public class JdbcQueryUtil {
       JDBCType jdbcType = JDBCType.valueOf(resultSetMetaData.getColumnType(i));
       String tableName = resultSetMetaData.getTableName(i);
 
-      // TODO: For now, we only support LOB types. Will we ever need any other types?
       Optional
           .ofNullable(jdbcTypeResultSetMap.get(jdbcType))
           .orElseThrow(() -> new DataException(
