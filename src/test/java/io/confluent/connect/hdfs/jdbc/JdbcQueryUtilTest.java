@@ -362,7 +362,7 @@ public class JdbcQueryUtilTest extends AbstractJdbcTestCase {
   }
 
   /**
-   * TODO: We cannot test SQLXML directly because H2 doesn't support it
+   * TODO: We cannot test SQLXML directly because neither H2 nor HSQL support it
    */
   private void executeSingletonQuery(int id) throws SQLException {
     when(valueMapperMock.getInteger(anyString())).thenReturn(id);

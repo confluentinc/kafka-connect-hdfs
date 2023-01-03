@@ -30,9 +30,9 @@ public class HashCacheTest {
     // Already exists
     assertFalse(hashCache.updateCache(table0, "PK1", "COL_A", value0));
     // Updated with hash(null)
-    assertTrue(hashCache.updateCache(table0, "PK1", "COL_A", null));
+    assertTrue(hashCache.updateCache(table0, "PK1", "COL_A", (byte[]) null));
     // Already exists (with hash(null))
-    assertFalse(hashCache.updateCache(table0, "PK1", "COL_A", null));
+    assertFalse(hashCache.updateCache(table0, "PK1", "COL_A", (byte[]) null));
     // Updated with second value
     assertTrue(hashCache.updateCache(table0, "PK1", "COL_A", value1));
     // Already exists (with second value)
