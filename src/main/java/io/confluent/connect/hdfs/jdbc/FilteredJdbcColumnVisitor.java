@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 public abstract class FilteredJdbcColumnVisitor implements JdbcColumnVisitor {
@@ -37,13 +36,10 @@ public abstract class FilteredJdbcColumnVisitor implements JdbcColumnVisitor {
   }
 
   protected void updateCache(String columnName, byte[] value) {
-    boolean columnChanged =
-        hashCache.updateCache(
-            tableInfo,
-            primaryKey,
-            columnName,
-            value
-        );
+    boolean columnChanged = Optional
+        .ofNullable(hashCache)
+        .map(hashCache_ -> hashCache_.updateCache(tableInfo, primaryKey, columnName, value))
+        .orElse(true);
 
     // If it has changed, indicate that we should write the new value to HDFS
     if (columnChanged) {
@@ -52,13 +48,14 @@ public abstract class FilteredJdbcColumnVisitor implements JdbcColumnVisitor {
   }
 
   protected void updateCache(String columnName, String value) {
-    byte[] bytes =
-        Optional
-            .ofNullable(value)
-            // TODO: Should we hardcode UTF_8 here?
-            .map(value_ -> value_.getBytes(StandardCharsets.UTF_8))
-            .orElse(null);
+    boolean columnChanged = Optional
+        .ofNullable(hashCache)
+        .map(hashCache_ -> hashCache_.updateCache(tableInfo, primaryKey, columnName, value))
+        .orElse(true);
 
-    updateCache(columnName, bytes);
+    // If it has changed, indicate that we should write the new value to HDFS
+    if (columnChanged) {
+      columnsChanged++;
+    }
   }
 }

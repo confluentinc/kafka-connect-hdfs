@@ -44,11 +44,10 @@ public class JdbcSchema {
             .sorted(JdbcColumnInfo.byOrdinal)
             .peek(column -> {
               String columnName = column.getName();
-              Schema fieldSchema =
-                  Optional
-                      .ofNullable(oldSchema.field(columnName))
-                      .map(Field::schema)
-                      .orElseGet(() -> toSchema(column));
+              Schema fieldSchema = Optional
+                  .ofNullable(oldSchema.field(columnName))
+                  .map(Field::schema)
+                  .orElseGet(() -> toSchema(column));
               newSchemaBuilder.field(columnName, fieldSchema);
             })
             .map(JdbcColumnInfo::getName)

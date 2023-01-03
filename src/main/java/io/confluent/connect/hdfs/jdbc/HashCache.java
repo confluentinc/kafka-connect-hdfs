@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,6 +40,20 @@ public class HashCache {
   public HashCache(int maxHashSize, MessageDigest messageDigest) {
     this.maxHashSize = maxHashSize;
     this.messageDigest = messageDigest;
+  }
+
+  public boolean updateCache(JdbcTableInfo tableInfo,
+                             String primaryKey,
+                             String columnName,
+                             String value
+  ) {
+    byte[] bytes = Optional
+        .ofNullable(value)
+        // TODO: Should we hardcode UTF_8 here?
+        .map(value_ -> value_.getBytes(StandardCharsets.UTF_8))
+        .orElse(null);
+
+    return updateCache(tableInfo, primaryKey, columnName, bytes);
   }
 
   /**
