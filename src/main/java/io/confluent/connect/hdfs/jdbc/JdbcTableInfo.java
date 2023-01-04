@@ -87,10 +87,12 @@ public class JdbcTableInfo implements Comparable<JdbcTableInfo> {
 
   public String qualifiedName() {
     // Same as toString, without being prefixed by the db
-    return Stream
-        .of(schema, table)
-        .filter(Objects::nonNull)
-        .collect(Collectors.joining("."));
+    return JdbcUtil.trimToNull(
+        Stream
+            .of(schema, table)
+            .filter(Objects::nonNull)
+            .collect(Collectors.joining("."))
+    );
   }
 
   @Override
