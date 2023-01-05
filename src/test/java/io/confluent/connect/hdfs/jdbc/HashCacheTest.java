@@ -19,11 +19,7 @@ public class HashCacheTest {
 
   @Test
   public void testMD5() throws NoSuchAlgorithmException {
-    HashCache hashCache =
-        new HashCache(
-            2,
-            MessageDigest.getInstance("MD5")
-        );
+    HashCache hashCache = new HashCache(2, MessageDigest.getInstance("MD5"));
 
     // Newly added
     assertTrue(hashCache.updateCache(table0, "PK1", "COL_A", value0));

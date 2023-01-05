@@ -3,7 +3,6 @@ package io.confluent.connect.hdfs.jdbc;
 import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.common.StorageCommonConfig;
 import org.apache.kafka.common.config.ConfigException;
-import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -114,10 +113,6 @@ public class JdbcHdfsSinkConnectorConfigTest {
 
   private Map<String, String> makeConfigMap() {
     Map<String, String> configMap = new HashMap<>();
-    configMap.put(
-        ConnectorConfig.CONNECTOR_CLASS_CONFIG,
-        "ConnectorName"
-    );
     configMap.put(
         StorageCommonConfig.STORE_URL_CONFIG,
         "url"

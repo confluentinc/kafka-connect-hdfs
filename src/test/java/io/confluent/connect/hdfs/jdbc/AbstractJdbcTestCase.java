@@ -104,16 +104,17 @@ public abstract class AbstractJdbcTestCase extends DataSourceBasedDBTestCase {
     HikariDataSource dataSource = new HikariDataSource(hikariConfig);
 
     // Only for HSQL; H2 uses the schema.sql file to define the table
-    String createTableSql = "CREATE MEMORY TABLE IF NOT EXISTS TESTTABLE(\n"
-                            + "    ID INT NOT NULL,\n"
-                            + "    MY_DATE DATE,\n"
-                            + "    MY_BLOB BLOB,\n"
-                            + "    MY_CLOB CLOB,\n"
-                            //+ "    MY_XML SQL_SQLXML,\n"
-                            + "    MY_OTHER_CLOB CLOB NOT NULL,\n"
-                            + "    MY_VARCHAR VARCHAR(10),\n"
-                            + "    PRIMARY KEY (ID)\n"
-                            + ");";
+    String createTableSql =
+        "CREATE MEMORY TABLE IF NOT EXISTS TESTTABLE(\n"
+        + "    ID INT NOT NULL,\n"
+        + "    MY_DATE DATE,\n"
+        + "    MY_BLOB BLOB,\n"
+        + "    MY_CLOB CLOB,\n"
+        //+ "    MY_XML SQL_SQLXML,\n"
+        + "    MY_OTHER_CLOB CLOB NOT NULL,\n"
+        + "    MY_VARCHAR VARCHAR(10),\n"
+        + "    PRIMARY KEY (ID)\n"
+        + ");";
 
     try (Connection connection = dataSource.getConnection();
          PreparedStatement preparedStatement = connection.prepareStatement(createTableSql)) {
