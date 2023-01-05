@@ -41,7 +41,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
   private HashCache hashCache;
   private HikariConfig hikariConfig;
-  private Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap;
+  private Map<JdbcTableInfo, Set<String>> includedFieldsLowerMap;
   private HikariDataSource dataSource;
   private JdbcRecordTransformer recordTransformer;
 
@@ -57,7 +57,12 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       hikariConfig.setUsername(connectorConfig.getConnectionUser());
       hikariConfig.setPassword(connectorConfig.getConnectionPassword().value());
 
-      configuredTableColumnsMap = connectorConfig.getJdbcFilterMap();
+      includedFieldsLowerMap = connectorConfig.getIncludedFieldsLower();
+      includedFieldsLowerMap.forEach((table,columns) -> log.info(
+          "Configured to include {} columns {}",
+          table,
+          columns
+      ));
 
       if (connectorConfig.isHashCacheEnabled()) {
         hashCache = new HashCache(
@@ -109,18 +114,16 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
             .ofNullable(recordTransformer.transformRecord(sqlMetadataCache, record))
             .map(Stream::of)
             .orElseGet(Stream::empty)
-            .peek(transformedRecord -> {
-              log.debug(
-                  "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
-                  transformedRecord.key(),
-                  transformedRecord
-                      .valueSchema()
-                      .fields()
-                      .stream()
-                      .map(Field::name)
-                      .collect(Collectors.joining(","))
-              );
-            })
+            .peek(transformedRecord -> log.debug(
+                "Created new SinkRecord from old Sink Record: PK [{}] Columns [{}]",
+                transformedRecord.key(),
+                transformedRecord
+                    .valueSchema()
+                    .fields()
+                    .stream()
+                    .map(Field::name)
+                    .collect(Collectors.joining(","))
+            ))
             .map(Collections::singletonList)
             .forEach(super::put);
       } catch (SQLException ex) {
@@ -144,11 +147,9 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
     dataSource = new HikariDataSource(hikariConfig);
 
-    recordTransformer = new JdbcRecordTransformer(
-        dataSource,
-        configuredTableColumnsMap,
-        hashCache
-    );
+    recordTransformer = new JdbcRecordTransformer(dataSource,
+                                                  includedFieldsLowerMap,
+                                                  hashCache);
 
     log.info("Successfully opened JDBC DataSource: {}", dataSource.getJdbcUrl());
 

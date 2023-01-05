@@ -28,7 +28,7 @@ public abstract class AbstractJdbcTestCase extends DataSourceBasedDBTestCase {
   private static final Logger log = LoggerFactory.getLogger(AbstractJdbcTestCase.class);
 
   protected final JdbcTableInfo tableInfo =
-      new JdbcTableInfo(null, null, "TESTTABLE");
+      new JdbcTableInfo(/*null, */null, "TESTTABLE");
   protected final JdbcColumnInfo idColumn =
       new JdbcColumnInfo("ID", JDBCType.INTEGER, 1, false);
   protected final JdbcColumnInfo dateColumn =

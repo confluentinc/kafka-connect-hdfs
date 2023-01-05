@@ -2,59 +2,60 @@ package io.confluent.connect.hdfs.jdbc;
 
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.List;
+
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotSame;
 
 public class JdbcTableInfoTest {
   @Test
   public void testGetters() {
-    JdbcTableInfo tableA = new JdbcTableInfo("fOo 1 A", "  Bar\n\t", "\0baz _A_\r");
+    JdbcTableInfo table = new JdbcTableInfo("ScHeMa  ", "__ Table \n");
 
-    assertEquals("foo 1 a", tableA.getDb());
-    assertEquals("bar", tableA.getSchema());
-    assertEquals("baz _a_", tableA.getTable());
-    assertEquals("bar.baz _a_", tableA.qualifiedName());
+    assertEquals("ScHeMa  ", table.getSchema());
+    assertEquals("__ Table \n", table.getTable());
+  }
 
-    JdbcTableInfo tableB = new JdbcTableInfo("", "", "");
+  @Test
+  public void testEquality() {
+    JdbcTableInfo tableA = new JdbcTableInfo("ScHeMa", "__tablE ");
+    JdbcTableInfo tableB = new JdbcTableInfo("ScHeMa", "__tablE ");
 
-    assertNull(tableB.getDb());
-    assertNull(tableB.getSchema());
-    assertNull(tableB.getTable());
-    assertNull(tableB.qualifiedName());
+    assertEquals(tableA, tableA);
+    assertEquals(tableB, tableB);
+    assertEquals(tableA, tableB);
+    assertNotSame(tableA, tableB);
+    assertEquals(tableA.hashCode(), tableB.hashCode());
+  }
 
-    JdbcTableInfo tableC = new JdbcTableInfo(null, null, null);
+  @Test
+  public void testInequality() {
+    assertNotEquals(
+        new JdbcTableInfo("ScHeMa", "table"),
+        new JdbcTableInfo("SCHEMA", "table")
+    );
 
-    assertNull(tableC.getDb());
-    assertNull(tableC.getSchema());
-    assertNull(tableC.getTable());
-    assertNull(tableC.qualifiedName());
+    assertNotEquals(
+        new JdbcTableInfo("SCHEMA", "TABLE"),
+        new JdbcTableInfo("SCHEMA", "TABLE ")
+    );
+  }
 
-    JdbcTableInfo tableD = new JdbcTableInfo("foo", "", null);
+  @Test
+  public void testSort() {
+    JdbcTableInfo tableA = new JdbcTableInfo("A", "C");
+    JdbcTableInfo tableB = new JdbcTableInfo("B", "A");
+    JdbcTableInfo tableC = new JdbcTableInfo("A", "A");
+    JdbcTableInfo tableD = new JdbcTableInfo("A", "B");
 
-    assertEquals("foo", tableD.getDb());
-    assertNull(tableD.getSchema());
-    assertNull(tableD.getTable());
-    assertNull(tableD.qualifiedName());
+    List<JdbcTableInfo> expected = Arrays.asList(tableC, tableD, tableA, tableB);
+    List<JdbcTableInfo> actual = Arrays.asList(tableA, tableB, tableC, tableD);
 
-    JdbcTableInfo tableE = new JdbcTableInfo(null, "bar", "");
+    actual.sort(JdbcTableInfo.comparator);
 
-    assertNull(tableE.getDb());
-    assertEquals("bar", tableE.getSchema());
-    assertNull(tableE.getTable());
-    assertEquals("bar", tableE.qualifiedName());
-
-    JdbcTableInfo tableF = new JdbcTableInfo(null, "", "baz");
-
-    assertNull(tableF.getDb());
-    assertNull(tableF.getSchema());
-    assertEquals("baz", tableF.getTable());
-    assertEquals("baz", tableF.qualifiedName());
-
-    JdbcTableInfo tableG = new JdbcTableInfo("Ace ", "", " \rbAs sZ");
-
-    assertEquals("ace", tableG.getDb());
-    assertNull(tableG.getSchema());
-    assertEquals("bas sz", tableG.getTable());
-    assertEquals("bas sz", tableG.qualifiedName());
+    assertEquals(expected, actual);
+    assertNotSame(expected, actual);
   }
 }

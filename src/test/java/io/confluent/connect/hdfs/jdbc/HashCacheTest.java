@@ -10,9 +10,9 @@ import static org.junit.Assert.assertTrue;
 
 public class HashCacheTest {
   private static final JdbcTableInfo table0 =
-      new JdbcTableInfo("foo", "bar", "table0");
+      new JdbcTableInfo(/*"foo", */"bar", "table0");
   private static final JdbcTableInfo table1 =
-      new JdbcTableInfo("foo", "bar", "table1");
+      new JdbcTableInfo(/*"foo", */"bar", "table1");
 
   private static final byte[] value0 = new byte[] {1, 2, 3};
   private static final byte[] value1 = new byte[] {4, 5, 6};

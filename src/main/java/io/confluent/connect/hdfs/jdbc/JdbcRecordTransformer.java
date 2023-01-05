@@ -15,16 +15,18 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.header.Header;
+import org.apache.kafka.connect.header.Headers;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,17 +36,21 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class JdbcRecordTransformer {
+  //private static final String HEADER_DB = "__source_db";
+  private static final String HEADER_SCHEMA = "__source_schema";
+  private static final String HEADER_TABLE = "__source_table";
+
   private final DataSource dataSource;
-  private final Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap;
+  private final Map<JdbcTableInfo, Set<String>> includedFieldsLowerMap;
   private final HashCache hashCache;
 
   public JdbcRecordTransformer(
       DataSource dataSource,
-      Map<JdbcTableInfo, Set<String>> configuredTableColumnsMap,
+      Map<JdbcTableInfo, Set<String>> includedFieldsLowerMap,
       HashCache hashCache
   ) {
     this.dataSource = dataSource;
-    this.configuredTableColumnsMap = new HashMap<>(configuredTableColumnsMap);
+    this.includedFieldsLowerMap = includedFieldsLowerMap;
     this.hashCache = hashCache;
   }
 
@@ -55,17 +61,16 @@ public class JdbcRecordTransformer {
       SqlMetadataCache sqlMetadataCache,
       SinkRecord oldRecord
   ) throws SQLException {
-    JdbcTableInfo tableInfo = new JdbcTableInfo(oldRecord.headers());
+    JdbcTableInfo tableInfo = toTable(oldRecord.headers());
 
-    Set<String> configuredFieldNamesLower =
-        configuredTableColumnsMap.computeIfAbsent(
-            tableInfo,
-            __ -> Collections.emptySet()
-        );
+    Set<String> includedFieldsLower =
+        Optional
+            .ofNullable(includedFieldsLowerMap.get(tableInfo))
+            .orElseGet(Collections::emptySet);
 
     // No columns to Query? No need to write anything at all to HDFS
 
-    if (configuredFieldNamesLower.isEmpty()) {
+    if (includedFieldsLower.isEmpty()) {
       return null;
     }
 
@@ -83,7 +88,7 @@ public class JdbcRecordTransformer {
             .collect(Collectors.toSet());
 
     Set<String> columnNamesLowerToQuery =
-        configuredFieldNamesLower
+        includedFieldsLower
             .stream()
             .filter(((Predicate<String>) oldFieldNamesLower::contains).negate())
             .collect(Collectors.toSet());
@@ -135,7 +140,7 @@ public class JdbcRecordTransformer {
     // Create the mew Schema and new value Struct
 
     Schema newValueSchema = JdbcSchema.createSchema(
-        configuredFieldNamesLower,
+        includedFieldsLower,
         oldValueSchema,
         primaryKeyColumns,
         columnsToQuery
@@ -223,5 +228,45 @@ public class JdbcRecordTransformer {
                 )),
             Function.identity()
         ));
+  }
+
+  private JdbcTableInfo toTable(Headers headers) {
+    //String db = Optional
+    //    .ofNullable(headers.lastWithName(HEADER_DB))
+    //    .map(Header::value)
+    //    .map(String.class::cast)
+    //    .flatMap(JdbcUtil::trimToNone)
+    //    .map(String::toLowerCase)
+    //    .orElseThrow(() -> new ConfigException(
+    //        "Kafka Record is missing required Header ["
+    //        + HEADER_SCHEMA
+    //        + "]"
+    //    ));
+
+    String schema = Optional
+        .ofNullable(headers.lastWithName(HEADER_SCHEMA))
+        .map(Header::value)
+        .map(String.class::cast)
+        .flatMap(JdbcUtil::trimToNone)
+        .map(String::toLowerCase)
+        .orElseThrow(() -> new ConfigException(
+            "Kafka Record is missing required Header ["
+            + HEADER_SCHEMA
+            + "]"
+        ));
+
+    String table = Optional
+        .ofNullable(headers.lastWithName(HEADER_TABLE))
+        .map(Header::value)
+        .map(String.class::cast)
+        .flatMap(JdbcUtil::trimToNone)
+        .map(String::toLowerCase)
+        .orElseThrow(() -> new ConfigException(
+            "Kafka Record is missing required Header ["
+            + HEADER_TABLE
+            + "]"
+        ));
+
+    return new JdbcTableInfo(schema, table);
   }
 }

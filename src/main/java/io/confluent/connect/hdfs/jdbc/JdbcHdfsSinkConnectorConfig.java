@@ -24,12 +24,12 @@ import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.types.Password;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
   public static final String DATABASE_GROUP = "Database";
@@ -47,6 +47,12 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
   public static final String CONNECTION_PASSWORD_DOC = "JDBC connection password.";
   public static final String CONNECTION_PASSWORD_DISPLAY = "JDBC Password";
 
+  public static final String COLUMN_INCLUDE_LIST_CONFIG = "column.include.list";
+  public static final String COLUMN_INCLUDE_FORMAT = "<schema>.<table>.<column>";
+  public static final String COLUMN_INCLUDE_LIST_DOC =
+      "List of fully-qualified columns to include. IE: " + COLUMN_INCLUDE_FORMAT;
+  public static final String COLUMN_INCLUDE_LIST_DISPLAY = "Columns to include";
+
   public static final String HASH_CACHE_ENABLED_CONFIG = "hash.cache.enabled";
   public static final String HASH_CACHE_ENABLED_DOC =
       "Enable support for Caching Hashed values for large columns,"
@@ -59,28 +65,6 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
       "Maximum size of the Hash Cache. LRU entries are evicted from the cache.";
   public static final String HASH_CACHE_SIZE_DISPLAY = "Hash Cache size";
   public static final int HASH_CACHE_SIZE_DEFAULT = 10000;
-
-  public static final String JDBC_FILTERS_CONFIG = "jdbc.filters";
-  public static final String JDBC_FILTERS_DOC =
-      "List of names to filter. Each name denotes a distinct Table";
-  public static final String JDBC_FILTERS_DISPLAY = "Hash Cache size";
-
-  // Example:
-  //   jdbc.filters=dvtest,tableX
-  //   jdbc.filters.dvtest.db=testdb
-  //   jdbc.filters.dvtest.schema=DB2INST1
-  //   jdbc.filters.dvtest.table=DV_TEST
-  //   jdbc.filters.dvtest.columns=db_action,VALUE_CLOB,VALUE_XML,Value_Blob
-  //   jdbc.filters.tableX.db=dbX
-  //   jdbc.filters.tableX.schema=schemaX
-  //   jdbc.filters.tableX.table=tableX
-  //   jdbc.filters.tableX.columns=c1,c2,c3
-
-  public static final String JDBC_FILTER_DBNAME_CONFIG = "dbname";
-  public static final String JDBC_FILTER_TABLE_CONFIG = "table";
-  public static final String JDBC_FILTER_TABLE_DISPLAY = "<schema>.<tablename>";
-  public static final String JDBC_FILTER_COLUMNS_CONFIG = "columns";
-  public static final String JDBC_FILTER_COLUMNS_DOC = "Comma separated list of column names";
 
   public static ConfigDef newConfigDef() {
     int orderInDatabaseGroup = 0;
@@ -122,15 +106,15 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
             CONNECTION_PASSWORD_DISPLAY
         )
         .define(
-            JDBC_FILTERS_CONFIG,
+            COLUMN_INCLUDE_LIST_CONFIG,
             Type.LIST,
             ConfigDef.NO_DEFAULT_VALUE,
             Importance.HIGH,
-            JDBC_FILTERS_DOC,
+            COLUMN_INCLUDE_LIST_DOC,
             DATABASE_GROUP,
             ++orderInDatabaseGroup,
             Width.LONG,
-            JDBC_FILTERS_DISPLAY
+            COLUMN_INCLUDE_LIST_DISPLAY
         )
         .define(
             HASH_CACHE_ENABLED_CONFIG,
@@ -204,131 +188,93 @@ public class JdbcHdfsSinkConnectorConfig extends HdfsSinkConnectorConfig {
     return getInt(HASH_CACHE_SIZE_CONFIG);
   }
 
-  public Map<JdbcTableInfo, Set<String>> getJdbcFilterMap() {
-    Map<JdbcTableInfo, Set<String>> filterMap =
-        getList(JDBC_FILTERS_CONFIG)
+  public Map<JdbcTableInfo, Set<String>> getIncludedFieldsLower() {
+    Map<JdbcTableInfo, Set<String>> includedFieldsLowerMap =
+        getList(COLUMN_INCLUDE_LIST_CONFIG)
             .stream()
             .map(JdbcUtil::trimToNull)
             .filter(Objects::nonNull)
-            .collect(Collectors.toMap(
-                this::jdbcFilterToTable,
-                this::jdbcFilterToColumns
+            .collect(Collectors.groupingBy(
+                this::toTable,
+                Collectors.mapping(this::toColumnLower, Collectors.toSet())
             ));
 
-    if (filterMap.isEmpty()) {
+    if (includedFieldsLowerMap.isEmpty()) {
       throw new ConfigException(
-          "Empty list of filter names for ["
-          + JDBC_FILTERS_CONFIG
-          + "]. Must be a comma-separated list."
+          "Empty list of columns/fields to include for key ["
+          + COLUMN_INCLUDE_LIST_CONFIG
+          + "]. Must be a comma-separated list. IE: "
+          + COLUMN_INCLUDE_FORMAT
       );
     }
 
-    return filterMap;
+    return includedFieldsLowerMap;
   }
 
   public static void main(String[] args) {
     System.out.println(getConfig().toEnrichedRst());
   }
 
-  private String prefixOf(String filterName) {
-    return JDBC_FILTERS_CONFIG
-           + "."
-           + filterName
-           + ".";
+  private List<String> columnStringToList(String fullyQualifiedColumn) {
+    List<String> splitList = Arrays.asList(fullyQualifiedColumn.split("\\."));
+
+    if (splitList.size() != 3) {
+      throw new ConfigException(
+          "Incomplete value for "
+          + COLUMN_INCLUDE_LIST_CONFIG
+          + "] value ["
+          + fullyQualifiedColumn
+          + "] expected "
+          + COLUMN_INCLUDE_FORMAT
+      );
+    }
+
+    return splitList;
   }
 
-  // Refactor to use a ConfigDef for parsing each JDBC Filter
-  private JdbcTableInfo jdbcFilterToTable(String filterName) {
-    String prefix = prefixOf(filterName);
+  private JdbcTableInfo toTable(String fullyQualifiedColumn) {
+    List<String> schemaTableColumn = columnStringToList(fullyQualifiedColumn);
 
-    Map<String, Object> filterConfig = originalsWithPrefix(prefix);
-
-    final String db = Optional
-        .ofNullable(filterConfig.get(JDBC_FILTER_DBNAME_CONFIG))
-        .map(String.class::cast)
-        .flatMap(JdbcUtil::trimToNone)
-        .orElseThrow(() -> new ConfigException(
-            "Missing or empty String value for required ["
-            + prefix
-            + JDBC_FILTER_DBNAME_CONFIG
-            + "]"
-        ));
-
-    final String[] schemaAndTable = Optional
-        .ofNullable(filterConfig.get(JDBC_FILTER_TABLE_CONFIG))
-        .map(String.class::cast)
-        .map(csvColumns -> csvColumns.split("\\."))
-        .orElseThrow(() -> new ConfigException(
-            "Missing or empty String value for required ["
-            + prefix
-            + JDBC_FILTER_TABLE_CONFIG
-            + "]"
-        ));
-
-    if (schemaAndTable.length != 2) {
-      throw new ConfigException(
-          "Invalid value for ["
-          + prefix
-          + JDBC_FILTER_TABLE_CONFIG
-          + "]. Expected: "
-          + JDBC_FILTER_TABLE_DISPLAY
-      );
-    }
-
-    final String schema = schemaAndTable[0].trim();
-
-    if (schema.isEmpty()) {
-      throw new ConfigException(
-          "<schema> cannot be blank for ["
-          + prefix
-          + JDBC_FILTER_TABLE_CONFIG
-          + "]. Expected: "
-          + JDBC_FILTER_TABLE_DISPLAY
-      );
-    }
-
-    final String table = schemaAndTable[1].trim();
-
-    if (table.isEmpty()) {
-      throw new ConfigException(
-          "<tablename> cannot be blank for ["
-          + prefix
-          + JDBC_FILTER_TABLE_CONFIG
-          + "]. Expected: "
-          + JDBC_FILTER_TABLE_DISPLAY
-      );
-    }
-
-    return new JdbcTableInfo(db, schema, table);
-  }
-
-  private Set<String> jdbcFilterToColumns(String filterName) {
-    String prefix = prefixOf(filterName);
-
-    Map<String, Object> filterConfig = originalsWithPrefix(prefix);
-
-    // Columns are required, and must not be empty
-    Set<String> columns = Optional
-        .ofNullable(filterConfig.get(JDBC_FILTER_COLUMNS_CONFIG))
-        .map(String.class::cast)
-        .map(csvColumns -> csvColumns.split(","))
-        .map(Arrays::stream)
-        .orElseGet(Stream::empty)
-        .map(JdbcUtil::trimToNull)
-        .filter(Objects::nonNull)
+    String schema = JdbcUtil
+        .trimToNone(schemaTableColumn.get(0))
         .map(String::toLowerCase)
-        .collect(Collectors.toSet());
+        .orElseThrow(() -> new ConfigException(
+            "Empty <schema> value for key ["
+            + COLUMN_INCLUDE_LIST_CONFIG
+            + "] value ["
+            + fullyQualifiedColumn
+            + "] expected "
+            + COLUMN_INCLUDE_FORMAT
+        ));
 
-    if (columns.isEmpty()) {
-      throw new ConfigException(
-          "Missing or empty list of columns for ["
-          + prefix
-          + JDBC_FILTER_COLUMNS_CONFIG
-          + "]. Expected: "
-          + JDBC_FILTER_COLUMNS_DOC
-      );
-    }
+    String table = JdbcUtil
+        .trimToNone(schemaTableColumn.get(1))
+        .map(String::toLowerCase)
+        .orElseThrow(() -> new ConfigException(
+            "Empty <table> value for key ["
+            + COLUMN_INCLUDE_LIST_CONFIG
+            + "] value ["
+            + fullyQualifiedColumn
+            + "] expected "
+            + COLUMN_INCLUDE_FORMAT
+        ));
 
-    return columns;
+    return new JdbcTableInfo(schema, table);
+  }
+
+  private String toColumnLower(String fullyQualifiedColumn) {
+    List<String> schemaTableColumn = columnStringToList(fullyQualifiedColumn);
+
+    return JdbcUtil
+        .trimToNone(schemaTableColumn.get(2))
+        .map(String::toLowerCase)
+        .orElseThrow(() -> new ConfigException(
+            "Empty <column> value for key ["
+            + COLUMN_INCLUDE_LIST_CONFIG
+            + "] value ["
+            + fullyQualifiedColumn
+            + "] expected "
+            + COLUMN_INCLUDE_FORMAT
+        ));
   }
 }

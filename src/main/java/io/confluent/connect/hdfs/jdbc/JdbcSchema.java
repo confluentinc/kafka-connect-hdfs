@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JdbcSchema {
-  public static Schema createSchema(Set<String> configuredFieldNamesLower,
+  public static Schema createSchema(Set<String> fieldsLower,
                                     Schema oldSchema,
                                     Collection<JdbcColumnInfo> primaryKeyColumns,
                                     Collection<JdbcColumnInfo> columnsToQuery) {
@@ -58,7 +58,7 @@ public class JdbcSchema {
         .forEach(field -> {
           String fieldName = field.name().trim();
           if (!newColumnNames.contains(fieldName)
-              && configuredFieldNamesLower.contains(fieldName.toLowerCase())) {
+              && fieldsLower.contains(fieldName.toLowerCase())) {
             newSchemaBuilder.field(fieldName, field.schema());
           }
         });

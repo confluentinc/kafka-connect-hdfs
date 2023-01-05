@@ -15,8 +15,6 @@
 
 package io.confluent.connect.hdfs.jdbc;
 
-import org.apache.kafka.connect.header.Headers;
-
 import javax.annotation.Nonnull;
 import java.util.Comparator;
 import java.util.Objects;
@@ -24,21 +22,17 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JdbcTableInfo implements Comparable<JdbcTableInfo> {
-  private static final String HEADER_DB = "__source_db";
-  private static final String HEADER_SCHEMA = "__source_schema";
-  private static final String HEADER_TABLE = "__source_table";
-
-  private final String db;
+  //private final String db;
   private final String schema;
   private final String table;
 
   public static Comparator<JdbcTableInfo> comparator =
       Comparator
           .comparing(
-              JdbcTableInfo::getDb,
-              Comparator.nullsFirst(Comparator.naturalOrder())
-          )
-          .thenComparing(
+              //JdbcTableInfo::getDb,
+              //Comparator.nullsFirst(Comparator.naturalOrder())
+              //)
+              //.thenComparing(
               JdbcTableInfo::getSchema,
               Comparator.nullsFirst(Comparator.naturalOrder())
           )
@@ -47,35 +41,15 @@ public class JdbcTableInfo implements Comparable<JdbcTableInfo> {
               Comparator.nullsFirst(Comparator.naturalOrder())
           );
 
-  public JdbcTableInfo(Headers headers) {
-    this(
-        // TODO: Validate not null or empty?
-        (String) headers.lastWithName(HEADER_DB).value(),
-        // TODO: Validate not null or empty?
-        (String) headers.lastWithName(HEADER_SCHEMA).value(),
-        // TODO: Validate not null or empty!
-        (String) headers.lastWithName(HEADER_TABLE).value()
-    );
+  public JdbcTableInfo(/*String db, */String schema, String table) {
+    //this.db = db;
+    this.schema = schema;
+    this.table = table;
   }
 
-  public JdbcTableInfo(String db, String schema, String table) {
-    this.db = JdbcUtil
-        .trimToNone(db)
-        .map(String::toLowerCase)
-        .orElse(null);
-    this.schema = JdbcUtil
-        .trimToNone(schema)
-        .map(String::toLowerCase)
-        .orElse(null);
-    this.table = JdbcUtil
-        .trimToNone(table)
-        .map(String::toLowerCase)
-        .orElse(null);
-  }
-
-  public String getDb() {
-    return db;
-  }
+  //public String getDb() {
+  //  return db;
+  //}
 
   public String getSchema() {
     return schema;
@@ -113,13 +87,13 @@ public class JdbcTableInfo implements Comparable<JdbcTableInfo> {
 
   @Override
   public int hashCode() {
-    return Objects.hash(getDb(), getSchema(), getTable());
+    return Objects.hash(/*getDb(), */getSchema(), getTable());
   }
 
   @Override
   public String toString() {
     return Stream
-        .of(db, schema, table)
+        .of(/*db, */schema, table)
         .filter(Objects::nonNull)
         .collect(Collectors.joining(".", "JdbcTableInfo{", "}"));
   }
