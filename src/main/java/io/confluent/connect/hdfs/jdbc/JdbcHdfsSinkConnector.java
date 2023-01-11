@@ -27,10 +27,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-/**
- * HdfsSinkConnector is a Kafka Connect Connector implementation that ingest data from Kafka to
- * HDFS.
- */
 public class JdbcHdfsSinkConnector extends SinkConnector {
   private Map<String, String> configProperties;
 

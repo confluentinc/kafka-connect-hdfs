@@ -58,7 +58,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
       hikariConfig.setPassword(connectorConfig.getConnectionPassword().value());
 
       includedFieldsLowerMap = connectorConfig.getIncludedFieldsLower();
-      includedFieldsLowerMap.forEach((table,columns) -> log.info(
+      includedFieldsLowerMap.forEach((table, columns) -> log.info(
           "Configured to include {} columns {}",
           table,
           columns
@@ -74,22 +74,11 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
       log.info("Successfully loaded JDBC configs");
     } catch (ConnectException ex) {
-      log.error(
-          "JDBC configuration error: {}",
-          ex.getMessage(),
-          ex
-      );
+      log.error("JDBC configuration error: {}", ex.getMessage(), ex);
       throw ex;
     } catch (Exception ex) {
-      log.error(
-          "JDBC configuration error: {}",
-          ex.getMessage(),
-          ex
-      );
-      throw new ConnectException(
-          "JDBC configuration error: " + ex.getMessage(),
-          ex
-      );
+      log.error("JDBC configuration error: {}", ex.getMessage(), ex);
+      throw new ConnectException("JDBC configuration error: " + ex.getMessage(), ex);
     }
 
     super.start(props);
@@ -128,10 +117,7 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
             .forEach(super::put);
       } catch (SQLException ex) {
         log.error("Failed to transform Record: {}", ex.getMessage(), ex);
-        throw new DataException(
-            "Failed to transform Record: " + ex.getMessage(),
-            ex
-        );
+        throw new DataException("Failed to transform Record: " + ex.getMessage(), ex);
       }
     }
 
@@ -158,21 +144,15 @@ public class JdbcHdfsSinkTask extends HdfsSinkTask {
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
+    super.close(partitions);
+
     if (dataSource != null) {
       try {
         log.info("Closing JDBC DataSource {}", hikariConfig.getJdbcUrl());
         dataSource.close();
       } catch (Exception ex) {
-        log.warn("Failed to close DataSource: {}", ex.getMessage(), ex);
+        log.warn("Failed to close JDBC DataSource: {}", ex.getMessage(), ex);
       }
     }
-
-    super.close(partitions);
-  }
-
-  @Override
-  public void stop() {
-    log.info("Stopping {}", getClass().getSimpleName());
-    super.stop();
   }
 }
