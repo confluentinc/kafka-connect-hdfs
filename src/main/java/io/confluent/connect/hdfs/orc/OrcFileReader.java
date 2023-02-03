@@ -23,13 +23,14 @@ import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile.ReaderOptions;
 import org.apache.hadoop.hive.ql.io.orc.Reader;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveTypeEntry;
 import org.apache.kafka.connect.data.ConnectSchema;
 import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Schema.Type;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -53,39 +54,9 @@ public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, 
       Reader reader = OrcFile.createReader(path, readerOptions);
 
       if (reader.getObjectInspector().getCategory() == ObjectInspector.Category.STRUCT) {
-        SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("record").version(1);
         StructObjectInspector objectInspector = (StructObjectInspector) reader.getObjectInspector();
-
-        for (StructField schema : objectInspector.getAllStructFieldRefs()) {
-          ObjectInspector fieldObjectInspector = schema.getFieldObjectInspector();
-          String typeName = fieldObjectInspector.getTypeName();
-          Schema.Type schemaType;
-
-          switch (fieldObjectInspector.getCategory()) {
-            case PRIMITIVE:
-              PrimitiveTypeEntry typeEntry = PrimitiveObjectInspectorUtils
-                  .getTypeEntryFromTypeName(typeName);
-              if (java.sql.Date.class.isAssignableFrom(typeEntry.primitiveJavaClass)) {
-                schemaType = Date.SCHEMA.type();
-              } else if (java.sql.Timestamp.class.isAssignableFrom(typeEntry.primitiveJavaClass)) {
-                schemaType = Timestamp.SCHEMA.type();
-              } else {
-                schemaType = ConnectSchema.schemaType(typeEntry.primitiveJavaClass);
-              }
-              break;
-            case LIST:
-              schemaType = Schema.Type.ARRAY;
-              break;
-            case MAP:
-              schemaType = Schema.Type.MAP;
-              break;
-            default:
-              throw new DataException("Unknown type " + fieldObjectInspector.getCategory().name());
-          }
-
-          schemaBuilder.field(schema.getFieldName(), SchemaBuilder.type(schemaType).build());
-        }
-
+        SchemaBuilder schemaBuilder = deriveStruct(objectInspector);
+        schemaBuilder.name("record").version(1);
         return schemaBuilder.build();
       } else {
         throw new ConnectException(
@@ -97,6 +68,54 @@ public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, 
       throw new ConnectException("Failed to get schema for file " + path, e);
     }
   }
+
+  private SchemaBuilder derivePrimitive(PrimitiveObjectInspector inspector) {
+    Class<?> klass = inspector.getTypeInfo().getPrimitiveJavaClass();
+    Schema.Type schemaType;
+    if (java.sql.Date.class.isAssignableFrom(klass)) {
+      schemaType = Date.SCHEMA.type();
+    } else if (java.sql.Timestamp.class.isAssignableFrom(klass)) {
+      schemaType = Timestamp.SCHEMA.type();
+    } else if (org.apache.hadoop.hive.common.type.HiveDecimal.class.isAssignableFrom(klass)) {
+      schemaType = Decimal.schema(inspector.scale()).type();
+    } else {
+      schemaType = ConnectSchema.schemaType(klass);
+    }
+    return SchemaBuilder.type(schemaType);
+  }
+
+
+  private SchemaBuilder deriveStruct(StructObjectInspector inspector) {
+
+    SchemaBuilder schemaBuilder = SchemaBuilder.struct();
+    for (StructField field: inspector.getAllStructFieldRefs()) {
+
+      ObjectInspector fieldInspector = field.getFieldObjectInspector();
+      switch (field.getFieldObjectInspector().getCategory()) {
+        case PRIMITIVE:
+          schemaBuilder.field(field.getFieldName(), derivePrimitive((PrimitiveObjectInspector)
+              fieldInspector).build());
+          break;
+        case LIST:
+          schemaBuilder.field(field.getFieldName(), SchemaBuilder.type(Type.ARRAY).build());
+          break;
+        case MAP:
+          schemaBuilder.field(field.getFieldName(), SchemaBuilder.type(Type.MAP).build());
+          break;
+        case STRUCT:
+          SchemaBuilder b = deriveStruct((StructObjectInspector) fieldInspector);
+          b.name(field.getFieldName());
+          schemaBuilder.field(field.getFieldName(), b.build());
+          break;
+        default:
+          throw new DataException("Unknown type " + field.getFieldObjectInspector().getCategory()
+              .name());
+      }
+    }
+
+    return schemaBuilder;
+  }
+
 
   @Override
   public boolean hasNext() {

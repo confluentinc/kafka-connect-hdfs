@@ -29,6 +29,7 @@ import static org.apache.kafka.connect.data.Schema.Type.STRING;
 import static org.apache.kafka.connect.data.Schema.Type.STRUCT;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,9 +43,11 @@ import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.io.ArrayPrimitiveWritable;
+import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.FloatWritable;
@@ -53,11 +56,13 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.MapWritable;
 import org.apache.hadoop.io.ObjectWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Schema.Type;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.data.Time;
 import org.apache.kafka.connect.data.Timestamp;
@@ -72,7 +77,7 @@ public final class OrcUtil {
       new HashMap<>();
 
   static {
-    CONVERSION_MAP.put(ARRAY, OrcUtil::convertArray);
+//    CONVERSION_MAP.put(ARRAY, OrcUtil::convertArray);
     CONVERSION_MAP.put(BOOLEAN, OrcUtil::convertBoolean);
     CONVERSION_MAP.put(BYTES, OrcUtil::convertBytes);
     CONVERSION_MAP.put(FLOAT32, OrcUtil::convertFloat32);
@@ -120,8 +125,14 @@ public final class OrcUtil {
         data.add(null);
       } else {
         Schema.Type schemaType = field.schema().type();
+        TypeInfo fieldTypeInfo = ((StructTypeInfo) typeInfo).getStructFieldTypeInfo(field.name());
         if (STRUCT.equals(schemaType)) {
-          data.add(convertStruct(typeInfo, struct, field));
+          data.add(createOrcStruct(
+              fieldTypeInfo,
+              convertStruct(fieldTypeInfo, struct.getStruct(field.name()))
+          ));
+        } else if (ARRAY.equals(schemaType)) {
+          data.add(convertArray(fieldTypeInfo, field.schema().valueSchema(), struct.getArray(field.name()).toArray()));
         } else {
           data.add(CONVERSION_MAP.get(schemaType).apply(struct, field));
         }
@@ -131,17 +142,28 @@ public final class OrcUtil {
     return data.toArray();
   }
 
-  private static Object convertStruct(TypeInfo typeInfo, Struct struct, Field field) {
-    TypeInfo fieldTypeInfo = ((StructTypeInfo) typeInfo).getStructFieldTypeInfo(field.name());
+  private static Object convertPrimitiveArray()
+  private static Object convertArray(TypeInfo typeInfo, Schema schema, Object ...objects) {
 
-    return createOrcStruct(
-        fieldTypeInfo,
-        convertStruct(fieldTypeInfo, struct.getStruct(field.name()))
-    );
-  }
+    TypeInfo elementTypeInfo = ((ListTypeInfo) typeInfo).getListElementTypeInfo();
+    if (schema.type().isPrimitive()) {
 
-  private static Object convertArray(Struct struct, Field field) {
-    return new ArrayPrimitiveWritable(struct.getArray(field.name()).toArray());
+      return new ArrayPrimitiveWritable(objects);
+    } else if (STRUCT.equals(schema.type())) {
+      List<OrcStruct> orcStructs = new ArrayList<>();
+      for (Object s: objects) {
+        Struct str = (Struct) s;
+        orcStructs.add(createOrcStruct(elementTypeInfo, convertStruct(elementTypeInfo, str)));
+      }
+      return new ArrayWritable(OrcStruct.class, orcStructs.toArray(new Writable[0]));
+    } else if (ARRAY.equals(schema.type())) {
+      List<Object> arrayObjects = new ArrayList<>();
+      for (Object s: objects) {
+        arrayObjects.add(convertArray(elementTypeInfo, schema.valueSchema(), (Object[]) s));
+      }
+      return new ArrayWritable(ArrayWritable.class, arrayObjects.toArray(new Writable[0]));
+    }
+    return null;
   }
 
   private static Object convertBoolean(Struct struct, Field field) {
@@ -194,6 +216,11 @@ public final class OrcUtil {
     if (Timestamp.LOGICAL_NAME.equals(field.schema().name())) {
       java.util.Date date = (java.util.Date) struct.get(field);
       return new TimestampWritable(new java.sql.Timestamp(date.getTime()));
+    }
+
+    if (Time.LOGICAL_NAME.equals(field.schema().name())) {
+      java.util.Date date = (java.util.Date) struct.get(field);
+      return new LongWritable(date.getTime());
     }
 
     return new LongWritable(struct.getInt64(field.name()));

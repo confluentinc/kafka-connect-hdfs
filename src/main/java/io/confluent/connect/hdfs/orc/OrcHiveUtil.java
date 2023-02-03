@@ -44,7 +44,7 @@ public class OrcHiveUtil extends HiveUtil {
   @Override
   public void alterSchema(String database, String tableName, Schema schema) {
     Table table = hiveMetaStore.getTable(database, tableName);
-    List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> columns = HiveSchemaConverter.convertSchemaMaybeLogical(schema);
     table.setFields(columns);
     hiveMetaStore.alterTable(table);
   }
@@ -85,7 +85,7 @@ public class OrcHiveUtil extends HiveUtil {
     }
 
     // convert Connect schema schema to Hive columns
-    List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    List<FieldSchema> columns = HiveSchemaConverter.convertSchemaMaybeLogical(schema);
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
     return table;
