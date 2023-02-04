@@ -261,7 +261,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     return sinkRecords;
   }
 
-  protected Schema createLogicalSchema() {
+  private Schema createLogicalSchema() {
     return SchemaBuilder.struct().version(1)
         .field("time", Time.SCHEMA)
         .field("timestamp", Timestamp.SCHEMA)
@@ -299,8 +299,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     struct.put("struct_array", Arrays.asList(record, record));
     struct.put("int_array", Arrays.asList(Integer.valueOf(1), Integer.valueOf(2), Integer.valueOf(3)));
     struct.put("logical_array", Arrays.asList(today, today));
-    struct.put("array_array", Arrays.asList(Arrays.asList(logicalStruct, logicalStruct),
-        Arrays.asList(logicalStruct, logicalStruct)));
+    struct.put("array_array", Arrays.asList(Arrays.asList(logicalStruct, logicalStruct), Arrays.asList(logicalStruct, logicalStruct)));
     return struct;
   }
 
@@ -310,13 +309,13 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
         .field("struct", createSchema())
         .field("int", Schema.INT32_SCHEMA)
         .field("array", SchemaBuilder.array(createSchema()).build())
-//        .field("map", SchemaBuilder.map(SchemaBuilder.STRING_SCHEMA, SchemaBuilder.STRING_SCHEMA).build())
+        .field("map", SchemaBuilder.map(SchemaBuilder.STRING_SCHEMA, SchemaBuilder.STRING_SCHEMA).build())
         .build();
     Schema schema = SchemaBuilder.struct().version(1)
         .field("struct", createLogicalSchema())
         .field("nested", nestedSchema)
         .field("string", Schema.STRING_SCHEMA)
-//        .field("map", SchemaBuilder.map(SchemaBuilder.STRING_SCHEMA, createLogicalSchema()).build())
+        .field("map", SchemaBuilder.map(SchemaBuilder.STRING_SCHEMA, createLogicalSchema()).build())
         .build();
 
     Struct struct = new Struct(schema);
@@ -325,10 +324,10 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     nested.put("struct", createRecord(createSchema()));
     nested.put("int", 10);
     nested.put("array", Arrays.asList(createRecord(createSchema()), createRecord(createSchema())));
-//    nested.put("map", ImmutableMap.of("a", "b", "c", "d"));
+    nested.put("map", ImmutableMap.of("a", "b", "c", "d"));
     struct.put("nested", nested);
     struct.put("string", "test");
-//    struct.put("map", ImmutableMap.of("s1", createLogicalStruct(), "s2", createLogicalStruct()));
+    struct.put("map", ImmutableMap.of("s1", createLogicalStruct(), "s2", createLogicalStruct()));
 
     return struct;
   }

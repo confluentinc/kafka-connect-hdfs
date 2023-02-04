@@ -27,6 +27,7 @@ import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -180,9 +181,8 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
     hdfsWriter.recover(TOPIC_PARTITION);
 
-    Schema schema = createLogicalSchema();
     Struct struct = createLogicalStruct();
-    List<SinkRecord> sinkRecords = createSinkRecords(Arrays.asList(struct, struct, struct), schema);
+    List<SinkRecord> sinkRecords = createSinkRecords(Arrays.asList(struct, struct, struct), struct.schema());
 
     hdfsWriter.write(sinkRecords);
     hdfsWriter.close();
@@ -192,7 +192,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
 
     List<StructField> hiveFields = table.getFields();
-    List<Field> connectFields = schema.fields();
+    List<Field> connectFields = struct.schema().fields();
     for (int i = 0; i < connectFields.size(); i++) {
       assertEquals(connectFields.get(i).name(), hiveFields.get(i).getFieldName());
       assertEquals(HiveSchemaConverter.convertPrimitiveMaybeLogical(connectFields.get(i).schema()).getTypeName(),
@@ -217,6 +217,18 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
 
     String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
     Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
+
+    StructTypeInfo typeInfo = (StructTypeInfo) HiveSchemaConverter.convertMaybeLogical(struct.schema());
+    String expectedTypeInfo = typeInfo.getAllStructFieldTypeInfos().stream().map(TypeInfo::toString).collect(
+        Collectors.joining(","));
+    String tableTypeInfo = table.getSd().getCols().stream().map(FieldSchema::getType).collect(
+        Collectors.joining(","));
+    assertEquals(expectedTypeInfo, tableTypeInfo);
+
+    List<String> expectedPartitions = Arrays.asList(partitionLocation(TOPIC, PARTITION));
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
+    assertEquals(expectedPartitions, partitions);
+
   }
 
   @Test
