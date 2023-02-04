@@ -82,7 +82,6 @@ public final class OrcUtil {
       new HashMap<>();
 
   static {
-//    CONVERSION_MAP.put(ARRAY, OrcUtil::convertArray);
     PRIMITIVE_CONVERSION_MAP.put(BOOLEAN, OrcUtil::convertBoolean);
     PRIMITIVE_CONVERSION_MAP.put(BYTES, OrcUtil::convertBytes);
     PRIMITIVE_CONVERSION_MAP.put(FLOAT32, OrcUtil::convertFloat32);
@@ -91,7 +90,6 @@ public final class OrcUtil {
     PRIMITIVE_CONVERSION_MAP.put(INT16, OrcUtil::convertInt16);
     PRIMITIVE_CONVERSION_MAP.put(INT32, OrcUtil::convertInt32);
     PRIMITIVE_CONVERSION_MAP.put(INT64, OrcUtil::convertInt64);
-//    PRIMITIVE_CONVERSION_MAP.put(MAP, OrcUtil::convertMap);
     PRIMITIVE_CONVERSION_MAP.put(STRING, OrcUtil::convertString);
   }
 
@@ -131,16 +129,6 @@ public final class OrcUtil {
       } else {
         TypeInfo fieldTypeInfo = ((StructTypeInfo) typeInfo).getStructFieldTypeInfo(field.name());
         data.add(convert(fieldTypeInfo, field.schema(), struct.get(field)));
-//        if (STRUCT.equals(schemaType)) {
-//          data.add(createOrcStruct(
-//              fieldTypeInfo,
-//              convertStruct(fieldTypeInfo, struct.getStruct(field.name()))
-//          ));
-//        } else if (ARRAY.equals(schemaType)) {
-//          data.add(convertArray(fieldTypeInfo, field.schema(), struct.getArray(field.name())));
-//        } else {
-//          data.add(PRIMITIVE_CONVERSION_MAP.get(schemaType).apply(field.schema(), struct.get(field.name())));
-//        }
       }
     }
 
@@ -166,28 +154,6 @@ public final class OrcUtil {
     TypeInfo elementTypeInfo = ((ListTypeInfo) typeInfo).getListElementTypeInfo();
     Schema valueSchema = schema.valueSchema();
     return objects.stream().map(o -> convert(elementTypeInfo, valueSchema, o)).collect(Collectors.toList());
-
-//
-//    if (valueSchema.type().isPrimitive()) {
-//
-//      return objects.stream()
-//          .map(o -> PRIMITIVE_CONVERSION_MAP.get(valueSchema.type()).apply(valueSchema, o))
-//          .collect(Collectors.toList());
-//
-//    } else if (STRUCT.equals(valueSchema.type())) {
-//
-//      return objects.stream()
-//          .map(o -> createOrcStruct(elementTypeInfo, convertStruct(elementTypeInfo, (Struct) o)))
-//          .collect(Collectors.toList());
-//
-//    } else if (ARRAY.equals(valueSchema.type())) {
-//
-//      return objects.stream()
-//          .map(o -> convertArray(elementTypeInfo, valueSchema, (List<Object>) o))
-//          .collect(Collectors.toList());
-//    }
-//
-//    return null;
   }
 
   private static Object convertBoolean(Schema schema, Object obj) {
@@ -253,13 +219,7 @@ public final class OrcUtil {
   }
 
   private static Object convertMap(TypeInfo typeInfo, Schema schema, Map<?, ?> obj) {
-//    MapWritable mapWritable = new MapWritable();
-//    Map map = (Map) obj;
-//    map.forEach(
-//        (key, value) -> mapWritable.put(new ObjectWritable(key), new ObjectWritable(value))
-//    );
-//
-//    return mapWritable;
+
     MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;
     return obj.entrySet().stream().map(e -> new AbstractMap.SimpleEntry<>(
         convert(mapTypeInfo.getMapKeyTypeInfo(), schema.keySchema(), e.getKey()),
