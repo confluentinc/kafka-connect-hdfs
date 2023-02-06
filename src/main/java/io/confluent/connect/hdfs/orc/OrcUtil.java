@@ -15,7 +15,6 @@
 
 package io.confluent.connect.hdfs.orc;
 
-import static org.apache.kafka.connect.data.Schema.Type.ARRAY;
 import static org.apache.kafka.connect.data.Schema.Type.BOOLEAN;
 import static org.apache.kafka.connect.data.Schema.Type.BYTES;
 import static org.apache.kafka.connect.data.Schema.Type.FLOAT32;
@@ -24,15 +23,12 @@ import static org.apache.kafka.connect.data.Schema.Type.INT16;
 import static org.apache.kafka.connect.data.Schema.Type.INT32;
 import static org.apache.kafka.connect.data.Schema.Type.INT64;
 import static org.apache.kafka.connect.data.Schema.Type.INT8;
-import static org.apache.kafka.connect.data.Schema.Type.MAP;
 import static org.apache.kafka.connect.data.Schema.Type.STRING;
-import static org.apache.kafka.connect.data.Schema.Type.STRUCT;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,18 +47,12 @@ import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
-import org.apache.hadoop.io.ArrayPrimitiveWritable;
-import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.MapWritable;
-import org.apache.hadoop.io.ObjectWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Writable;
-import org.apache.kafka.connect.data.ConnectSchema;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Field;
@@ -153,7 +143,8 @@ public final class OrcUtil {
 
     TypeInfo elementTypeInfo = ((ListTypeInfo) typeInfo).getListElementTypeInfo();
     Schema valueSchema = schema.valueSchema();
-    return objects.stream().map(o -> convert(elementTypeInfo, valueSchema, o)).collect(Collectors.toList());
+    return objects.stream().map(o -> convert(elementTypeInfo, valueSchema, o))
+        .collect(Collectors.toList());
   }
 
   private static Object convertBoolean(Schema schema, Object obj) {

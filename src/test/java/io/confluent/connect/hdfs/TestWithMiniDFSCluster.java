@@ -262,7 +262,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
   }
 
   private Schema createLogicalSchema() {
-    return SchemaBuilder.struct().version(1)
+    return SchemaBuilder.struct().name("record").version(1)
         .field("time", Time.SCHEMA)
         .field("timestamp", Timestamp.SCHEMA)
         .field("date", Date.SCHEMA)
@@ -281,7 +281,7 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
   }
 
   private Schema createArraySchema() {
-    return SchemaBuilder.struct().version(1)
+    return SchemaBuilder.struct().name("record").version(1)
         .field("struct_array", SchemaBuilder.array(createSchema()).build())
         .field("int_array", SchemaBuilder.array(Schema.INT32_SCHEMA).build())
         .field("logical_array", SchemaBuilder.array(Date.SCHEMA).build())
@@ -305,13 +305,13 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
 
   protected Struct createNestedStruct() {
 
-    Schema nestedSchema = SchemaBuilder.struct().version(1)
+    Schema nestedSchema = SchemaBuilder.struct().name("record").version(1)
         .field("struct", createSchema())
         .field("int", Schema.INT32_SCHEMA)
         .field("array", SchemaBuilder.array(createSchema()).build())
         .field("map", SchemaBuilder.map(SchemaBuilder.STRING_SCHEMA, SchemaBuilder.STRING_SCHEMA).build())
         .build();
-    Schema schema = SchemaBuilder.struct().version(1)
+    Schema schema = SchemaBuilder.struct().name("record").version(1)
         .field("struct", createLogicalSchema())
         .field("nested", nestedSchema)
         .field("string", Schema.STRING_SCHEMA)
@@ -467,6 +467,22 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     cacheField.setAccessible(false);
     cacheMapField.setAccessible(false);
     return cacheMap.size();
+  }
+
+  protected void writeAndVerify(List<SinkRecord> sinkRecords) throws Exception {
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    List<Long> validOffsets = new ArrayList<>();
+    int flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
+    for (long i = 0; i < sinkRecords.size(); i += flushSize) validOffsets.add(i);
+    verify(sinkRecords, validOffsets.stream().mapToLong(l -> l).toArray());
   }
 
 }
