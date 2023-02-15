@@ -308,11 +308,17 @@
             <version>1.10.19</version>
             <scope>test</scope>
         </dependency>
-        <!-- pin the dependency to fix CVE : CCMSG-2266-->
+        <!-- pin the dependency to fix CVE -->
         <dependency>
             <groupId>com.fasterxml.woodstox</groupId>
             <artifactId>woodstox-core</artifactId>
             <version>6.5.0</version>
+        </dependency>
+        <!-- pin the dependency to fix CVE -->
+        <dependency>
+            <groupId>org.codehaus.jettison</groupId>
+            <artifactId>jettison</artifactId>
+            <version>1.5.3</version>
         </dependency>
     </dependencies>
     <build>
