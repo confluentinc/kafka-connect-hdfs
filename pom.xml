@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>11.0.16</version>
+        <version>11.1.0</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -52,12 +52,11 @@
     </scm>
 
     <properties>
-        <confluent.maven.repo>https://packages.confluent.io/maven/</confluent.maven.repo>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
         <confluent-log4j.version>1.2.17-cp8</confluent-log4j.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>11.0.16</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>11.1.0</kafka.connect.storage.common.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
@@ -70,7 +69,7 @@
         <repository>
             <id>confluent</id>
             <name>Confluent</name>
-            <url>${confluent.maven.repo}</url>
+            <url>https://packages.confluent.io/maven/</url>
         </repository>
     </repositories>
 

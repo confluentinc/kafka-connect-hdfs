@@ -25,7 +25,9 @@ import io.confluent.connect.hdfs.partitioner.DailyPartitioner;
 import io.confluent.connect.hdfs.partitioner.FieldPartitioner;
 import io.confluent.connect.hdfs.partitioner.TimeUtils;
 import io.confluent.connect.storage.hive.HiveConfig;
+import io.confluent.connect.storage.hive.HiveSchemaConverter;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
+import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,10 +35,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Schema.Type;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.joda.time.DateTime;
@@ -147,6 +155,7 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
     String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
     Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
     List<String> expectedColumnNames = new ArrayList<>();
+
     for (Field field : schema.fields()) {
       expectedColumnNames.add(field.name());
     }
@@ -161,6 +170,96 @@ public class HiveIntegrationOrcTest extends HiveTestBase {
 
     List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
 
+    assertEquals(expectedPartitions, partitions);
+  }
+
+  @Test
+  public void testHiveIntegrationWithLogicalTypesOrc() throws Exception {
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    setUp();
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    Struct struct = createLogicalStruct();
+    List<SinkRecord> sinkRecords = createSinkRecords(Arrays.asList(struct, struct, struct), struct.schema());
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
+
+    List<StructField> hiveFields = table.getFields();
+    List<Field> connectFields = struct.schema().fields();
+    for (int i = 0; i < connectFields.size(); i++) {
+      assertEquals(connectFields.get(i).name(), hiveFields.get(i).getFieldName());
+      assertEquals(HiveSchemaConverter.convertPrimitiveMaybeLogical(connectFields.get(i).schema()).getTypeName(),
+          hiveFields.get(i).getFieldObjectInspector().getTypeName());
+    }
+  }
+
+  @Test
+  public void testHiveIntegrationWithArrays() throws Exception {
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    setUp();
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+    Struct struct = createArrayStruct();
+    List<SinkRecord> sinkRecords = createSinkRecords(Arrays.asList(struct, struct, struct), struct.schema());
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
+
+    StructTypeInfo typeInfo = (StructTypeInfo) HiveSchemaConverter.convertMaybeLogical(struct.schema());
+    String expectedTypeInfo = typeInfo.getAllStructFieldTypeInfos().stream().map(TypeInfo::toString).collect(
+        Collectors.joining(","));
+    String tableTypeInfo = table.getSd().getCols().stream().map(FieldSchema::getType).collect(
+        Collectors.joining(","));
+    assertEquals(expectedTypeInfo, tableTypeInfo);
+
+    List<String> expectedPartitions = Arrays.asList(partitionLocation(TOPIC, PARTITION));
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
+    assertEquals(expectedPartitions, partitions);
+
+  }
+
+  @Test
+  public void testHiveIntegrationWithNestedStruct() throws Exception {
+    localProps.put(HiveConfig.HIVE_INTEGRATION_CONFIG, "true");
+    setUp();
+
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+
+    Struct struct = createNestedStruct();
+
+    List<SinkRecord> sinkRecords = createSinkRecords(Arrays.asList(struct, struct, struct), struct.schema());
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    String hiveTableName = connectorConfig.getHiveTableName(TOPIC);
+    Table table = hiveMetaStore.getTable(hiveDatabase, hiveTableName);
+
+    StructTypeInfo typeInfo = (StructTypeInfo) HiveSchemaConverter.convertMaybeLogical(struct.schema());
+    String expectedTypeInfo = typeInfo.getAllStructFieldTypeInfos().stream().map(TypeInfo::toString).collect(
+        Collectors.joining(","));
+    String tableTypeInfo = table.getSd().getCols().stream().map(FieldSchema::getType).collect(
+        Collectors.joining(","));
+    assertEquals(expectedTypeInfo, tableTypeInfo);
+
+    List<String> expectedPartitions = Arrays.asList(partitionLocation(TOPIC, PARTITION));
+    List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, hiveTableName, (short)-1);
     assertEquals(expectedPartitions, partitions);
   }
 

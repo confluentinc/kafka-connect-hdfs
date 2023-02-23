@@ -20,8 +20,12 @@ import io.confluent.connect.hdfs.DataWriter;
 import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
+import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
-import org.apache.kafka.connect.data.Field;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaProjector;
 import org.apache.kafka.connect.data.Struct;
@@ -54,19 +58,13 @@ public class DataWriterOrcTest extends TestWithMiniDFSCluster {
 
   @Test
   public void testWriteRecord() throws Exception {
-    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
-    partitioner = hdfsWriter.getPartitioner();
-    hdfsWriter.recover(TOPIC_PARTITION);
+    writeAndVerify(createSinkRecords(7));
+  }
 
-    List<SinkRecord> sinkRecords = createSinkRecords(7);
-
-    hdfsWriter.write(sinkRecords);
-    hdfsWriter.close();
-    hdfsWriter.stop();
-
-    // Last file (offset 6) doesn't satisfy size requirement and gets discarded on close
-    long[] validOffsets = {0, 3, 6};
-    verify(sinkRecords, validOffsets);
+  @Test
+  public void testWriteNestedRecord() throws Exception {
+    Struct struct = createNestedStruct();
+    writeAndVerify(createSinkRecords(Collections.nCopies(7, struct), struct.schema()));
   }
 
   @Override
@@ -80,16 +78,11 @@ public class DataWriterOrcTest extends TestWithMiniDFSCluster {
         expectedRecords.get(startIndex++).value(),
         expectedSchema);
 
-      TypeInfo typeInfo = HiveSchemaConverter.convert(expectedSchema);
+      TypeInfo typeInfo = HiveSchemaConverter.convertMaybeLogical(expectedSchema);
 
-      ArrayList<Object> objs = new ArrayList<>();
-      for (Field field : expectedSchema.fields()) {
-        objs.add(((Struct) expectedValue).get(field));
-      }
+      OrcStruct orcStruct = (OrcStruct) OrcUtil.convert(typeInfo, expectedSchema, expectedValue);
 
-      expectedValue = OrcUtil.createOrcStruct(typeInfo, objs.toArray(new Object[0]));
-
-      assertEquals(expectedValue.toString(), orcRecord.toString());
+      assertEquals(orcStruct.toString(), orcRecord.toString());
     }
   }
 
