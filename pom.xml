@@ -61,8 +61,8 @@
         <commons.collections.version>3.2.2</commons.collections.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
-        <jettison.version>0.13.0</jettison.version>
-        <woodstox-core.version>0.13.0</woodstox-core.version>
+        <jettison.version>1.5.3</jettison.version>
+        <woodstox-core.version>6.5.0</woodstox-core.version>
         <!-- temporary fix by pinning the version until we upgrade to a version of common that contains this or newer version.
             See https://github.com/confluentinc/common/pull/332 for details -->
         <dependency.check.version>6.1.6</dependency.check.version>
