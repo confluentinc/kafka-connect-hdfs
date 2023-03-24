@@ -59,6 +59,7 @@
         <kafka.connect.storage.common.version>11.0.21</kafka.connect.storage.common.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <commons-net.version>3.9.0</commons-net.version>
+        <json-smart.version>2.4.10</json-smart.version>
         <libthrift.version>0.13.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
         <jettison.version>1.5.4</jettison.version>
@@ -97,7 +98,11 @@
                 <artifactId>commons-net</artifactId>
                 <version>${commons-net.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>net.minidev</groupId>
+                <artifactId>json-smart</artifactId>
+                <version>${commons-net.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
