@@ -80,9 +80,10 @@
     </repositories>
 
 
+
     <dependencyManagement>
         <dependencies>
-        <!-- pin the dependency to fix CVE -->
+            <!-- pin the dependency to fix CVE -->
             <dependency>
                 <groupId>com.fasterxml.woodstox</groupId>
                 <artifactId>woodstox-core</artifactId>
@@ -94,6 +95,7 @@
                 <artifactId>jettison</artifactId>
                 <version>${jettison.version}</version>
             </dependency>
+
             <dependency>
                 <groupId>commons-net</groupId>
                 <artifactId>commons-net</artifactId>
