@@ -128,6 +128,12 @@
                 <artifactId>xercesImpl</artifactId>
                 <version>2.12.2</version>
             </dependency>
+            <!-- pin slider-core to avoid outdated httpclient -->
+            <dependency>
+                <groupId>org.apache.slider</groupId>
+                <artifactId>slider-core</artifactId>
+                <version>0.92.0-incubating</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
