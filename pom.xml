@@ -217,6 +217,14 @@
                     <groupId>org.apache.velocity</groupId>
                     <artifactId>velocity</artifactId>
                 </exclusion>
+                <!--
+                Including this is adding the apache curator pom file,
+                exclusion should have any effect on the connector.
+                -->
+                <exclusion>
+                    <groupId>org.apache.curator</groupId>
+                    <artifactId>apache-curator</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
