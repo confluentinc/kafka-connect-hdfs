@@ -101,6 +101,8 @@ public class TopicPartitionWriter {
   private final Map<String, Long> startOffsets;
   private final Map<String, Long> endOffsets;
   private final long timeoutMs;
+  private final long retryTimeoutMs;
+  private long failureStartTimeMs;
   private long failureTime;
   private final StorageSchemaCompatibility compatibility;
   private Schema currentSchema;
@@ -197,6 +199,7 @@ public class TopicPartitionWriter {
     rotateScheduleIntervalMs = config.getLong(HdfsSinkConnectorConfig
         .ROTATE_SCHEDULE_INTERVAL_MS_CONFIG);
     timeoutMs = config.getLong(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG);
+    retryTimeoutMs = config.getLong(HdfsSinkConnectorConfig.RETRY_TIMEOUT_CONFIG);
     compatibility = StorageSchemaCompatibility.getCompatibility(
         config.getString(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG));
 
@@ -210,6 +213,7 @@ public class TopicPartitionWriter {
     startOffsets = new HashMap<>();
     endOffsets = new HashMap<>();
     state = State.RECOVERY_STARTED;
+    failureStartTimeMs = -1L;
     failureTime = -1L;
     // The next offset to consume after the last commit (one more than last offset written to HDFS)
     offset = -1L;
@@ -386,6 +390,7 @@ public class TopicPartitionWriter {
               } else {
                 SinkRecord projectedRecord = compatibility.project(record, null, currentSchema);
                 writeRecord(projectedRecord);
+                failureStartTimeMs = -1L;
                 buffer.poll();
                 break;
               }
@@ -411,7 +416,15 @@ public class TopicPartitionWriter {
       } catch (ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = time.milliseconds();
-        setRetryTimeout(timeoutMs);
+        if (failureStartTimeMs == -1L) {
+          failureStartTimeMs = failureTime;
+        }
+        if (retryTimeoutMs > 0 && (failureTime - failureStartTimeMs) > retryTimeoutMs) {
+          log.warn("Resetting reads for topic partition {} because write retries timed out", tp);
+          resetReads();
+        } else {
+          setRetryTimeout(timeoutMs);
+        }
         break;
       }
     }
@@ -785,23 +798,40 @@ public class TopicPartitionWriter {
       // at least one tmp file did not close properly therefore will try to recreate the tmp and
       // delete all buffered records + tmp files and start over because otherwise there will be
       // duplicates, since there is no way to reclaim the records in the tmp file.
-      for (String encodedPartition : tempFiles.keySet()) {
-        try {
-          deleteTempFile(encodedPartition);
-        } catch (ConnectException e) {
-          log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
-        }
-        startOffsets.remove(encodedPartition);
-        endOffsets.remove(encodedPartition);
-        buffer.clear();
-      }
-
-      log.debug("Resetting offset for {} to {}", tp, offset);
-      context.offset(tp, offset);
-
-      recordCounter = 0;
+      deleteTempFileAndResetOffsets();
       throw connectException;
     }
+  }
+
+  private void resetReads() {
+    // silently close all temp files
+    for (String encodedPartition : tempFiles.keySet()) {
+      try {
+        closeTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        log.debug("Failed to close temporary file for partition {}.", encodedPartition);
+      }
+    }
+
+    deleteTempFileAndResetOffsets();
+  }
+
+  private void deleteTempFileAndResetOffsets() {
+    for (String encodedPartition : tempFiles.keySet()) {
+      try {
+        deleteTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
+      }
+      startOffsets.remove(encodedPartition);
+      endOffsets.remove(encodedPartition);
+      buffer.clear();
+    }
+
+    log.debug("Resetting offset for {} to {}", tp, offset);
+    context.offset(tp, offset);
+
+    recordCounter = 0;
   }
 
   private void appendToWAL(String encodedPartition) {
