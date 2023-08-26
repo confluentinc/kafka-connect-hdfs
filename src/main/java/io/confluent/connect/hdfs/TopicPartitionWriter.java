@@ -246,7 +246,7 @@ public class TopicPartitionWriter {
     }
 
     // Initialize rotation timers
-    updateRotationTimers(null);
+    updateRotationTimers();
   }
 
   @SuppressWarnings("fallthrough")
@@ -290,12 +290,9 @@ public class TopicPartitionWriter {
     return true;
   }
 
-  private void updateRotationTimers(SinkRecord currentRecord) {
+  private void updateRotationTimers() {
     long now = time.milliseconds();
-    // Wallclock-based partitioners should be independent of the record argument.
-    lastRotate = isWallclockBased
-                 ? (Long) now
-                 : currentRecord != null ? timestampExtractor.extract(currentRecord) : null;
+    lastRotate = time.milliseconds();
     if (log.isDebugEnabled() && rotateIntervalMs > 0) {
       log.debug(
           "Update last rotation timer. Next rotation for {} will be in {}ms",
@@ -322,7 +319,6 @@ public class TopicPartitionWriter {
   @SuppressWarnings("fallthrough")
   public void write() {
     long now = time.milliseconds();
-    SinkRecord currentRecord = null;
     if (failureTime > 0 && now - failureTime < timeoutMs) {
       return;
     }
@@ -331,7 +327,7 @@ public class TopicPartitionWriter {
       if (!success) {
         return;
       }
-      updateRotationTimers(null);
+      updateRotationTimers();
     }
     while (!buffer.isEmpty()) {
       try {
@@ -358,7 +354,6 @@ public class TopicPartitionWriter {
               }
             }
             SinkRecord record = buffer.peek();
-            currentRecord = record;
             Schema valueSchema = record.valueSchema();
             if ((recordCounter <= 0 && currentSchema == null && valueSchema != null)
                 || compatibility.shouldChangeSchema(record, null, currentSchema)) {
@@ -373,7 +368,7 @@ public class TopicPartitionWriter {
                 break;
               }
             } else {
-              if (shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
+              if (shouldRotateAndMaybeUpdateTimers(now)) {
                 log.info(
                     "Starting commit and rotation for topic partition {} with start offsets {} "
                         + "and end offsets {}",
@@ -391,7 +386,7 @@ public class TopicPartitionWriter {
               }
             }
           case SHOULD_ROTATE:
-            updateRotationTimers(currentRecord);
+            updateRotationTimers();
             closeTempFile();
             nextState();
           case TEMP_FILE_CLOSED:
@@ -424,7 +419,7 @@ public class TopicPartitionWriter {
           case WRITE_PARTITION_PAUSED:
             // committing files after waiting for rotateIntervalMs time but less than flush.size
             // records available
-            if (recordCounter == 0 || !shouldRotateAndMaybeUpdateTimers(currentRecord, now)) {
+            if (recordCounter == 0 || !shouldRotateAndMaybeUpdateTimers(now)) {
               break;
             } 
             
@@ -434,7 +429,7 @@ public class TopicPartitionWriter {
             );
             nextState();
           case SHOULD_ROTATE:
-            updateRotationTimers(currentRecord);
+            updateRotationTimers();
             closeTempFile();
             nextState();
           case TEMP_FILE_CLOSED:
@@ -559,19 +554,14 @@ public class TopicPartitionWriter {
     this.state = state;
   }
 
-  private boolean shouldRotateAndMaybeUpdateTimers(SinkRecord currentRecord, long now) {
-    Long currentTimestamp = null;
-    if (isWallclockBased) {
-      currentTimestamp = now;
-    } else if (currentRecord != null) {
-      currentTimestamp = timestampExtractor.extract(currentRecord);
-      lastRotate = lastRotate == null ? currentTimestamp : lastRotate;
-    }
+  public boolean shouldRotateAndMaybeUpdateTimers() {
+    return shouldRotateAndMaybeUpdateTimers(time.milliseconds());
+  }
 
+  private boolean shouldRotateAndMaybeUpdateTimers(long now) {
     boolean periodicRotation = rotateIntervalMs > 0
-        && currentTimestamp != null
         && lastRotate != null
-        && currentTimestamp - lastRotate >= rotateIntervalMs;
+        && now - lastRotate >= rotateIntervalMs;
     boolean scheduledRotation = rotateScheduleIntervalMs > 0 && now >= nextScheduledRotate;
     boolean messageSizeRotation = recordCounter >= flushSize;
 
@@ -580,7 +570,7 @@ public class TopicPartitionWriter {
             + "'{}', timestamp: '{}')? {}",
         rotateIntervalMs,
         lastRotate,
-        currentTimestamp,
+        now,
         periodicRotation
     );
 
