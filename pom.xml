@@ -135,7 +135,7 @@
                 <artifactId>slider-core</artifactId>
                 <version>0.92.0-incubating</version>
             </dependency>
-            <!-- pin slider-core to avoid outdated httpclient -->
+            <!-- pin dependency to fix cve -->
             <dependency>
                 <groupId>org.xerial.snappy</groupId>
                 <artifactId>snappy-java</artifactId>
