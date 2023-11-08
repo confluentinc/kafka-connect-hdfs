@@ -6,5 +6,4 @@ common {
   downStreamValidate = false
   nodeLabel = 'docker-debian-jdk8'
   disableConcurrentBuilds = true
-  mvnSkipDeploy = true
 }
