@@ -15,12 +15,12 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.FileSizeAwareRecordWriter;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
-import io.confluent.connect.storage.format.RecordWriter;
-import java.io.OutputStream;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.DataException;
@@ -52,9 +52,12 @@ public class AvroRecordWriterProvider
   }
 
   @Override
-  public RecordWriter getRecordWriter(HdfsSinkConnectorConfig conf, String filename) {
-    return new RecordWriter() {
-      final DataFileWriter<Object> writer = new DataFileWriter<>(new GenericDatumWriter<>());
+  public FileSizeAwareRecordWriter getRecordWriter(HdfsSinkConnectorConfig conf, String filename) {
+    return new FileSizeAwareRecordWriter() {
+      private long fileSize;
+      final TransparentDataFileWriter<Object> writer = new TransparentDataFileWriter<>(
+              new DataFileWriter<>(new GenericDatumWriter<>())
+      );
       Schema schema;
 
       @Override
@@ -63,7 +66,7 @@ public class AvroRecordWriterProvider
           schema = record.valueSchema();
           try {
             log.info("Opening record writer for: {}", filename);
-            final OutputStream out = storage.create(filename, true);
+            final FSDataOutputStream out = storage.create(filename, true);
             org.apache.avro.Schema avroSchema = avroData.fromConnectSchema(schema);
             writer.setCodec(CodecFactory.fromString(conf.getAvroCodec()));
             writer.create(avroSchema, out);
@@ -81,6 +84,7 @@ public class AvroRecordWriterProvider
           } else {
             writer.append(value);
           }
+          fileSize = writer.getInnerFileStream().getPos();
         } catch (IOException e) {
           throw new DataException(e);
         }
@@ -90,6 +94,9 @@ public class AvroRecordWriterProvider
       public void close() {
         try {
           writer.close();
+          if (writer.getInnerFileStream() != null) {
+            fileSize = writer.getInnerFileStream().getPos();
+          }
         } catch (IOException e) {
           throw new DataException(e);
         }
@@ -97,6 +104,11 @@ public class AvroRecordWriterProvider
 
       @Override
       public void commit() {}
+
+      @Override
+      public long getFileSize() {
+        return fileSize;
+      }
     };
   }
 }
