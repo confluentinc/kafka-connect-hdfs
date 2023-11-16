@@ -157,6 +157,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
   private static final String KERBEROS_TICKET_RENEW_PERIOD_MS_DISPLAY = "Kerberos Ticket Renew "
       + "Period (ms)";
 
+  public static final String RETRY_TIMEOUT_CONFIG = "retry.timeout.ms";
+  public static final long RETRY_TIMEOUT_DEFAULT = -1;
+  public static final String RETRY_TIMEOUT_DISPLAY = "Retry Timeout (ms)";
+  public static final String RETRY_TIMEOUT_DOC =
+          "The retry timeout in milliseconds. This config set's a timeout for retry and recovery "
+                  + "from write failures. If writes keeps constantly failing, after the timeout, "
+                  + "reads will reset and retry write from last committed offset. This could be "
+                  + "useful if write pipeline is targeting an unhealthy node and recovery would "
+                  + "take longer time. Sink could try and succeed via new write pipeline which "
+                  + "possibly might targeting different nodes in cluster. The default value ``-1`` "
+                  + "indicates that this feature is disabled and retries will";
+
   private static final Pattern SUBSTITUTION_PATTERN = Pattern.compile("\\$\\{(\\d+)}");
   private static final Pattern INVALID_SUB_PATTERN = Pattern.compile("\\$\\{.*}");
 
@@ -365,6 +377,18 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
             Width.LONG,
             TOPIC_CAPTURE_GROUPS_REGEX_DISPLAY
     );
+
+    configDef
+            .define(
+                    RETRY_TIMEOUT_CONFIG,
+                    Type.LONG,
+                    RETRY_TIMEOUT_DEFAULT,
+                    Importance.LOW,
+                    RETRY_TIMEOUT_DOC,
+                    group,
+                    ++lastOrder,
+                    Width.LONG,
+                    RETRY_TIMEOUT_DISPLAY);
 
     return configDef;
   }

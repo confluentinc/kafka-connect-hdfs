@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.storage.format.RecordWriter;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -29,6 +30,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.confluent.common.utils.MockTime;
 import io.confluent.connect.hdfs.avro.AvroDataFileReader;
@@ -63,6 +66,8 @@ import io.confluent.connect.storage.wal.WAL;
 import static io.confluent.connect.storage.StorageSinkConnectorConfig.FLUSH_SIZE_CONFIG;
 import static org.apache.kafka.common.utils.Time.SYSTEM;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
@@ -783,6 +788,131 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
     verify(expectedFiles, 3, records, schema);
   }
 
+  @Test
+  public void testWriteFailureResetReadsOnRetryTimeout() throws Exception {
+    long retryTimeout = 30000;
+    long retryBackoff = 1000;
+    localProps.put(HdfsSinkConnectorConfig.RETRY_TIMEOUT_CONFIG, String.valueOf(retryTimeout));
+    localProps.put(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG, String.valueOf(retryBackoff));
+    setUp();
+
+    partitioner = new DataWriter.PartitionerWrapper(
+            new io.confluent.connect.storage.partitioner.TimeBasedPartitioner<>()
+    );
+    parsedConfig.put(PartitionerConfig.PARTITION_DURATION_MS_CONFIG, TimeUnit.DAYS.toMillis(1));
+    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockedWallclockTimestampExtractor.class.getName());
+    partitioner.configure(parsedConfig);
+    MockedWallclockTimestampExtractor.TIME.sleep(SYSTEM.milliseconds());
+
+    AtomicBoolean breakWritesSignal = new AtomicBoolean(false);
+    newWriterProvider = createFailingWriterFactory(breakWritesSignal);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+            TOPIC_PARTITION,
+            storage,
+            writerProvider,
+            newWriterProvider,
+            partitioner,
+            connectorConfig,
+            context,
+            avroData,
+            time
+    );
+
+    Schema schema = createSchema();
+    SinkRecord record = new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, "key",
+            schema, createRecord(schema, 16, 12.2f), 3);
+
+
+    // 1. successful write
+    topicPartitionWriter.buffer(record);
+    topicPartitionWriter.write();
+
+    assertEquals(-1L, context.timeout());
+    assertTrue(context.offsets().isEmpty());
+    assertFalse(topicPartitionWriter.getWriters().isEmpty());
+
+    // 2. fail write
+    breakWritesSignal.set(true);
+    topicPartitionWriter.buffer(record);
+    topicPartitionWriter.write();
+
+    assertEquals(retryBackoff, context.timeout());
+    assertTrue(context.offsets().isEmpty());
+
+    // 3. fail write again - timeout not trigger yes
+    time.sleep(retryTimeout - retryBackoff);
+    topicPartitionWriter.write();
+
+    assertEquals(retryBackoff, context.timeout());
+    assertTrue(context.offsets().isEmpty());
+
+    // 4. reset offsets due to retry timeout
+    time.sleep(retryBackoff + 1);
+    topicPartitionWriter.write();
+
+    assertNotNull(context.offsets().get(new TopicPartition(TOPIC, PARTITION)));
+    assertTrue(topicPartitionWriter.getWriters().isEmpty());
+  }
+
+  @Test
+  public void testWriteFailureRetryForever() throws Exception {
+    long retryBackoff = 1000;
+    localProps.put(HdfsSinkConnectorConfig.RETRY_TIMEOUT_CONFIG, "-1");
+    localProps.put(HdfsSinkConnectorConfig.RETRY_BACKOFF_CONFIG, String.valueOf(retryBackoff));
+    setUp();
+
+    partitioner = new DataWriter.PartitionerWrapper(
+            new io.confluent.connect.storage.partitioner.TimeBasedPartitioner<>()
+    );
+    parsedConfig.put(PartitionerConfig.PARTITION_DURATION_MS_CONFIG, TimeUnit.DAYS.toMillis(1));
+    parsedConfig.put(PartitionerConfig.TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockedWallclockTimestampExtractor.class.getName());
+    partitioner.configure(parsedConfig);
+    MockedWallclockTimestampExtractor.TIME.sleep(SYSTEM.milliseconds());
+
+    AtomicBoolean breakWritesSignal = new AtomicBoolean(false);
+    newWriterProvider = createFailingWriterFactory(breakWritesSignal);
+
+    TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
+            TOPIC_PARTITION,
+            storage,
+            writerProvider,
+            newWriterProvider,
+            partitioner,
+            connectorConfig,
+            context,
+            avroData,
+            time
+    );
+
+    Schema schema = createSchema();
+    SinkRecord record = new SinkRecord(TOPIC, PARTITION, Schema.STRING_SCHEMA, "key",
+            schema, createRecord(schema, 16, 12.2f), 3);
+
+
+    // 1. successful write
+    topicPartitionWriter.buffer(record);
+    topicPartitionWriter.write();
+
+    assertEquals(-1L, context.timeout());
+    assertTrue(context.offsets().isEmpty());
+
+    // 2. fail write
+    breakWritesSignal.set(true);
+    topicPartitionWriter.buffer(record);
+    topicPartitionWriter.write();
+
+    assertEquals(retryBackoff, context.timeout());
+    assertTrue(context.offsets().isEmpty());
+
+    // 3. fail write again after long time should just backoff
+    time.sleep(Duration.ofDays(999).toMillis());
+    topicPartitionWriter.write();
+
+    assertEquals(retryBackoff, context.timeout());
+    assertTrue(context.offsets().isEmpty());
+  }
+
   private String getTimebasedEncodedPartition(long timestamp) {
     long partitionDurationMs = (Long) parsedConfig.get(PartitionerConfig.PARTITION_DURATION_MS_CONFIG);
     String pathFormat = (String) parsedConfig.get(PartitionerConfig.PATH_FORMAT_CONFIG);
@@ -819,6 +949,38 @@ public class TopicPartitionWriterTest extends TestWithMiniDFSCluster {
         assertEquals(avroData.fromConnectData(schema, records.get(index++)), avroRecord);
       }
     }
+  }
+
+  private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
+  createFailingWriterFactory(AtomicBoolean breakWritesSignal) {
+    return new io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>() {
+      @Override
+      public String getExtension() {
+        return ".dat";
+      }
+
+      @Override
+      public RecordWriter getRecordWriter(HdfsSinkConnectorConfig hdfsSinkConnectorConfig, String s) {
+        return new RecordWriter() {
+          @Override
+          public void write(SinkRecord sinkRecord) {
+            if (breakWritesSignal.get()) {
+              throw new ConnectException("Write failed");
+            } else {
+              // nothing to do
+            }
+          }
+
+          @Override
+          public void close() {
+          }
+
+          @Override
+          public void commit() {
+          }
+        };
+      }
+    };
   }
 
   public static class MockedWallclockTimestampExtractor
