@@ -1,18 +1,17 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.hdfs;
 
@@ -33,7 +32,6 @@ import io.confluent.connect.hdfs.avro.AvroFormat;
 import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.storage.StorageSinkTestBase;
 import io.confluent.connect.storage.common.StorageCommonConfig;
-import io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 
 public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
@@ -41,7 +39,7 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
   protected HdfsSinkConnectorConfig connectorConfig;
   protected Map<String, Object> parsedConfig;
   protected Configuration conf;
-  protected String topicsDir;
+  protected HashMap<String, String> topicsDir;
   protected String logsDir;
   protected AvroData avroData;
 
@@ -72,6 +70,9 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     props.put(PartitionerConfig.PATH_FORMAT_CONFIG, "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH/");
     props.put(PartitionerConfig.LOCALE_CONFIG, "en");
     props.put(PartitionerConfig.TIMEZONE_CONFIG, "America/Los_Angeles");
+
+    props.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "(.*)[\\.\\-](.*)");
+    props.put(StorageCommonConfig.TOPICS_DIR_CONFIG, "${1}/${topic}");
 
     return props;
   }
@@ -114,11 +115,12 @@ public class HdfsSinkConnectorTestBase extends StorageSinkTestBase {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
     parsedConfig = new HashMap<>(connectorConfig.plainValues());
     conf = connectorConfig.getHadoopConfiguration();
-    topicsDir = connectorConfig.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    topicsDir = new HashMap<>();
+    for (TopicPartition tp : context.assignment()) {
+      topicsDir.computeIfAbsent(tp.topic(), topic -> connectorConfig.getTopicsDirFromTopic(topic));
+    }
     logsDir = connectorConfig.getString(HdfsSinkConnectorConfig.LOGS_DIR_CONFIG);
-    avroData = new AvroData(
-        connectorConfig.getInt(HdfsSinkConnectorConfig.SCHEMA_CACHE_SIZE_CONFIG)
-    );
+    avroData = new AvroData(connectorConfig.avroDataConfig());
   }
 
   @After

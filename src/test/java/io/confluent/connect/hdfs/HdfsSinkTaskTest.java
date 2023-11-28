@@ -1,24 +1,28 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- **/
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.hdfs;
 
+import java.net.URI;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -30,7 +34,6 @@ import java.util.Map;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.connect.hdfs.avro.AvroDataFileReader;
-import io.confluent.connect.hdfs.avro.AvroFileReader;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.storage.StorageFactory;
 import io.confluent.connect.storage.common.StorageCommonConfig;
@@ -67,6 +70,76 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   }
 
   @Test
+  public void testSinkTaskFileSystemIsolation() throws Exception {
+    // Shutdown of one task should not affect another task
+    setUp();
+    createCommittedFiles();
+
+    // Generate two rounds of data two write at separate times
+    String key = "key";
+    Schema schema = createSchema();
+    Struct record = createRecord(schema);
+    Collection<SinkRecord> sinkRecordsA = new ArrayList<>();
+    Collection<SinkRecord> sinkRecordsB = new ArrayList<>();
+    for (TopicPartition tp : context.assignment()) {
+      for (long offset = 0; offset < 7; offset++) {
+        SinkRecord sinkRecord =
+            new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record,
+                offset);
+        sinkRecordsA.add(sinkRecord);
+      }
+      for (long offset = 7; offset < 16; offset++) {
+        SinkRecord sinkRecord =
+            new SinkRecord(tp.topic(), tp.partition(), Schema.STRING_SCHEMA, key, schema, record,
+                offset);
+        sinkRecordsB.add(sinkRecord);
+      }
+    }
+
+    HdfsSinkTask task = new HdfsSinkTask();
+    task.initialize(context);
+    task.start(properties);
+    task.put(sinkRecordsA);
+
+    // Get an aliased reference to the filesystem object from the per-worker FileSystem.CACHE
+    // Close it to induce exceptions when aliased FileSystem objects are used after closing.
+    // Paths within this filesystem (such as the WAL) will also share the same FileSystem object
+    // because the cache is keyed on uri.getScheme() and uri.getAuthority().
+    FileSystem.get(
+        new URI(connectorConfig.getString(HdfsSinkConnectorConfig.HDFS_URL_CONFIG)),
+        connectorConfig.getHadoopConfiguration()
+    ).close();
+
+    // If any FileSystem-based resources are kept in-use between put calls, they should generate
+    // exceptions on a subsequent put. These exceptions must not affect the correctness of the task.
+    task.put(sinkRecordsB);
+    task.stop();
+
+    // Verify that the data arrived correctly
+    AvroData avroData = task.getAvroData();
+    // Last file (offset 15) doesn't satisfy size requirement and gets discarded on close
+    long[] validOffsets = {-1, 2, 5, 8, 11, 14};
+
+    for (TopicPartition tp : context.assignment()) {
+      String directory = tp.topic() + "/" + "partition=" + String.valueOf(tp.partition());
+      for (int j = 1; j < validOffsets.length; ++j) {
+        long startOffset = validOffsets[j - 1] + 1;
+        long endOffset = validOffsets[j];
+        String topicsDir = this.topicsDir.get(tp.topic());
+        Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
+            startOffset, endOffset, extension,
+            ZERO_PAD_FMT));
+        Collection<Object> records = schemaFileReader.readData(connectorConfig.getHadoopConfiguration(), path);
+        long size = endOffset - startOffset + 1;
+        assertEquals(records.size(), size);
+        for (Object avroRecord : records) {
+          assertEquals(avroRecord, avroData.fromConnectData(schema, record));
+        }
+      }
+    }
+  }
+
+  @Test
   public void testSinkTaskStartNoCommittedFiles() throws Exception {
     setUp();
     HdfsSinkTask task = new HdfsSinkTask();
@@ -87,6 +160,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   public void testSinkTaskStartSomeCommittedFiles() throws Exception {
     setUp();
 
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
     List<String> list1 = new ArrayList<>();
     list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
@@ -127,17 +201,21 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   @Test
   public void testSinkTaskStartWithRecovery() throws Exception {
     setUp();
+
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     Map<TopicPartition, List<String>> tempfiles = new HashMap<>();
     List<String> list1 = new ArrayList<>();
     list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
     list1.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY1, extension));
     tempfiles.put(TOPIC_PARTITION, list1);
 
+    topicsDir = this.topicsDir.get(TOPIC_PARTITION2.topic());
     List<String> list2 = new ArrayList<>();
     list2.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY2, extension));
     list2.add(FileUtils.tempFileName(url, topicsDir, DIRECTORY2, extension));
     tempfiles.put(TOPIC_PARTITION2, list2);
 
+    topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     Map<TopicPartition, List<String>> committedFiles = new HashMap<>();
     List<String> list3 = new ArrayList<>();
     list3.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 100, 200,
@@ -146,6 +224,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
                                           extension, ZERO_PAD_FMT));
     committedFiles.put(TOPIC_PARTITION, list3);
 
+    topicsDir = this.topicsDir.get(TOPIC_PARTITION2.topic());
     List<String> list4 = new ArrayList<>();
     list4.add(FileUtils.committedFileName(url, topicsDir, DIRECTORY2, TOPIC_PARTITION2, 400, 500,
                                           extension, ZERO_PAD_FMT));
@@ -205,6 +284,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       for (int j = 1; j < validOffsets.length; ++j) {
         long startOffset = validOffsets[j - 1] + 1;
         long endOffset = validOffsets[j];
+        String topicsDir = this.topicsDir.get(tp.topic());
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                                                          startOffset, endOffset, extension,
                                                          ZERO_PAD_FMT));
@@ -247,6 +327,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
       for (int j = 1; j < validOffsets.length; ++j) {
         long startOffset = validOffsets[j - 1] + 1;
         long endOffset = validOffsets[j];
+        String topicsDir = this.topicsDir.get(tp.topic());
         Path path = new Path(FileUtils.committedFileName(url, topicsDir, directory, tp,
                 startOffset, endOffset, extension,
                 ZERO_PAD_FMT));
@@ -261,6 +342,7 @@ public class HdfsSinkTaskTest extends TestWithMiniDFSCluster {
   }
 
   private void createCommittedFiles() throws IOException {
+    String topicsDir = this.topicsDir.get(TOPIC_PARTITION.topic());
     String file1 = FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 0,
                                                10, extension, ZERO_PAD_FMT);
     String file2 = FileUtils.committedFileName(url, topicsDir, DIRECTORY1, TOPIC_PARTITION, 11,

@@ -1,29 +1,33 @@
 /*
- * Copyright 2017 Confluent Inc.
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.orc.OrcFormat;
+import io.confluent.connect.hdfs.parquet.ParquetFormat;
+import io.confluent.connect.hdfs.string.StringFormat;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,6 +46,7 @@ import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
@@ -49,6 +54,133 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   @Override
   public void setUp() throws Exception {
     super.setUp();
+  }
+
+  @Test
+  public void testHiveTableName() {
+    properties.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, "a-${topic}-test");
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    assertEquals("a-test-topic-test",
+            connectorConfig.getHiveTableName("test-topic"));
+  }
+
+  @Test
+  public void testHiveTableNameValidation() {
+    properties.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, "static-table");
+    ConfigException configException = assertThrows(ConfigException.class,
+            () -> new HdfsSinkConnectorConfig(properties));
+    assertEquals(
+            "hive.table.name: 'static-table' has to contain topic substitution '${topic}'.",
+            configException.getMessage());
+
+    properties.put(HdfsSinkConnectorConfig.HIVE_TABLE_NAME_CONFIG, "${topic}-${extra}");
+    configException = assertThrows(ConfigException.class,
+            () -> new HdfsSinkConnectorConfig(properties));
+    assertEquals(
+            "hive.table.name: '${topic}-${extra}' contains an invalid ${} substitution " +
+                    "'${extra}'. Valid substitution is '${topic}'",
+            configException.getMessage());
+  }
+
+  @Test
+  public void testValidRegexCaptureGroup() {
+    String topic = "topica";
+    String topicDir = "topic.another.${topic}.again";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, ".*");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    assertEquals(
+        topicDir.replace("${topic}", topic),
+        connectorConfig.getTopicsDirFromTopic(topic)
+    );
+  }
+
+  @Test
+  public void testTopicDirFromTopicParts() {
+    String topic = "a.b.c.d";
+    String topicDir = "${1}-${2}-${3}-${4}";
+
+    properties.put(
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
+        "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
+    );
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    assertEquals(
+        topic.replace(".", "-"),
+        connectorConfig.getTopicsDirFromTopic(topic)
+    );
+  }
+
+  @Test
+  public void testTopicDirCanContainNumber() {
+    String topic = "a.b.c.d";
+    String topicDir = "${1}-${2}-${3}-${4}-1000";
+
+    properties.put(
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
+        "([a-z])[\\.\\-_]([a-z])[\\.\\-_]([a-z])[\\.\\-_]([a-z])"
+    );
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    assertEquals(
+        topic.replace(".", "-") + "-1000",
+        connectorConfig.getTopicsDirFromTopic(topic)
+    );
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testInvalidTopicDir() {
+    String topic = "a.b.c.d";
+    String topicDir = "${100}-${2}-${3}-${4}";
+
+    properties.put(
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
+        "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
+    );
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    connectorConfig.getTopicsDirFromTopic(topic);
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testInvalidTopicDirNegative() {
+    String topic = "a.b.c.d";
+    String topicDir = "${-1}-${2}-${3}-${4}";
+
+    properties.put(
+        HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG,
+        "([a-z])\\.([a-z])\\.([a-z])\\.([a-z])"
+    );
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    connectorConfig.getTopicsDirFromTopic(topic);
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testInvalidRegexCaptureGroup() {
+    String topicDir = "topic.another.${topic}.again";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "[a");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testInvalidRegexCaptureGroupDoesntMatchTopic() {
+    String topic = "topica";
+    String topicDir = "topic.another.${topic}.again";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "[a-z]");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    connectorConfig.getTopicsDirFromTopic(topic);
   }
 
   @Test(expected = ConfigException.class)
@@ -61,14 +193,14 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
   @Test
   public void testStorageCommonUrlPreferred() {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
-    assertEquals(url, connectorConfig.getUrl());
+    assertEquals(url, connectorConfig.url());
   }
 
   @Test
   public void testHdfsUrlIsValid() {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
     properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
-    assertEquals(url, connectorConfig.getUrl());
+    assertEquals(url, connectorConfig.url());
   }
 
   @Test
@@ -86,6 +218,25 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     properties.remove(StorageCommonConfig.STORE_URL_CONFIG);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
     assertNull(connectorConfig.getString(StorageCommonConfig.STORE_URL_CONFIG));
+  }
+
+  @Test
+  public void testAvroCompressionSettings() {
+    for (String codec : HdfsSinkConnectorConfig.AVRO_SUPPORTED_CODECS) {
+      Map<String, String> props = new HashMap<>(this.properties);
+      props.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, codec);
+      HdfsSinkConnectorConfig config = new HdfsSinkConnectorConfig(props);
+      Assert.assertNotNull(config.getAvroCodec());
+    }
+  }
+
+  @Test(expected = ConfigException.class)
+  public void testUnsupportedAvroCompressionSettings() {
+    // test for an unsupported codec.
+    this.properties.put(HdfsSinkConnectorConfig.AVRO_CODEC_CONFIG, "abc");
+
+    new HdfsSinkConnectorConfig(properties);
+    Assert.assertTrue("Expected the constructor to throw an exception", false);
   }
 
   @Test
@@ -124,7 +275,10 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
 
     List<Object> expectedFormatClasses = Arrays.<Object>asList(
         AvroFormat.class,
-        JsonFormat.class
+        JsonFormat.class,
+        OrcFormat.class,
+        ParquetFormat.class,
+        StringFormat.class
     );
 
     List<Object> expectedPartitionerClasses = Arrays.<Object>asList(

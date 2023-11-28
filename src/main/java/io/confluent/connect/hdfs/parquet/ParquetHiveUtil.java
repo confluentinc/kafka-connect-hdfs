@@ -1,19 +1,22 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Confluent Community License (the "License"); you may not use
+ * this file except in compliance with the License.  You may obtain a copy of the
+ * License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 
 package io.confluent.connect.hdfs.parquet;
 
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -27,16 +30,15 @@ import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
-import io.confluent.connect.storage.common.StorageCommonConfig;
 import io.confluent.connect.storage.errors.HiveMetaStoreException;
 import io.confluent.connect.storage.hive.HiveSchemaConverter;
 
 public class ParquetHiveUtil extends HiveUtil {
-  private final String topicsDir;
+  private final HdfsSinkConnectorConfig config;
 
   public ParquetHiveUtil(HdfsSinkConnectorConfig conf, HiveMetaStore hiveMetaStore) {
     super(conf, hiveMetaStore);
-    this.topicsDir = conf.getString(StorageCommonConfig.TOPICS_DIR_CONFIG);
+    this.config = conf;
   }
 
   @Override
@@ -44,9 +46,10 @@ public class ParquetHiveUtil extends HiveUtil {
       String database,
       String tableName,
       Schema schema,
-      Partitioner partitioner
+      Partitioner partitioner,
+      String topic
   ) throws HiveMetaStoreException {
-    Table table = constructParquetTable(database, tableName, schema, partitioner);
+    Table table = constructParquetTable(database, tableName, schema, partitioner, topic);
     hiveMetaStore.createTable(table);
   }
 
@@ -54,6 +57,7 @@ public class ParquetHiveUtil extends HiveUtil {
   public void alterSchema(String database, String tableName, Schema schema) {
     Table table = hiveMetaStore.getTable(database, tableName);
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    removeFieldPartitionColumn(columns, table.getPartitionKeys());
     table.setFields(columns);
     hiveMetaStore.alterTable(table);
   }
@@ -62,12 +66,14 @@ public class ParquetHiveUtil extends HiveUtil {
       String database,
       String tableName,
       Schema schema,
-      Partitioner partitioner
+      Partitioner partitioner,
+      String topic
   ) throws HiveMetaStoreException {
     Table table = newTable(database, tableName);
     table.setTableType(TableType.EXTERNAL_TABLE);
     table.getParameters().put("EXTERNAL", "TRUE");
-    String tablePath = hiveDirectoryName(url, topicsDir, tableName);
+
+    String tablePath = hiveDirectoryName(url, config.getTopicsDirFromTopic(topic), topic);
     table.setDataLocation(new Path(tablePath));
     table.setSerializationLib(getHiveParquetSerde());
     try {
@@ -76,8 +82,9 @@ public class ParquetHiveUtil extends HiveUtil {
     } catch (HiveException e) {
       throw new HiveMetaStoreException("Cannot find input/output format:", e);
     }
-    // convert copycat schema schema to Hive columns
+    // convert Connect schema schema to Hive columns
     List<FieldSchema> columns = HiveSchemaConverter.convertSchema(schema);
+    removeFieldPartitionColumn(columns, partitioner.partitionFields());
     table.setFields(columns);
     table.setPartCols(partitioner.partitionFields());
     return table;
@@ -117,5 +124,23 @@ public class ParquetHiveUtil extends HiveUtil {
     } catch (ClassNotFoundException ex) {
       return oldClass;
     }
+  }
+
+  /**
+   * Remove the column that is later re-created by Hive when using the
+   * {@code partition.field.name} config.
+   *
+   * @param columns the hive columns from
+   *                {@link HiveSchemaConverter#convertSchema(Schema) convertSchema}.
+   * @param partitionFields the fields used for partitioning
+   */
+  private void removeFieldPartitionColumn(
+      List<FieldSchema> columns,
+      List<FieldSchema> partitionFields
+  ) {
+    Set<String> partitions = partitionFields.stream()
+        .map(FieldSchema::getName).collect(Collectors.toSet());
+
+    columns.removeIf(column -> partitions.contains(column.getName()));
   }
 }

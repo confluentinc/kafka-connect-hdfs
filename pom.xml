@@ -1,32 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--~
-  ~ Copyright 2015 Confluent Inc.
+<!--
+  ~ Copyright 2018 Confluent Inc.
   ~
-  ~ Licensed under the Apache License, Version 2.0 (the "License");
-  ~ you may not use this file except in compliance with the License.
-  ~ You may obtain a copy of the License at
+  ~ Licensed under the Confluent Community License (the "License"); you may not use
+  ~ this file except in compliance with the License.  You may obtain a copy of the
+  ~ License at
   ~
-  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~ http://www.confluent.io/confluent-community-license
   ~
   ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS,
-  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  ~-->
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  ~ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  ~ WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations under the License.
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>4.0.4-SNAPSHOT</version>
+        <version>11.2.3</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
+    <version>10.3.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>kafka-connect-hdfs</name>
     <organization>
@@ -40,8 +38,8 @@
 
     <licenses>
         <license>
-            <name>Apache License 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+            <name>Confluent Community License</name>
+            <url>http://www.confluent.io/confluent-community-license</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
@@ -54,19 +52,97 @@
     </scm>
 
     <properties>
-        <confluent.maven.repo>http://packages.confluent.io/maven/</confluent.maven.repo>
-        <hadoop.version>2.7.3</hadoop.version>
         <apacheds-jdbm1.version>2.0.0-M2</apacheds-jdbm1.version>
+        <confluent-log4j.version>1.2.17-cp8</confluent-log4j.version>
         <kafka.connect.maven.plugin.version>0.11.1</kafka.connect.maven.plugin.version>
+        <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
+        <kafka.connect.storage.common.version>11.2.3</kafka.connect.storage.common.version>
+        <commons.collections.version>3.2.2</commons.collections.version>
+        <commons-net.version>3.9.0</commons-net.version>
+        <ivy.version>2.5.2</ivy.version>
+        <json-smart.version>2.4.10</json-smart.version>
+        <libthrift.version>0.13.0</libthrift.version>
+        <log4j2-api.version>2.17.1</log4j2-api.version>
+        <jettison.version>1.5.4</jettison.version>
+        <snakeyaml.version>2.0</snakeyaml.version>
+        <snappy.java.version>1.1.10.4</snappy.java.version>
+        <woodstox-core.version>6.5.0</woodstox-core.version>
     </properties>
 
     <repositories>
         <repository>
             <id>confluent</id>
             <name>Confluent</name>
-            <url>${confluent.maven.repo}</url>
+            <url>https://packages.confluent.io/maven/</url>
         </repository>
     </repositories>
+
+
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- pin the dependency to fix CVE -->
+            <dependency>
+                <groupId>com.fasterxml.woodstox</groupId>
+                <artifactId>woodstox-core</artifactId>
+                <version>${woodstox-core.version}</version>
+            </dependency>
+            <!-- pin the dependency to fix CVE -->
+            <dependency>
+                <groupId>org.codehaus.jettison</groupId>
+                <artifactId>jettison</artifactId>
+                <version>${jettison.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-net</groupId>
+                <artifactId>commons-net</artifactId>
+                <version>${commons-net.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.minidev</groupId>
+                <artifactId>json-smart</artifactId>
+                <version>${json-smart.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.ivy</groupId>
+                <artifactId>ivy</artifactId>
+                <version>${ivy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.mina</groupId>
+                <artifactId>mina-core</artifactId>
+                <version>2.0.23</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jamesmurty.utils</groupId>
+                <artifactId>java-xmlbuilder</artifactId>
+                <version>1.3</version>
+            </dependency>
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
+            </dependency>
+            <!-- Pin xercesImpl to resolve CVE-2022-2343   -->
+            <dependency>
+                <groupId>xerces</groupId>
+                <artifactId>xercesImpl</artifactId>
+                <version>2.12.2</version>
+            </dependency>
+            <!-- pin slider-core to avoid outdated httpclient -->
+            <dependency>
+                <groupId>org.apache.slider</groupId>
+                <artifactId>slider-core</artifactId>
+                <version>0.92.0-incubating</version>
+            </dependency>
+            <!-- pin dependency to fix cve -->
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>${snappy.java.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -83,37 +159,182 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-common</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-core</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-format</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-partitioner</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-wal</artifactId>
-            <version>${confluent.version}</version>
+            <version>${kafka.connect.storage.common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-hive</artifactId>
+            <version>${kafka.connect.storage.common.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-codec</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.calcite.avatica</groupId>
+                    <artifactId>avatica</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.avro</groupId>
+                    <artifactId>avro-ipc-jetty</artifactId>
+                </exclusion>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.ant</groupId>
+                    <artifactId>ant</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.velocity</groupId>
+                    <artifactId>velocity</artifactId>
+                </exclusion>
+                <!--
+                Including this is adding the apache curator pom file,
+                exclusion should have any effect on the connector.
+                -->
+                <exclusion>
+                    <groupId>org.apache.curator</groupId>
+                    <artifactId>apache-curator</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-core</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-druid</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>${commons.collections.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+            <version>${libthrift.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j2-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>${log4j2-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>${log4j2-api.version}</version>
+            <exclusions>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>org.apache.logging.log4j</groupId>
+                    <artifactId>log4j-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>3.4.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-common-htrace-core4-shaded</artifactId>
+            <version>${kafka.connect.storage.common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-common-avatica-shaded</artifactId>
+            <version>${kafka.connect.storage.common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>18.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-minicluster</artifactId>
             <version>${hadoop.version}</version>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-all</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
+                </exclusion>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
@@ -127,7 +348,23 @@
                     <groupId>org.apache.directory.jdbm</groupId>
                     <artifactId>apacheds-jdbm1</artifactId>
                 </exclusion>
+                <!-- Use a repackaged version of log4j with security patches.
+                     kafka-connect-storage-hive brings in log4j as a transitive dependency -->
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>confluent-log4j</artifactId>
+            <version>${confluent-log4j.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <!-- add this to satisfy the dependency requirement of apacheds-jdbm1-->
@@ -136,8 +373,20 @@
             <version>${apacheds-jdbm1.version}</version>
             <scope>test</scope>
         </dependency>
+        <!-- We need to add these dependencies for test -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>2.28.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>1.10.19</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-
     <build>
         <plugins>
             <plugin>
@@ -151,7 +400,7 @@
                         </goals>
                         <configuration>
                             <title>Kafka Connect HDFS</title>
-                            <documentationUrl>https://docs.confluent.io/${project.version}/connect/connect-hdfs/docs/index.html</documentationUrl>
+                            <documentationUrl>https://docs.confluent.io/kafka-connect-hdfs/current/index.html</documentationUrl>
                             <description>
                                 The HDFS connector allows you to export data from Kafka topics to HDFS files in a variety of formats and integrates with Hive to make data immediately available for querying with HiveQL.
 
@@ -161,7 +410,7 @@
                             </description>
 
                             <supportProviderName>Confluent, Inc.</supportProviderName>
-                            <supportSummary>Confluent supports the HDFS sink connector alongside community members as part of its Confluent Platform open source offering.</supportSummary>
+                            <supportSummary><![CDATA[This connector is <a href="https://www.confluent.io/subscription/">supported by Confluent</a> as part of a <a href="https://www.confluent.io/product/confluent-platform/">Confluent Platform</a> subscription.]]></supportSummary>
                             <supportUrl>https://docs.confluent.io/current/</supportUrl>
                             <supportLogo>logos/confluent.png</supportLogo>
 
@@ -170,10 +419,6 @@
                             <ownerName>Confluent, Inc.</ownerName>
                             <ownerUrl>https://confluent.io/</ownerUrl>
                             <ownerLogo>logos/confluent.png</ownerLogo>
-
-                            <dockerNamespace>confluentinc</dockerNamespace>
-                            <dockerName>cp-kafka-connect</dockerName>
-                            <dockerTag>${project.version}</dockerTag>
 
                             <componentTypes>
                                 <componentType>sink</componentType>
@@ -194,30 +439,15 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <compilerArguments>
-                        <Xlint:all/>
-                        <!-- bootstrap class path not set in conjunction with -source 1.7 -->
-                        <Xlint:-options/>
-                        <!-- serializable class ... has no definition of serialVersionUID -->
-                        <Xlint:-serial/>
-                        <!-- bad path element ".../repository/org/apache/derby/derby/10.10.2.0/derbyLocale_*.jar": no such file or directory -->
-                        <Xlint:-path/>
-                        <!--
-                        WALFile.java:[333,16] [deprecation] sync() in Syncable has been deprecated
-                        Apparently SuppressWarnings("deprecation") doesn't cover this on JDK 7
-                        -->
-                        <Xlint:-deprecation/>
-                        <!-- Needed for DataWriter.java because @SuppressWarnings("unchecked") doesn't cover this on JDK 7 -->
-                        <Xlint:-unchecked/>
-                        <Werror/>
-                    </compilerArguments>
+                    <compilerArgs>
+                        <arg>-Xlint:all,-deprecation,-processing</arg>
+                    </compilerArgs>
                     <showWarnings>true</showWarnings>
                     <showDeprecation>false</showDeprecation>
                 </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>${maven-assembly.version}</version>
                 <configuration>
                     <descriptors>
                         <descriptor>src/assembly/development.xml</descriptor>
@@ -241,6 +471,13 @@
                 <configuration>
                     <reuseForks>false</reuseForks>
                     <forkCount>1</forkCount>
+                    <systemPropertyVariables>
+                        <datanucleus.schema.autoCreateAll>true</datanucleus.schema.autoCreateAll>
+                    </systemPropertyVariables>
+                    <additionalClasspathElements>
+                        <!--puts hive-site.xml on classpath - w/o HMS tables are not created-->
+                        <additionalClasspathElement>src/test/resources/conf</additionalClasspathElement>
+                    </additionalClasspathElements>
                 </configuration>
             </plugin>
             <plugin>
@@ -272,6 +509,16 @@
                             </includes>
                         </fileset>
                     </filesets>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>${maven.release.plugin.version}</version>
+                <configuration>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <remoteTagging>false</remoteTagging>
+                    <tagNameFormat>v@{project.version}</tagNameFormat>
                 </configuration>
             </plugin>
         </plugins>

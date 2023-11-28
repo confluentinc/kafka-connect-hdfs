@@ -14,7 +14,7 @@
 
     <suppress
             checks="ClassDataAbstractionCoupling"
-            files="(DataWriter|WALFile).java"
+            files="(DataWriter|WALFile|OrcUtil).java"
     />
 
     <suppress
@@ -34,12 +34,12 @@
 
     <suppress
             checks="MethodLength"
-            files="(DataWriter).java"
+            files="(DataWriter|HdfsSinkConnectorConfig).java"
     />
 
     <suppress
             checks="NPathComplexity"
-            files="(TopicPartitionWriter).java"
+            files="(TopicPartitionWriter|WALFile|DataWriter).java"
     />
 
     <suppress
