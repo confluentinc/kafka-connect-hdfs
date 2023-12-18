@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.avro.AvroIOException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -246,6 +247,17 @@ public class TopicPartitionWriter {
     updateRotationTimers(null);
   }
 
+  public void resetBuffers() {
+    buffer.clear();
+    writers.clear();
+    tempFiles.clear();
+    appended.clear();
+    startOffsets.clear();
+    endOffsets.clear();
+    recordCounter = 0;
+    currentSchema = null;
+  }
+
   @SuppressWarnings("fallthrough")
   public boolean recover() {
     try {
@@ -279,8 +291,9 @@ public class TopicPartitionWriter {
               tp
           );
       }
-    } catch (ConnectException e) {
+    } catch (AvroIOException | ConnectException e) {
       log.error("Recovery failed at state {}", state, e);
+      failureTime = time.milliseconds();
       setRetryTimeout(timeoutMs);
       return false;
     }
@@ -314,6 +327,13 @@ public class TopicPartitionWriter {
         );
       }
     }
+  }
+
+  public void resetAndSetRecovery() {
+    context.offset(tp, offset);
+    resetBuffers();
+    state = State.RECOVERY_STARTED;
+    recovered = false;
   }
 
   @SuppressWarnings("fallthrough")
@@ -405,10 +425,15 @@ public class TopicPartitionWriter {
         }
       } catch (SchemaProjectorException | IllegalWorkerStateException | HiveMetaStoreException e) {
         throw new RuntimeException(e);
-      } catch (ConnectException e) {
+      } catch (AvroIOException | ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
+        if (e instanceof AvroIOException) {
+          log.error("Encountered AVRO IO exception, resetting this topic partition {} "
+                  + "to offset {}", tp, offset);
+          resetAndSetRecovery();
+        }
         break;
       }
     }
@@ -445,10 +470,15 @@ public class TopicPartitionWriter {
           default:
             log.error("{} is not a valid state to empty batch for topic partition {}.", state, tp);
         }
-      } catch (ConnectException e) {
+      } catch (AvroIOException | ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
+        if (e instanceof AvroIOException) {
+          log.error("Encountered AVRO IO exception, resetting this topic partition {} "
+                  + "to offset {}", tp, offset);
+          resetAndSetRecovery();
+        }
         return;
       }
 
@@ -765,6 +795,7 @@ public class TopicPartitionWriter {
 
   private void closeTempFile() {
     ConnectException connectException = null;
+    AvroIOException avroException = null;
     for (String encodedPartition : tempFiles.keySet()) {
       // Close the file and propagate any errors
       try {
@@ -777,9 +808,18 @@ public class TopicPartitionWriter {
                 + " rewrite the temporary file.",
             encodedPartition
         );
+      } catch (AvroIOException e) {
+        log.error(
+                "Failed to close temporary file for partition {}. The connector will attempt to"
+                        + " rewrite the temporary file.",
+                encodedPartition
+        );
+        avroException = e;
       }
     }
-
+    if (avroException != null) {
+      throw avroException;
+    }
     if (connectException != null) {
       // at least one tmp file did not close properly therefore will try to recreate the tmp and
       // delete all buffered records + tmp files and start over because otherwise there will be
