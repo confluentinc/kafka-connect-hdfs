@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -259,7 +258,7 @@ public class TopicPartitionWriter {
   }
 
   private void safeDeleteTempFiles() {
-    for (String encodedPartition : tempFiles.values()) {
+    for (String encodedPartition : tempFiles.keySet()) {
       try {
         deleteTempFile(encodedPartition);
       } catch (ConnectException e) {
