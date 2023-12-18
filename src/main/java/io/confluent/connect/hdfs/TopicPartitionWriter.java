@@ -433,7 +433,6 @@ public class TopicPartitionWriter {
           log.error("Encountered AVRO IO exception, resetting this topic partition {} "
                   + "to offset {}", tp, offset);
           resetAndSetRecovery();
-          return;
         }
         break;
       }
@@ -475,6 +474,11 @@ public class TopicPartitionWriter {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
+        if (e instanceof AvroIOException) {
+          log.error("Encountered AVRO IO exception, resetting this topic partition {} "
+                  + "to offset {}", tp, offset);
+          resetAndSetRecovery();
+        }
         return;
       }
 
