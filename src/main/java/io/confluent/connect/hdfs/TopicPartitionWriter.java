@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -247,15 +248,24 @@ public class TopicPartitionWriter {
     updateRotationTimers(null);
   }
 
-  public void resetBuffers() {
+  private void resetBuffers() {
     buffer.clear();
     writers.clear();
-    tempFiles.clear();
     appended.clear();
     startOffsets.clear();
     endOffsets.clear();
     recordCounter = 0;
     currentSchema = null;
+  }
+
+  private void safeDeleteTempFiles() {
+    for (String encodedPartition : tempFiles.values()) {
+      try {
+        deleteTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
+      }
+    }
   }
 
   @SuppressWarnings("fallthrough")
@@ -272,6 +282,7 @@ public class TopicPartitionWriter {
           nextState();
         case WAL_APPLIED:
           log.debug("Start recovery state: Reset Offsets for topic partition {}", tp);
+          safeDeleteTempFiles();
           resetOffsets();
           nextState();
         case OFFSET_RESET:
@@ -329,7 +340,7 @@ public class TopicPartitionWriter {
     }
   }
 
-  public void resetAndSetRecovery() {
+  private void resetAndSetRecovery() {
     context.offset(tp, offset);
     resetBuffers();
     state = State.RECOVERY_STARTED;
@@ -794,42 +805,28 @@ public class TopicPartitionWriter {
   }
 
   private void closeTempFile() {
-    ConnectException connectException = null;
-    AvroIOException avroException = null;
+    RuntimeException exception = null;
     for (String encodedPartition : tempFiles.keySet()) {
       // Close the file and propagate any errors
       try {
         closeTempFile(encodedPartition);
-      } catch (ConnectException e) {
+      } catch (RuntimeException e) {
         // still want to close all of the other data writers
-        connectException = e;
+        exception = e;
         log.error(
             "Failed to close temporary file for partition {}. The connector will attempt to"
                 + " rewrite the temporary file.",
             encodedPartition
         );
-      } catch (AvroIOException e) {
-        log.error(
-                "Failed to close temporary file for partition {}. The connector will attempt to"
-                        + " rewrite the temporary file.",
-                encodedPartition
-        );
-        avroException = e;
       }
     }
-    if (avroException != null) {
-      throw avroException;
-    }
-    if (connectException != null) {
+
+    if (exception != null) {
       // at least one tmp file did not close properly therefore will try to recreate the tmp and
       // delete all buffered records + tmp files and start over because otherwise there will be
       // duplicates, since there is no way to reclaim the records in the tmp file.
       for (String encodedPartition : tempFiles.keySet()) {
-        try {
-          deleteTempFile(encodedPartition);
-        } catch (ConnectException e) {
-          log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
-        }
+        safeDeleteTempFiles();
         startOffsets.remove(encodedPartition);
         endOffsets.remove(encodedPartition);
         buffer.clear();
@@ -839,7 +836,7 @@ public class TopicPartitionWriter {
       context.offset(tp, offset);
 
       recordCounter = 0;
-      throw connectException;
+      throw exception;
     }
   }
 
