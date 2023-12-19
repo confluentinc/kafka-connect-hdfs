@@ -15,12 +15,14 @@
 
 package io.confluent.connect.hdfs.avro;
 
+import io.confluent.connect.hdfs.partitioner.DefaultPartitioner;
 import io.confluent.connect.hdfs.wal.FSWAL;
 import io.confluent.connect.hdfs.wal.WALFile.Writer;
 import io.confluent.connect.hdfs.wal.WALFileTest;
 import io.confluent.connect.hdfs.wal.WALFileTest.CorruptWriter;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -456,6 +458,82 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
 
     hdfsWriter.close();
     hdfsWriter.stop();
+  }
+
+  @Test
+  public void testRecoveryAfterFailedFlush() throws Exception {
+    // Define constants
+    String FLUSH_SIZE_CONFIG = "60";
+    int FLUSH_SIZE = Integer.valueOf(FLUSH_SIZE_CONFIG);
+    int NUMBER_OF_RECORDS = FLUSH_SIZE*2;
+    long SLEEP_TIME = 10000L;
+
+    // Create connector configs
+    Map<String, String> props = createProps();
+    props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, FLUSH_SIZE_CONFIG);
+    props.put(
+            PartitionerConfig.PARTITIONER_CLASS_CONFIG,
+            DefaultPartitioner.class.getName()
+    );
+    HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
+
+    // Initialize data writer
+    context.assignment().clear();
+    context.assignment().add(TOPIC_PARTITION);
+    Time time = TopicPartitionWriterTest.MockedWallclockTimestampExtractor.TIME;
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData, time);
+    hdfsWriter.open(context.assignment());
+    partitioner = hdfsWriter.getPartitioner();
+
+    List<SinkRecord> sinkRecords = createSinkRecords(NUMBER_OF_RECORDS);
+
+    // Write initial batch of records
+    hdfsWriter.write(sinkRecords.subList(0, FLUSH_SIZE-2));
+
+    // Stop all datanodes
+    int NUM_DATANODES = 3;
+    ArrayList<MiniDFSCluster.DataNodeProperties> dnProps = new ArrayList<>();
+    for(int j=0; j<NUM_DATANODES; j++){
+      MiniDFSCluster.DataNodeProperties dnProp = cluster.stopDataNode(0);
+      dnProps.add(dnProp);
+    }
+
+    //  Attempt to write a batch of records that will result in a flush
+    hdfsWriter.write(sinkRecords.subList(FLUSH_SIZE-2, FLUSH_SIZE+2));
+    time.sleep(SLEEP_TIME);
+    // Simulate connect framework's effort to re-supply the lost data after offset reset
+    hdfsWriter.write(sinkRecords.subList(0, FLUSH_SIZE+2));
+    time.sleep(SLEEP_TIME);
+    hdfsWriter.write(sinkRecords.subList(0, FLUSH_SIZE+4));
+    time.sleep(SLEEP_TIME);
+    hdfsWriter.write(new ArrayList<SinkRecord>());
+
+    //  Restart the datanodes and wait for them to come up
+    for(int j=0; j<NUM_DATANODES; j++){
+      cluster.restartDataNode(dnProps.get(j));
+    }
+    cluster.waitActive();
+
+    // assert that the offset was reset back to zero
+    assertEquals(0, hdfsWriter.getBucketWriter(TOPIC_PARTITION).offset());
+
+    // Simulate write attempts during recovery
+    hdfsWriter.write(sinkRecords.subList(0, NUMBER_OF_RECORDS));
+    time.sleep(SLEEP_TIME);
+    hdfsWriter.write(new ArrayList<SinkRecord>());
+
+    // Assert that all records have been committed
+    Map<TopicPartition, Long> committedOffsets = hdfsWriter.getCommittedOffsets();
+    assertTrue(committedOffsets.containsKey(TOPIC_PARTITION));
+    long nextOffset = committedOffsets.get(TOPIC_PARTITION);
+    assertEquals(NUMBER_OF_RECORDS, nextOffset);
+
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    // Assert that there are no zero data files
+    long[] validOffsets = {0, FLUSH_SIZE, FLUSH_SIZE*2};
+    verify(sinkRecords, validOffsets, Collections.singleton(TOPIC_PARTITION), false);
   }
 
   @Test
