@@ -4,4 +4,5 @@ common {
   upstreamProjects = ['confluentinc/schema-registry','confluentinc/common']
   nodeLabel = 'docker-debian-jdk8'
   sonarqubeScannerEnable = true
+  sonarqubeQualityCheck = true
 }
