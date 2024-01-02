@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -36,7 +37,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -52,8 +52,6 @@ import java.util.concurrent.TimeUnit;
 import io.confluent.common.utils.SystemTime;
 import io.confluent.common.utils.Time;
 import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.filter.CommittedFileFilter;
-import io.confluent.connect.hdfs.filter.TopicCommittedFileFilter;
 import io.confluent.connect.hdfs.hive.HiveMetaStore;
 import io.confluent.connect.hdfs.hive.HiveUtil;
 import io.confluent.connect.hdfs.partitioner.Partitioner;
@@ -70,8 +68,6 @@ public class DataWriter {
 
   private final Map<TopicPartition, TopicPartitionWriter> topicPartitionWriters;
   private HdfsStorage storage;
-  private HashMap<String, String> logDirs;
-  private HashMap<String, String> topicDirs;
   private Format format;
   private RecordWriterProvider writerProvider;
   private io.confluent.connect.storage.format.RecordWriterProvider<HdfsSinkConnectorConfig>
@@ -108,11 +104,9 @@ public class DataWriter {
       Time time
   ) {
     this.time = time;
-    this.connectorConfig = config;
     this.avroData = avroData;
     this.context = context;
-    topicDirs = new HashMap<>();
-    logDirs = new HashMap<>();
+    connectorConfig = config;
     topicPartitionWriters = new HashMap<>();
 
     try {
@@ -143,18 +137,6 @@ public class DataWriter {
         config,
         connectorConfig.url()
     );
-
-    for (TopicPartition tp : context.assignment()) {
-      String topicDir = connectorConfig.getTopicsDirFromTopic(tp.topic());
-      String logDir = connectorConfig.getLogsDirFromTopic(tp.topic());
-
-      topicDirs.put(tp.topic(), topicDir);
-      logDirs.put(tp.topic(), logDir);
-
-      createDir(topicDir);
-      createDir(topicDir + HdfsSinkConnectorConstants.TEMPFILE_DIRECTORY);
-      createDir(logDir);
-    }
 
     try {
       // Try to instantiate as a new-style storage-common type class, then fall back to old-style
@@ -221,8 +203,6 @@ public class DataWriter {
     if (connectorConfig.hiveIntegrationEnabled()) {
       initializeHiveServices(hadoopConfiguration);
     }
-
-    initializeTopicPartitionWriters(context.assignment());
   }
 
   private void configureKerberosAuthentication(Configuration hadoopConfiguration) {
@@ -322,28 +302,6 @@ public class DataWriter {
     hiveUpdateFutures = new LinkedList<>();
   }
 
-  private void initializeTopicPartitionWriters(Set<TopicPartition> assignment) {
-    for (TopicPartition tp : assignment) {
-      TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
-          tp,
-          storage,
-          writerProvider,
-          newWriterProvider,
-          partitioner,
-          connectorConfig,
-          context,
-          avroData,
-          hiveMetaStore,
-          hive,
-          schemaFileReader,
-          executorService,
-          hiveUpdateFutures,
-          time
-      );
-      topicPartitionWriters.put(tp, topicPartitionWriter);
-    }
-  }
-
   public void write(Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
       String topic = record.topic();
@@ -380,50 +338,34 @@ public class DataWriter {
     topicPartitionWriters.get(tp).recover();
   }
 
+  /**
+   * For each partition, get the schema from the latest file and attempt
+   * to create a Hive table from it.
+   */
   public void syncWithHive() throws ConnectException {
-    Set<String> topics = new HashSet<>();
-    for (TopicPartition tp : topicPartitionWriters.keySet()) {
-      topics.add(tp.topic());
-    }
+    // ensure each topic is only synced once
+    Set<String> topics = topicPartitionWriters.keySet()
+        .stream().map(TopicPartition::topic).collect(Collectors.toSet());
 
-    try {
-      for (String topic : topics) {
+    for (String topic : topics) {
+      Path recoveredFileWithMaxOffsets = getLatestFilePathForTopic(topic);
+
+      if (recoveredFileWithMaxOffsets != null) {
+        Schema latestSchema = schemaFileReader
+            .getSchema(connectorConfig, recoveredFileWithMaxOffsets);
+
         String topicDir = FileUtils.topicDirectory(
             connectorConfig.url(),
-            topicDirs.get(topic),
+            connectorConfig.getTopicsDirFromTopic(topic),
             topic
         );
-        CommittedFileFilter filter = new TopicCommittedFileFilter(topic);
-        FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
-            storage,
-            new Path(topicDir),
-            filter
-        );
-        if (fileStatusWithMaxOffset != null) {
-          final Path path = fileStatusWithMaxOffset.getPath();
-          final Schema latestSchema;
-          latestSchema = schemaFileReader.getSchema(
-              connectorConfig,
-              path
-          );
-          hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
-          List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, topic, (short) -1);
-          FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
-          for (FileStatus status : statuses) {
-            String location = status.getPath().toString();
-            if (!partitions.contains(location)) {
-              String partitionValue = getPartitionValue(location);
-              hiveMetaStore.addPartition(hiveDatabase, topic, partitionValue);
-            }
-          }
-        }
+        createHiveTable(topic, topicDir, latestSchema);
       }
-    } catch (IOException e) {
-      throw new ConnectException(e);
     }
   }
 
   public void open(Collection<TopicPartition> partitions) {
+    log.debug("Opening DataWriter with partitions: {}", partitions);
     for (TopicPartition tp : partitions) {
       TopicPartitionWriter topicPartitionWriter = new TopicPartitionWriter(
           tp,
@@ -444,7 +386,12 @@ public class DataWriter {
       topicPartitionWriters.put(tp, topicPartitionWriter);
       // We need to immediately start recovery to ensure we pause consumption of messages for the
       // assigned topics while we try to recover offsets and rewind.
-      recover(tp);
+      log.debug("Recovering offsets for partition {}", tp);
+      topicPartitionWriter.recover();
+    }
+
+    if (connectorConfig.hiveIntegrationEnabled()) {
+      syncWithHive();
     }
   }
 
@@ -545,14 +492,6 @@ public class DataWriter {
   public Map<String, String> getTempFileNames(TopicPartition tp) {
     TopicPartitionWriter topicPartitionWriter = topicPartitionWriters.get(tp);
     return topicPartitionWriter.getTempFiles();
-  }
-
-  private void createDir(String dir) {
-    String path = connectorConfig.url() + "/" + dir;
-    if (!storage.exists(path)) {
-      log.trace("Creating directory {}", path);
-      storage.create(path);
-    }
   }
 
   private Partitioner newPartitioner(HdfsSinkConnectorConfig config)
@@ -671,5 +610,54 @@ public class DataWriter {
         }
       }
     }
+  }
+
+  /**
+   * Attempt to create a Hive table based on a file's schema from the topic.
+   *
+   * @param topic the name of the topic
+   * @param topicDir the directory of the topic
+   * @param latestSchema the schema of the latest file
+   */
+  private void createHiveTable(String topic, String topicDir, Schema latestSchema) {
+    try {
+      hive.createTable(hiveDatabase, topic, latestSchema, partitioner);
+      List<String> partitions = hiveMetaStore.listPartitions(hiveDatabase, topic, (short) -1);
+      FileStatus[] statuses = FileUtils.getDirectories(storage, new Path(topicDir));
+      for (FileStatus status : statuses) {
+        String location = status.getPath().toString();
+        if (!partitions.contains(location)) {
+          String partitionValue = getPartitionValue(location);
+          hiveMetaStore.addPartition(hiveDatabase, topic, partitionValue);
+        }
+      }
+    } catch (IOException e) {
+      throw new ConnectException(
+          String.format("Error creating Hive table: %s", e.getMessage()),
+          e
+      );
+    }
+  }
+
+  /**
+   * Get the latest file written for a topic. Go through the topic partition writers
+   * for a topic and make use of the already computed latest file in recover.
+   *
+   * @param topic the topic to get the most recently written file for
+   *
+   * @return the path of the latest file in the topic
+   */
+  private Path getLatestFilePathForTopic(String topic) {
+    long greatestOffset = -1;
+    Path latestFilePath = null;
+    for (TopicPartitionWriter tp : topicPartitionWriters.values()) {
+      if (tp.topicPartition().topic().equals(topic)) {
+        if (tp.offset() > greatestOffset) {
+          greatestOffset = tp.offset();
+          latestFilePath = tp.getRecoveredFileWithMaxOffsets();
+        }
+      }
+    }
+    return latestFilePath;
   }
 }

@@ -31,7 +31,7 @@ public class HiveTestBase extends TestWithMiniDFSCluster {
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
-    props.put(HiveConfig.HIVE_CONF_DIR_CONFIG, "hive_conf");
+    props.put(HiveConfig.HIVE_CONF_DIR_CONFIG, "src/test/resources/conf");
     return props;
   }
 

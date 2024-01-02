@@ -15,6 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
+import io.confluent.connect.hdfs.avro.AvroIOException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
@@ -57,6 +58,7 @@ import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
 import io.confluent.connect.storage.partitioner.TimestampExtractor;
 import io.confluent.connect.storage.schema.StorageSchemaCompatibility;
 import io.confluent.connect.storage.wal.WAL;
+import io.confluent.connect.storage.wal.FilePathOffset;
 
 public class TopicPartitionWriter {
   private static final Logger log = LoggerFactory.getLogger(TopicPartitionWriter.class);
@@ -113,6 +115,7 @@ public class TopicPartitionWriter {
   private final ExecutorService executorService;
   private final Queue<Future<Void>> hiveUpdateFutures;
   private final Set<String> hivePartitions;
+  private Path recoveredFileWithMaxOffsets;
 
   public TopicPartitionWriter(
       TopicPartition tp,
@@ -185,7 +188,7 @@ public class TopicPartitionWriter {
     this.url = storage.url();
     this.connectorConfig = storage.conf();
     this.schemaFileReader = schemaFileReader;
-
+    recoveredFileWithMaxOffsets = null;
     topicsDir = config.getTopicsDirFromTopic(tp.topic());
     flushSize = config.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
     rotateIntervalMs = config.getLong(HdfsSinkConnectorConfig.ROTATE_INTERVAL_MS_CONFIG);
@@ -244,6 +247,26 @@ public class TopicPartitionWriter {
     updateRotationTimers(null);
   }
 
+  private void resetBuffers() {
+    buffer.clear();
+    writers.clear();
+    appended.clear();
+    startOffsets.clear();
+    endOffsets.clear();
+    recordCounter = 0;
+    currentSchema = null;
+  }
+
+  private void safeDeleteTempFiles() {
+    for (String encodedPartition : tempFiles.keySet()) {
+      try {
+        deleteTempFile(encodedPartition);
+      } catch (ConnectException e) {
+        log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
+      }
+    }
+  }
+
   @SuppressWarnings("fallthrough")
   public boolean recover() {
     try {
@@ -257,14 +280,15 @@ public class TopicPartitionWriter {
           applyWAL();
           nextState();
         case WAL_APPLIED:
+          log.debug("Start recovery state: Reset Offsets for topic partition {}", tp);
+          safeDeleteTempFiles();
+          resetOffsets();
+          nextState();
+        case OFFSET_RESET:
           log.debug("Start recovery state: Truncate WAL for topic partition {}", tp);
           truncateWAL();
           nextState();
         case WAL_TRUNCATED:
-          log.debug("Start recovery state: Reset Offsets for topic partition {}", tp);
-          resetOffsets();
-          nextState();
-        case OFFSET_RESET:
           log.debug("Start recovery state: Resume for topic partition {}", tp);
           resume();
           nextState();
@@ -277,8 +301,9 @@ public class TopicPartitionWriter {
               tp
           );
       }
-    } catch (ConnectException e) {
+    } catch (AvroIOException | ConnectException e) {
       log.error("Recovery failed at state {}", state, e);
+      failureTime = time.milliseconds();
       setRetryTimeout(timeoutMs);
       return false;
     }
@@ -312,6 +337,13 @@ public class TopicPartitionWriter {
         );
       }
     }
+  }
+
+  private void resetAndSetRecovery() {
+    context.offset(tp, offset);
+    resetBuffers();
+    state = State.RECOVERY_STARTED;
+    recovered = false;
   }
 
   @SuppressWarnings("fallthrough")
@@ -403,10 +435,15 @@ public class TopicPartitionWriter {
         }
       } catch (SchemaProjectorException | IllegalWorkerStateException | HiveMetaStoreException e) {
         throw new RuntimeException(e);
-      } catch (ConnectException e) {
+      } catch (AvroIOException | ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
+        if (e instanceof AvroIOException) {
+          log.error("Encountered AVRO IO exception, resetting this topic partition {} "
+                  + "to offset {}", tp, offset);
+          resetAndSetRecovery();
+        }
         break;
       }
     }
@@ -443,10 +480,15 @@ public class TopicPartitionWriter {
           default:
             log.error("{} is not a valid state to empty batch for topic partition {}.", state, tp);
         }
-      } catch (ConnectException e) {
+      } catch (AvroIOException | ConnectException e) {
         log.error("Exception on topic partition {}: ", tp, e);
         failureTime = time.milliseconds();
         setRetryTimeout(timeoutMs);
+        if (e instanceof AvroIOException) {
+          log.error("Encountered AVRO IO exception, resetting this topic partition {} "
+                  + "to offset {}", tp, offset);
+          resetAndSetRecovery();
+        }
         return;
       }
 
@@ -598,7 +640,25 @@ public class TopicPartitionWriter {
     return periodicRotation || scheduledRotation || messageSizeRotation;
   }
 
-  private void readOffset() throws ConnectException {
+  /**
+   * Read the offset of most recent record in HDFS.
+   * Attempt to read the offset from the WAL file and fall-back on a recursive search of filenames.
+   */
+  private void readOffset() {
+    // Use the WAL file to attempt to extract the recent offsets
+    FilePathOffset latestOffsetEntry = wal.extractLatestOffset();
+    if (latestOffsetEntry != null) {
+      long lastCommittedOffset = latestOffsetEntry.getOffset();
+      log.trace("Last committed offset based on WAL: {}", lastCommittedOffset);
+      offset = lastCommittedOffset + 1;
+      log.trace("Next offset to read: {}", offset);
+      recoveredFileWithMaxOffsets = new Path(latestOffsetEntry.getFilePath());
+      return;
+    }
+
+    // Use the recursive filename scan approach
+    log.debug("Could not use WAL approach for recovering offsets, "
+        + "searching for latest offsets on HDFS.");
     String path = FileUtils.topicDirectory(url, topicsDir, tp.topic());
     CommittedFileFilter filter = new TopicPartitionCommittedFileFilter(tp);
     FileStatus fileStatusWithMaxOffset = FileUtils.fileStatusWithMaxOffset(
@@ -613,6 +673,7 @@ public class TopicPartitionWriter {
       // `offset` represents the next offset to read after the most recent commit
       offset = lastCommittedOffsetToHdfs + 1;
       log.trace("Next offset to read: {}", offset);
+      recoveredFileWithMaxOffsets = fileStatusWithMaxOffset.getPath();
     }
   }
 
@@ -683,9 +744,7 @@ public class TopicPartitionWriter {
   }
 
   private void truncateWAL() throws ConnectException {
-    if (!recovered) {
-      wal.truncate();
-    }
+    wal.truncate();
   }
 
   private void resetOffsets() throws ConnectException {
@@ -745,14 +804,14 @@ public class TopicPartitionWriter {
   }
 
   private void closeTempFile() {
-    ConnectException connectException = null;
+    RuntimeException exception = null;
     for (String encodedPartition : tempFiles.keySet()) {
       // Close the file and propagate any errors
       try {
         closeTempFile(encodedPartition);
-      } catch (ConnectException e) {
+      } catch (RuntimeException e) {
         // still want to close all of the other data writers
-        connectException = e;
+        exception = e;
         log.error(
             "Failed to close temporary file for partition {}. The connector will attempt to"
                 + " rewrite the temporary file.",
@@ -761,16 +820,12 @@ public class TopicPartitionWriter {
       }
     }
 
-    if (connectException != null) {
+    if (exception != null) {
       // at least one tmp file did not close properly therefore will try to recreate the tmp and
       // delete all buffered records + tmp files and start over because otherwise there will be
       // duplicates, since there is no way to reclaim the records in the tmp file.
       for (String encodedPartition : tempFiles.keySet()) {
-        try {
-          deleteTempFile(encodedPartition);
-        } catch (ConnectException e) {
-          log.error("Failed to delete tmp file {}", tempFiles.get(encodedPartition), e);
-        }
+        safeDeleteTempFiles();
         startOffsets.remove(encodedPartition);
         endOffsets.remove(encodedPartition);
         buffer.clear();
@@ -780,7 +835,7 @@ public class TopicPartitionWriter {
       context.offset(tp, offset);
 
       recordCounter = 0;
-      throw connectException;
+      throw exception;
     }
   }
 
@@ -844,10 +899,10 @@ public class TopicPartitionWriter {
   }
 
   private long commitFile(String encodedPartition) {
-    log.debug("Committing file for partition {}", encodedPartition);
     if (!startOffsets.containsKey(encodedPartition)) {
       return -1;
     }
+    log.debug("Committing file for partition {}", encodedPartition);
     long startOffset = startOffsets.get(encodedPartition);
     long endOffset = endOffsets.get(encodedPartition);
     String tempFile = tempFiles.get(encodedPartition);
@@ -920,12 +975,16 @@ public class TopicPartitionWriter {
     hiveUpdateFutures.add(future);
   }
 
+  public Path getRecoveredFileWithMaxOffsets() {
+    return recoveredFileWithMaxOffsets;
+  }
+
   private enum State {
     RECOVERY_STARTED,
     RECOVERY_PARTITION_PAUSED,
     WAL_APPLIED,
-    WAL_TRUNCATED,
     OFFSET_RESET,
+    WAL_TRUNCATED,
     WRITE_STARTED,
     WRITE_PARTITION_PAUSED,
     SHOULD_ROTATE,

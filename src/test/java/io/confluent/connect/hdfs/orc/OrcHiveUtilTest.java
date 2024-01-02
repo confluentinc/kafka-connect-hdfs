@@ -1,20 +1,33 @@
 /*
- * Copyright 2018 Confluent Inc.
+ * Copyright 2020 Confluent Inc.
  *
- * Licensed under the Confluent Community License (the "License"); you may not use
- * this file except in compliance with the License.  You may obtain a copy of the
- * License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.confluent.io/confluent-community-license
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-package io.confluent.connect.hdfs.parquet;
+package io.confluent.connect.hdfs.orc;
 
+import io.confluent.connect.avro.AvroData;
+import io.confluent.connect.hdfs.DataWriter;
+import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
+import io.confluent.connect.hdfs.hive.HiveTestBase;
+import io.confluent.connect.hdfs.hive.HiveTestUtils;
+import io.confluent.connect.hdfs.partitioner.Partitioner;
+import io.confluent.connect.storage.hive.HiveUtil;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.kafka.common.TopicPartition;
@@ -23,33 +36,18 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.Before;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import io.confluent.connect.avro.AvroData;
-import io.confluent.connect.hdfs.DataWriter;
-import io.confluent.connect.hdfs.HdfsSinkConnectorConfig;
-import io.confluent.connect.hdfs.hive.HiveTestBase;
-import io.confluent.connect.hdfs.hive.HiveTestUtils;
-import io.confluent.connect.hdfs.hive.HiveUtil;
-import io.confluent.connect.hdfs.partitioner.Partitioner;
 
 import static org.junit.Assert.assertEquals;
 
-public class ParquetHiveUtilTest extends HiveTestBase {
+public class OrcHiveUtilTest extends HiveTestBase {
   private HiveUtil hive;
   private Map<String, String> localProps = new HashMap<>();
 
   @Override
   protected Map<String, String> createProps() {
     Map<String, String> props = super.createProps();
-    props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, ParquetFormat.class.getName());
+    props.put(HdfsSinkConnectorConfig.FORMAT_CLASS_CONFIG, OrcFormat.class.getName());
     props.putAll(localProps);
     return props;
   }
@@ -57,7 +55,7 @@ public class ParquetHiveUtilTest extends HiveTestBase {
   //@Before should be omitted in order to be able to add properties per test.
   public void setUp() throws Exception {
     super.setUp();
-    hive = new ParquetHiveUtil(connectorConfig, hiveMetaStore);
+    hive = new OrcHiveUtil(connectorConfig, hiveMetaStore);
   }
 
   @Test
@@ -68,7 +66,7 @@ public class ParquetHiveUtilTest extends HiveTestBase {
 
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
-    String location = "partition=" + String.valueOf(PARTITION);
+    String location = "partition=" + PARTITION;
     hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
 
     Struct expectedRecord = createRecord(schema);
@@ -114,7 +112,7 @@ public class ParquetHiveUtilTest extends HiveTestBase {
     Schema schema = createSchema();
     hive.createTable(hiveDatabase, TOPIC, schema, partitioner);
 
-    String location = "partition=" + String.valueOf(PARTITION);
+    String location = "partition=" + PARTITION;
     hiveMetaStore.addPartition(hiveDatabase, TOPIC, location);
 
     Schema newSchema = createNewSchema();
@@ -153,7 +151,6 @@ public class ParquetHiveUtilTest extends HiveTestBase {
   }
 
   private void prepareData(String topic, int partition) {
-    TopicPartition tp = new TopicPartition(topic, partition);
     DataWriter hdfsWriter = createWriter(context, avroData);
     hdfsWriter.open(context.assignment());
     String key = "key";
