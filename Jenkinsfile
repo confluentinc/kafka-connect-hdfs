@@ -5,4 +5,5 @@ common {
   nodeLabel = 'docker-debian-jdk8'
   sonarqubeScannerEnable = true
   sonarqubeQualityCheck = true
+  disableConcurrentBuilds = true
 }
