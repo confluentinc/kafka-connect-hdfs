@@ -4,5 +4,7 @@ common {
   upstreamProjects = ['confluentinc/schema-registry','confluentinc/common']
   twistlockCveScan = true
   nodeLabel = 'docker-debian-jdk8'
+  sonarqubeScannerEnable = true
+  sonarqubeQualityCheck = true
   disableConcurrentBuilds = true
 }
