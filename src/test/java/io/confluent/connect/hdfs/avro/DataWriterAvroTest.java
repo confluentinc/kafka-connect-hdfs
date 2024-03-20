@@ -41,6 +41,7 @@ import io.confluent.connect.hdfs.TestWithMiniDFSCluster;
 import io.confluent.connect.hdfs.TopicPartitionWriterTest;
 import io.confluent.connect.hdfs.storage.HdfsStorage;
 import io.confluent.connect.hdfs.wal.WAL;
+import io.confluent.connect.storage.StorageSinkConnectorConfig;
 import io.confluent.connect.storage.hive.HiveConfig;
 import io.confluent.connect.storage.partitioner.PartitionerConfig;
 import io.confluent.connect.storage.partitioner.TimeBasedPartitioner;
@@ -270,7 +271,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testProjectBackWard() throws Exception {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
-    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
+    props.put(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -310,7 +311,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   public void testProjectForward() throws Exception {
     Map<String, String> props = createProps();
     props.put(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG, "2");
-    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "FORWARD");
+    props.put(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "FORWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
@@ -331,7 +332,7 @@ public class DataWriterAvroTest extends TestWithMiniDFSCluster {
   @Test
   public void testProjectNoVersion() throws Exception {
     Map<String, String> props = createProps();
-    props.put(HiveConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
+    props.put(StorageSinkConnectorConfig.SCHEMA_COMPATIBILITY_CONFIG, "BACKWARD");
     HdfsSinkConnectorConfig connectorConfig = new HdfsSinkConnectorConfig(props);
 
     DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
