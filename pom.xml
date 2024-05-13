@@ -152,6 +152,18 @@
                 <artifactId>zookeeper</artifactId>
                 <version>3.7.2</version>
             </dependency>
+            <!-- pin hbase and exclude commons-httpclient to fix cve -->
+            <dependency>
+                <groupId>org.apache.hbase</groupId>
+                <artifactId>hbase-server</artifactId>
+                <version>1.1.1</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>commons-httpclient</groupId>
+                        <artifactId>commons-httpclient</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
