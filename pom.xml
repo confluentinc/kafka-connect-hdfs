@@ -152,6 +152,12 @@
                 <artifactId>zookeeper</artifactId>
                 <version>3.7.2</version>
             </dependency>
+            <!-- pin dependency to fix cve-->
+            <dependency>
+                <groupId>com.nimbusds</groupId>
+                <artifactId>nimbus-jose-jwt</artifactId>
+                <version>9.37.2</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
