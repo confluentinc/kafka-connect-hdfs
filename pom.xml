@@ -157,6 +157,7 @@
                 <groupId>com.squareup.okio</groupId>
                 <artifactId>okio</artifactId>
                 <version>3.4.0</version>
+            </dependency>
             <!-- pin hbase and exclude commons-httpclient to fix cve -->
             <dependency>
                 <groupId>org.apache.hbase</groupId>
@@ -168,6 +169,7 @@
                         <artifactId>commons-httpclient</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
             <dependency>
                 <groupId>org.apache.calcite.avatica</groupId>
                 <artifactId>avatica-core</artifactId>
