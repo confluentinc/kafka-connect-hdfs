@@ -152,6 +152,11 @@
                 <artifactId>zookeeper</artifactId>
                 <version>3.7.2</version>
             </dependency>
+            <!-- pin dependency to fix cve-->
+            <dependency>
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio</artifactId>
+                <version>3.4.0</version>
             <!-- pin hbase and exclude commons-httpclient to fix cve -->
             <dependency>
                 <groupId>org.apache.hbase</groupId>
