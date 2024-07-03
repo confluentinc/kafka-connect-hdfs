@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>11.2.14</version>
+        <version>11.2.16</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -62,12 +62,12 @@
         <complexity.coverage.threshold>0.53</complexity.coverage.threshold>
         <line.coverage.threshold>0.66</line.coverage.threshold>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>11.2.9</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>11.2.16</kafka.connect.storage.common.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <commons-net.version>3.9.0</commons-net.version>
         <ivy.version>2.5.2</ivy.version>
         <json-smart.version>2.4.10</json-smart.version>
-        <libthrift.version>0.13.0</libthrift.version>
+        <libthrift.version>0.14.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
         <jettison.version>1.5.4</jettison.version>
         <snakeyaml.version>2.0</snakeyaml.version>
@@ -175,6 +175,12 @@
                         <artifactId>commons-httpclient</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <!-- pin aircompressor to fix cve -->
+            <dependency>
+                <groupId>io.airlift</groupId>
+                <artifactId>aircompressor</artifactId>
+                <version>0.27</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.calcite.avatica</groupId>
