@@ -187,6 +187,12 @@
                 <artifactId>avatica-core</artifactId>
                 <version>1.22.0</version>
             </dependency>
+            <!-- pin tomcat-embed to fix cve -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>8.5.100</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
