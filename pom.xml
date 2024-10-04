@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>11.2.16</version>
+        <version>11.2.17</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -128,6 +128,12 @@
                 <groupId>org.yaml</groupId>
                 <artifactId>snakeyaml</artifactId>
                 <version>${snakeyaml.version}</version>
+            </dependency>
+            <!-- Pin commons-io to resolve CVE-2022-2343   -->
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.14.0</version>
             </dependency>
             <!-- Pin xercesImpl to resolve CVE-2022-2343   -->
             <dependency>
