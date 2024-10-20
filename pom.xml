@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>11.2.17</version>
+        <version>11.2.19</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -62,7 +62,7 @@
         <complexity.coverage.threshold>0.53</complexity.coverage.threshold>
         <line.coverage.threshold>0.66</line.coverage.threshold>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>11.2.16</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>11.2.19</kafka.connect.storage.common.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <commons-net.version>3.9.0</commons-net.version>
         <ivy.version>2.5.2</ivy.version>
@@ -129,7 +129,13 @@
                 <artifactId>snakeyaml</artifactId>
                 <version>${snakeyaml.version}</version>
             </dependency>
-            <!-- Pin commons-io to resolve CVE-2022-2343   -->
+            <!-- pin the velocity-engine to remove false positive for CVE-2024-47554 -->
+            <dependency>
+                <groupId>org.apache.velocity</groupId>
+                <artifactId>velocity-engine-core</artifactId>
+                <version>2.4</version>
+            </dependency>
+            <!-- Pin commons-io to resolve CVE-2024-47554   -->
             <dependency>
                 <groupId>commons-io</groupId>
                 <artifactId>commons-io</artifactId>
