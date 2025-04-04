@@ -20,7 +20,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>11.0.21</version>
+        <version>11.0.35</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
@@ -62,7 +62,7 @@
         <complexity.coverage.threshold>0.53</complexity.coverage.threshold>
         <line.coverage.threshold>0.66</line.coverage.threshold>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>11.0.21</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>11.0.35</kafka.connect.storage.common.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <commons-net.version>3.9.0</commons-net.version>
         <ivy.version>2.5.1</ivy.version>
