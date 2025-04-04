@@ -20,6 +20,7 @@ https://github.com/confluentinc/kafka-connect-hdfs/wiki/FAQ
 
 - Source Code: https://github.com/confluentinc/kafka-connect-hdfs
 - Issue Tracker: https://github.com/confluentinc/kafka-connect-hdfs/issues
+- Learn how to work with the connector's source code by reading our [Development and Contribution guidelines](CONTRIBUTING.md).
 
 # License
 

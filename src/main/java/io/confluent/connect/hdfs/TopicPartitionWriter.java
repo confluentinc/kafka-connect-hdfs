@@ -391,7 +391,7 @@ public class TopicPartitionWriter {
             currentRecord = record;
             Schema valueSchema = record.valueSchema();
             if ((recordCounter <= 0 && currentSchema == null && valueSchema != null)
-                || compatibility.shouldChangeSchema(record, null, currentSchema)) {
+                || compatibility.shouldChangeSchema(record, null, currentSchema).isInCompatible()) {
               currentSchema = valueSchema;
               if (hiveIntegration) {
                 createHiveTable();

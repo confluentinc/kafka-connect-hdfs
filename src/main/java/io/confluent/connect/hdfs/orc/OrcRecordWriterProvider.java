@@ -70,7 +70,7 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
                 }
               };
 
-              typeInfo = HiveSchemaConverter.convert(schema);
+              typeInfo = HiveSchemaConverter.convertMaybeLogical(schema);
               ObjectInspector objectInspector = OrcStruct.createObjectInspector(typeInfo);
 
               log.info("Opening ORC record writer for: {}", filename);
@@ -90,7 +90,7 @@ public class OrcRecordWriterProvider implements RecordWriterProvider<HdfsSinkCon
             );
 
             Struct struct = (Struct) record.value();
-            OrcStruct row = OrcUtil.createOrcStruct(typeInfo, OrcUtil.convertStruct(struct));
+            OrcStruct row = (OrcStruct) OrcUtil.convert(typeInfo, struct.schema(), struct);
             writer.addRow(row);
 
           } else {

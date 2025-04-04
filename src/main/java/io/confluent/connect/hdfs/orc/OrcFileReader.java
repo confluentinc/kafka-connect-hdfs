@@ -22,13 +22,15 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile.ReaderOptions;
 import org.apache.hadoop.hive.ql.io.orc.Reader;
+import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveTypeEntry;
 import org.apache.kafka.connect.data.ConnectSchema;
 import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Timestamp;
@@ -53,40 +55,8 @@ public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, 
       Reader reader = OrcFile.createReader(path, readerOptions);
 
       if (reader.getObjectInspector().getCategory() == ObjectInspector.Category.STRUCT) {
-        SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("record").version(1);
         StructObjectInspector objectInspector = (StructObjectInspector) reader.getObjectInspector();
-
-        for (StructField schema : objectInspector.getAllStructFieldRefs()) {
-          ObjectInspector fieldObjectInspector = schema.getFieldObjectInspector();
-          String typeName = fieldObjectInspector.getTypeName();
-          Schema.Type schemaType;
-
-          switch (fieldObjectInspector.getCategory()) {
-            case PRIMITIVE:
-              PrimitiveTypeEntry typeEntry = PrimitiveObjectInspectorUtils
-                  .getTypeEntryFromTypeName(typeName);
-              if (java.sql.Date.class.isAssignableFrom(typeEntry.primitiveJavaClass)) {
-                schemaType = Date.SCHEMA.type();
-              } else if (java.sql.Timestamp.class.isAssignableFrom(typeEntry.primitiveJavaClass)) {
-                schemaType = Timestamp.SCHEMA.type();
-              } else {
-                schemaType = ConnectSchema.schemaType(typeEntry.primitiveJavaClass);
-              }
-              break;
-            case LIST:
-              schemaType = Schema.Type.ARRAY;
-              break;
-            case MAP:
-              schemaType = Schema.Type.MAP;
-              break;
-            default:
-              throw new DataException("Unknown type " + fieldObjectInspector.getCategory().name());
-          }
-
-          schemaBuilder.field(schema.getFieldName(), SchemaBuilder.type(schemaType).build());
-        }
-
-        return schemaBuilder.build();
+        return deriveStruct(objectInspector);
       } else {
         throw new ConnectException(
             "Top level type must be of type STRUCT, but was "
@@ -96,6 +66,59 @@ public class OrcFileReader implements SchemaFileReader<HdfsSinkConnectorConfig, 
     } catch (IOException e) {
       throw new ConnectException("Failed to get schema for file " + path, e);
     }
+  }
+
+  private Schema derivePrimitive(PrimitiveObjectInspector inspector) {
+    Class<?> klass = inspector.getTypeInfo().getPrimitiveJavaClass();
+    if (java.sql.Date.class.isAssignableFrom(klass)) {
+      return Date.SCHEMA;
+    } else if (java.sql.Timestamp.class.isAssignableFrom(klass)) {
+      return Timestamp.SCHEMA;
+    } else if (org.apache.hadoop.hive.common.type.HiveDecimal.class.isAssignableFrom(klass)) {
+      return Decimal.schema(inspector.scale());
+    }
+    return SchemaBuilder.type(ConnectSchema.schemaType(klass)).build();
+
+  }
+
+  private Schema deriveSchema(ObjectInspector inspector) {
+
+    switch (inspector.getCategory()) {
+      case PRIMITIVE:
+        return derivePrimitive((PrimitiveObjectInspector) inspector);
+      case MAP:
+        return deriveMap((MapObjectInspector) inspector);
+      case LIST:
+        return deriveList((ListObjectInspector) inspector);
+      case STRUCT:
+        return deriveStruct((StructObjectInspector) inspector);
+      default:
+        throw new DataException("Unknown type " + inspector.getCategory()
+            .name());
+    }
+  }
+
+  private Schema deriveStruct(StructObjectInspector inspector) {
+
+    SchemaBuilder schemaBuilder = SchemaBuilder.struct();
+    for (StructField field: inspector.getAllStructFieldRefs()) {
+      ObjectInspector fieldInspector = field.getFieldObjectInspector();
+      schemaBuilder.field(field.getFieldName(), deriveSchema(fieldInspector));
+    }
+    schemaBuilder.name("record").version(1);
+    return schemaBuilder.build();
+  }
+
+
+  private Schema deriveMap(MapObjectInspector inspector) {
+    return SchemaBuilder.map(
+        deriveSchema(inspector.getMapKeyObjectInspector()),
+        deriveSchema(inspector.getMapValueObjectInspector())
+    ).build();
+  }
+
+  private Schema deriveList(ListObjectInspector inspector) {
+    return SchemaBuilder.array(deriveSchema(inspector.getListElementObjectInspector())).build();
   }
 
   @Override

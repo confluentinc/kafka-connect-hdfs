@@ -15,17 +15,27 @@
 
 package io.confluent.connect.hdfs;
 
+import com.google.common.collect.ImmutableMap;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Arrays;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hbase.types.StructBuilder;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Schema.Type;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.SchemaProjector;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.data.Time;
+import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.After;
 
@@ -251,6 +261,77 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     return sinkRecords;
   }
 
+  private Schema createLogicalSchema() {
+    return SchemaBuilder.struct().name("record").version(1)
+        .field("time", Time.SCHEMA)
+        .field("timestamp", Timestamp.SCHEMA)
+        .field("date", Date.SCHEMA)
+        .field("decimal", Decimal.schema(2))
+        .build();
+  }
+
+  protected Struct createLogicalStruct() {
+
+    Struct struct = new Struct(createLogicalSchema());
+    struct.put("time", Time.toLogical(Time.SCHEMA, 167532));
+    struct.put("timestamp", Timestamp.toLogical(Timestamp.SCHEMA, 1675323210));
+    struct.put("date", Date.toLogical(Date.SCHEMA, 12345));
+    struct.put("decimal", BigDecimal.valueOf(5000, 2));
+    return struct;
+  }
+
+  private Schema createArraySchema() {
+    return SchemaBuilder.struct().name("record").version(1)
+        .field("struct_array", SchemaBuilder.array(createSchema()).build())
+        .field("int_array", SchemaBuilder.array(Schema.INT32_SCHEMA).build())
+        .field("logical_array", SchemaBuilder.array(Date.SCHEMA).build())
+        .field("array_array", SchemaBuilder.array(SchemaBuilder.array(createLogicalSchema()).build()).build())
+        .build();
+
+  }
+  protected Struct createArrayStruct() {
+
+    Struct record = createRecord(createSchema());
+    Struct logicalStruct = createLogicalStruct();
+    java.util.Date today = new java.util.Date(Instant.now().toEpochMilli());
+    Struct struct = new Struct(createArraySchema());
+
+    struct.put("struct_array", Arrays.asList(record, record));
+    struct.put("int_array", Arrays.asList(Integer.valueOf(1), Integer.valueOf(2), Integer.valueOf(3)));
+    struct.put("logical_array", Arrays.asList(today, today));
+    struct.put("array_array", Arrays.asList(Arrays.asList(logicalStruct, logicalStruct), Arrays.asList(logicalStruct, logicalStruct)));
+    return struct;
+  }
+
+  protected Struct createNestedStruct() {
+
+    Schema nestedSchema = SchemaBuilder.struct().name("record").version(1)
+        .field("struct", createSchema())
+        .field("int", Schema.INT32_SCHEMA)
+        .field("array", SchemaBuilder.array(createSchema()).build())
+        .field("map", SchemaBuilder.map(SchemaBuilder.STRING_SCHEMA, SchemaBuilder.STRING_SCHEMA).build())
+        .build();
+    Schema schema = SchemaBuilder.struct().name("record").version(1)
+        .field("struct", createLogicalSchema())
+        .field("nested", nestedSchema)
+        .field("string", Schema.STRING_SCHEMA)
+        .field("map", SchemaBuilder.map(SchemaBuilder.STRING_SCHEMA, createLogicalSchema()).build())
+        .build();
+
+    Struct struct = new Struct(schema);
+    struct.put("struct", createLogicalStruct());
+    Struct nested = new Struct(nestedSchema);
+    nested.put("struct", createRecord(createSchema()));
+    nested.put("int", 10);
+    nested.put("array", Arrays.asList(createRecord(createSchema()), createRecord(createSchema())));
+    nested.put("map", ImmutableMap.of("a", "b", "c", "d"));
+    struct.put("nested", nested);
+    struct.put("string", "test");
+    struct.put("map", ImmutableMap.of("s1", createLogicalStruct(), "s2", createLogicalStruct()));
+
+    return struct;
+  }
+
   protected String getDirectory() {
     return getDirectory(TOPIC, PARTITION);
   }
@@ -386,6 +467,22 @@ public class TestWithMiniDFSCluster extends HdfsSinkConnectorTestBase {
     cacheField.setAccessible(false);
     cacheMapField.setAccessible(false);
     return cacheMap.size();
+  }
+
+  protected void writeAndVerify(List<SinkRecord> sinkRecords) throws Exception {
+    DataWriter hdfsWriter = new DataWriter(connectorConfig, context, avroData);
+    partitioner = hdfsWriter.getPartitioner();
+    hdfsWriter.recover(TOPIC_PARTITION);
+
+
+    hdfsWriter.write(sinkRecords);
+    hdfsWriter.close();
+    hdfsWriter.stop();
+
+    List<Long> validOffsets = new ArrayList<>();
+    int flushSize = connectorConfig.getInt(HdfsSinkConnectorConfig.FLUSH_SIZE_CONFIG);
+    for (long i = 0; i < sinkRecords.size(); i += flushSize) validOffsets.add(i);
+    verify(sinkRecords, validOffsets.stream().mapToLong(l -> l).toArray());
   }
 
 }

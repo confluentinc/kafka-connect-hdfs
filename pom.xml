@@ -20,11 +20,11 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-connect-storage-common-parent</artifactId>
-        <version>11.0.35</version>
+        <version>11.2.22</version>
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
-    <version>10.1.18-SNAPSHOT</version>
+    <version>10.2.13-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>kafka-connect-hdfs</name>
     <organization>
@@ -48,7 +48,7 @@
         <connection>scm:git:git://github.com/confluentinc/kafka-connect-hdfs.git</connection>
         <developerConnection>scm:git:git@github.com:confluentinc/kafka-connect-hdfs.git</developerConnection>
         <url>https://github.com/confluentinc/kafka-connect-hdfs</url>
-        <tag>10.1.x</tag>
+        <tag>10.2.x</tag>
     </scm>
 
     <properties>
@@ -62,15 +62,16 @@
         <complexity.coverage.threshold>0.53</complexity.coverage.threshold>
         <line.coverage.threshold>0.66</line.coverage.threshold>
         <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
-        <kafka.connect.storage.common.version>11.0.35</kafka.connect.storage.common.version>
+        <kafka.connect.storage.common.version>11.2.22</kafka.connect.storage.common.version>
         <commons.collections.version>3.2.2</commons.collections.version>
         <commons-net.version>3.9.0</commons-net.version>
-        <ivy.version>2.5.1</ivy.version>
+        <ivy.version>2.5.2</ivy.version>
         <json-smart.version>2.4.10</json-smart.version>
         <libthrift.version>0.14.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
         <jettison.version>1.5.4</jettison.version>
         <snakeyaml.version>2.0</snakeyaml.version>
+        <snappy.java.version>1.1.10.4</snappy.java.version>
         <woodstox-core.version>6.5.0</woodstox-core.version>
     </properties>
 
@@ -128,7 +129,19 @@
                 <artifactId>snakeyaml</artifactId>
                 <version>${snakeyaml.version}</version>
             </dependency>
-          <!-- Pin xercesImpl to resolve CVE-2022-2343   -->
+            <!-- pin the velocity-engine to remove false positive for CVE-2024-47554 -->
+            <dependency>
+                <groupId>org.apache.velocity</groupId>
+                <artifactId>velocity-engine-core</artifactId>
+                <version>2.4</version>
+            </dependency>
+            <!-- Pin commons-io to resolve CVE-2024-47554   -->
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.14.0</version>
+            </dependency>
+            <!-- Pin xercesImpl to resolve CVE-2022-2343   -->
             <dependency>
                 <groupId>xerces</groupId>
                 <artifactId>xercesImpl</artifactId>
@@ -139,6 +152,58 @@
                 <groupId>org.apache.slider</groupId>
                 <artifactId>slider-core</artifactId>
                 <version>0.92.0-incubating</version>
+            </dependency>
+            <!-- pin dependency to fix cve -->
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>${snappy.java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.zookeeper</groupId>
+                <artifactId>zookeeper</artifactId>
+                <version>3.7.2</version>
+            </dependency>
+            <!-- pin dependency to fix cve-->
+            <dependency>
+                <groupId>com.nimbusds</groupId>
+                <artifactId>nimbus-jose-jwt</artifactId>
+                <version>9.37.2</version>
+            </dependency>
+            <!-- pin dependency to fix cve-->
+            <dependency>
+                <groupId>com.squareup.okio</groupId>
+                <artifactId>okio</artifactId>
+                <version>3.4.0</version>
+            </dependency>
+            <!-- pin hbase and exclude commons-httpclient to fix cve -->
+            <dependency>
+                <groupId>org.apache.hbase</groupId>
+                <artifactId>hbase-server</artifactId>
+                <version>1.1.1</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>commons-httpclient</groupId>
+                        <artifactId>commons-httpclient</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <!-- pin aircompressor to fix cve -->
+            <dependency>
+                <groupId>io.airlift</groupId>
+                <artifactId>aircompressor</artifactId>
+                <version>0.27</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.calcite.avatica</groupId>
+                <artifactId>avatica-core</artifactId>
+                <version>1.22.0</version>
+            </dependency>
+            <!-- pin tomcat-embed to fix cve -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>8.5.100</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -236,12 +301,12 @@
         <dependency>
             <groupId>org.apache.calcite</groupId>
             <artifactId>calcite-core</artifactId>
-            <version>1.11.0</version>
+            <version>1.22.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.calcite</groupId>
             <artifactId>calcite-druid</artifactId>
-            <version>1.11.0</version>
+            <version>1.22.0</version>
         </dependency>
         <dependency>
             <groupId>commons-collections</groupId>
