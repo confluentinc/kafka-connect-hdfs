@@ -229,6 +229,12 @@
             <groupId>io.confluent</groupId>
             <artifactId>kafka-connect-storage-core</artifactId>
             <version>${kafka.connect.storage.common.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.confluent</groupId>
+                    <artifactId>kafka-connect-protobuf-converter</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
