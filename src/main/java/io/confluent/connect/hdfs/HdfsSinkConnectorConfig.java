@@ -15,12 +15,12 @@
 
 package io.confluent.connect.hdfs;
 
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 import io.confluent.connect.hdfs.orc.OrcFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import io.confluent.connect.hdfs.parquet.ParquetFormat;
 import io.confluent.connect.hdfs.string.StringFormat;
 import org.apache.commons.lang.StringUtils;
@@ -402,10 +402,14 @@ public class HdfsSinkConnectorConfig extends StorageSinkConnectorConfig {
     this.url = extractUrl();
     try {
       String topicRegex = getString(TOPIC_CAPTURE_GROUPS_REGEX_CONFIG);
-      this.topicRegexCaptureGroup = topicRegex != null ? Pattern.compile(topicRegex) : null;
+      if (topicRegex != null) {
+        this.topicRegexCaptureGroup = Pattern.compile(topicRegex);
+      } else {
+        this.topicRegexCaptureGroup = null;
+      }
     } catch (PatternSyntaxException e) {
       throw new ConfigException(
-          TOPIC_CAPTURE_GROUPS_REGEX_CONFIG + " is an invalid regex pattern: ",
+          TOPIC_CAPTURE_GROUPS_REGEX_CONFIG + " is an invalid regex pattern: " + e.getMessage(),
           e
       );
     }
