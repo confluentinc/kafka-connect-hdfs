@@ -82,7 +82,6 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
             configException.getMessage());
   }
 
-  @Test
   public void testValidRegexCaptureGroup() {
     String topic = "topica";
     String topicDir = "topic.another.${topic}.again";
@@ -172,15 +171,52 @@ public class HdfsSinkConnectorConfigTest extends TestWithMiniDFSCluster {
     connectorConfig = new HdfsSinkConnectorConfig(properties);
   }
 
-  @Test(expected = ConfigException.class)
-  public void testInvalidRegexCaptureGroupDoesntMatchTopic() {
+  @Test
+  public void testRegexDoesNotFullyMatchButTopicDirUsesOnlyTopicPlaceholder() {
     String topic = "topica";
-    String topicDir = "topic.another.${topic}.again";
-
-    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "[a-z]");
-    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDir);
+    String topicDirPattern = "logs/${topic}/data";
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "[a-z]+");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDirPattern);
     connectorConfig = new HdfsSinkConnectorConfig(properties);
-    connectorConfig.getTopicsDirFromTopic(topic);
+
+    String expectedDir = "logs/topica/data";
+    assertEquals(expectedDir, connectorConfig.getTopicsDirFromTopic(topic));
+  }
+
+  @Test
+  public void testRegexDoesNotMatchAndTopicDirUsesCaptureGroupsShouldThrow() {
+    String topic = "this_topic_will_not_match_pattern";
+    String topicDirPattern = "groups/${1}/data";
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "(\\d+)");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDirPattern);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+    ConfigException ex = assertThrows(ConfigException.class, () -> {
+      connectorConfig.getTopicsDirFromTopic(topic);
+    });
+
+    assertTrue(
+        "Exception message should indicate topic-regex mismatch",
+        ex.getMessage().contains("does not fully match the specified regex")
+            || ex.getMessage().contains("Requested regex group 1 is not available")
+    );
+  }
+
+  @Test
+  public void testRegexMatchesButTopicDirUsesNonExistentCaptureGroupShouldThrow() {
+    String topic = "data-set-alpha";
+    String topicDirPattern = "output/${1}/${2}";
+
+    properties.put(HdfsSinkConnectorConfig.TOPIC_CAPTURE_GROUPS_REGEX_CONFIG, "data-set-([a-z]+)");
+    properties.put(StorageCommonConfig.TOPICS_DIR_CONFIG, topicDirPattern);
+    connectorConfig = new HdfsSinkConnectorConfig(properties);
+
+    ConfigException ex = assertThrows(ConfigException.class, () -> {
+      connectorConfig.getTopicsDirFromTopic(topic);
+    });
+    assertTrue(
+        "Exception message should indicate missing regex group",
+        ex.getMessage().contains("actually had 1 capture groups")
+    );
   }
 
   @Test(expected = ConfigException.class)

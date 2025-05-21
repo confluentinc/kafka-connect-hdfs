@@ -15,10 +15,9 @@
 
 package io.confluent.connect.hdfs.filter;
 
+import com.google.re2j.Matcher;
 import org.apache.hadoop.fs.Path;
 import org.apache.kafka.common.TopicPartition;
-
-import java.util.regex.Matcher;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConstants;
 
