@@ -24,7 +24,7 @@
     </parent>
 
     <artifactId>kafka-connect-hdfs</artifactId>
-    <version>10.1.19-SNAPSHOT</version>
+    <version>10.1.19</version>
     <packaging>jar</packaging>
     <name>kafka-connect-hdfs</name>
     <organization>
@@ -48,7 +48,7 @@
         <connection>scm:git:git://github.com/confluentinc/kafka-connect-hdfs.git</connection>
         <developerConnection>scm:git:git@github.com:confluentinc/kafka-connect-hdfs.git</developerConnection>
         <url>https://github.com/confluentinc/kafka-connect-hdfs</url>
-        <tag>10.1.x</tag>
+        <tag>v10.1.19</tag>
     </scm>
 
     <properties>
