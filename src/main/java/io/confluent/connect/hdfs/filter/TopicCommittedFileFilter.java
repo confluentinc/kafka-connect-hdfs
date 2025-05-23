@@ -15,11 +15,10 @@
 
 package io.confluent.connect.hdfs.filter;
 
+import com.google.re2j.Matcher;
 import org.apache.hadoop.fs.Path;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConstants;
-
-import java.util.regex.Matcher;
 
 public class TopicCommittedFileFilter extends CommittedFileFilter {
   private String topic;
