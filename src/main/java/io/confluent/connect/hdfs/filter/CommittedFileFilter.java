@@ -17,11 +17,9 @@ package io.confluent.connect.hdfs.filter;
 
 import io.confluent.connect.hdfs.HdfsSinkConnectorConstants;
 
+import com.google.re2j.Matcher;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-
-import java.util.regex.Matcher;
-
 
 public class CommittedFileFilter implements PathFilter {
   @Override
