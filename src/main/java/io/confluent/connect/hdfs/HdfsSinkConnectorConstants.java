@@ -15,7 +15,7 @@
 
 package io.confluent.connect.hdfs;
 
-import java.util.regex.Pattern;
+import com.google.re2j.Pattern;
 
 public class HdfsSinkConnectorConstants {
 
