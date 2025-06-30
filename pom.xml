@@ -205,6 +205,12 @@
                 <artifactId>tomcat-embed-core</artifactId>
                 <version>8.5.100</version>
             </dependency>
+            <!-- pin commons-beanutils to resolve CVE-2025-48734 -->
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>1.11.0</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
