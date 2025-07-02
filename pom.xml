@@ -72,7 +72,7 @@
         <jettison.version>1.5.4</jettison.version>
         <snakeyaml.version>2.0</snakeyaml.version>
         <snappy.java.version>1.1.10.4</snappy.java.version>
-        <woodstox-core.version>6.5.0</woodstox-core.version>
+        <woodstox-core.version>7.1.0</woodstox-core.version>
     </properties>
 
     <repositories>
