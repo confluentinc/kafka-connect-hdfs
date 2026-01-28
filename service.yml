@@ -13,6 +13,8 @@ semaphore:
   generate_connect_changelogs: true
   trivy_scan: true
   run_pint_merge: true
+  github_write_targets:
+    - confluentinc/docs-kafka-connect-hdfs
 code_artifact:
   enable: true
   package_paths:
