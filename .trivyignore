@@ -1,1 +1,21 @@
 # See https://aquasecurity.github.io/trivy/v0.56/docs/configuration/filtering/#trivyignore for guidance on adding exceptions for Trivy scanner
+
+# HDFS 2 Sink is deprecated: these CRITICAL findings are suppressed, not remediated.
+
+# io.netty:netty-handler 4.1.118.Final
+CVE-2026-75595 exp:2027-04-22
+
+# org.apache.calcite:calcite-core 1.22.0
+CVE-2022-39135 exp:2027-04-22
+
+# org.apache.derby:derby 10.14.2.0
+CVE-2022-46337 exp:2027-04-22
+
+# org.apache.tomcat.embed:tomcat-embed-core 8.5.100
+CVE-2025-24813 exp:2027-04-22
+CVE-2026-41293 exp:2027-04-22
+CVE-2026-43512 exp:2027-04-22
+CVE-2026-43515 exp:2027-04-22
+CVE-2026-65182 exp:2027-04-22
+CVE-2026-65905 exp:2027-04-22
+CVE-2026-68525 exp:2027-04-22
