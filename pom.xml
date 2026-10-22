@@ -67,6 +67,7 @@
         <commons-net.version>3.9.0</commons-net.version>
         <ivy.version>2.5.2</ivy.version>
         <json-smart.version>2.4.10</json-smart.version>
+        <joda.version>2.15.0</joda.version>
         <libthrift.version>0.14.0</libthrift.version>
         <log4j2-api.version>2.17.1</log4j2-api.version>
         <jettison.version>1.5.4</jettison.version>
@@ -158,6 +159,12 @@
                 <groupId>org.xerial.snappy</groupId>
                 <artifactId>snappy-java</artifactId>
                 <version>${snappy.java.version}</version>
+            </dependency>
+            <!-- pin joda-time for tzdata 2026e (BC/Alberta time zone change) -->
+            <dependency>
+                <groupId>joda-time</groupId>
+                <artifactId>joda-time</artifactId>
+                <version>${joda.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.zookeeper</groupId>
